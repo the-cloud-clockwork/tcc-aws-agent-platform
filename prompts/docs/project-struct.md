@@ -1,4 +1,4 @@
-# tccw-prompt-registry — Project Structure
+# prompt-registry — Project Structure
 
 ## Root
 

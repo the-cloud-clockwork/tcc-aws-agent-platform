@@ -1,9 +1,6 @@
-# tccw-mcp-artifacts
+# mcp-artifacts
 
 > Artifacts MCP Server — universal output pipeline for all agents
-
-[![CI](https://github.com/The-Cloud-Clock-Work/tccw-mcp-artifacts/actions/workflows/ci.yml/badge.svg)](https://github.com/The-Cloud-Clock-Work/tccw-mcp-artifacts/actions/workflows/ci.yml)
-[![SonarQube](https://sonar.homeofanton.com/api/project_badges/measure?project=tccw-mcp-artifacts&metric=alert_status)](https://sonar.homeofanton.com/dashboard?id=tccw-mcp-artifacts)
 
 MCP server that serves as the universal output bus for all platform agents. Every agent output (charts, reports, simulation results, recommendations, images, data exports) is stored to S3 via this server and retrieved by a small artifact ID — implementing the claim-check pattern required by AWS Step Functions' 256 KB payload limit.
 
@@ -47,7 +44,7 @@ EXECUTION CONTROL →  External Executor
 |---|---|---|---|
 | `chart` | `.jsx` | `text/jsx` | React/Recharts JSX component |
 | `report` | `.md` | `text/markdown` | Markdown analysis report |
-| `simulation_result` | `.json` | `application/json` | Simulation results with Pperformance curve, Sharpe ratio, drawdownL curve, Sharpe ratio, drawdown |
+| `simulation_result` | `.json` | `application/json` | Simulation results with performance curve, Sharpe ratio, drawdown |
 | `recommendation` | `.json` | `application/json` | Recommender output (action, target, confidence, rationale) |
 | `image` | `.png` | `image/png` | Base64-encoded PNG (decoded to raw bytes before S3 upload) |
 | `data_export` | `.csv` | `text/csv` | Time-series, allocation, or summary data |
@@ -111,8 +108,6 @@ Agent produces output
     → Full content retrieved from S3
 ```
 
-This is Non-Negotiable Rule #6 of the platform. All agent outputs must be stored in S3; only S3 keys pass through Step Functions.
-
 ## Idempotency
 
 All write operations support an idempotency key to prevent duplicate artifact creation on agent retries:
@@ -143,7 +138,6 @@ Signed URL expiry is 3600 seconds (1 hour), defined in `storage.py`.
 **Docker Compose (recommended — includes LocalStack)**
 
 ```bash
-cd ~/dev/tccw-mcp-artifacts
 docker compose up
 ```
 
@@ -154,17 +148,16 @@ This starts:
 **Docker standalone**
 
 ```bash
-docker build -t tccw-mcp-artifacts .
+docker build -t mcp-artifacts .
 docker run -p 8004:8080 \
   -e AWS_DEFAULT_REGION=eu-west-1 \
   -e S3_BUCKET=platform-artifacts \
-  tccw-mcp-artifacts
+  mcp-artifacts
 ```
 
 **Development (stdio transport)**
 
 ```bash
-cd ~/dev/tccw-mcp-artifacts
 pip install -e ".[dev]"
 mcp-artifacts
 # or
@@ -174,8 +167,6 @@ python -m mcp_artifacts.server
 ## Development
 
 ```bash
-cd ~/dev/tccw-mcp-artifacts
-
 pip install -e ".[dev]"       # Install with dev dependencies
 
 ruff check . && ruff format . # Lint and format
@@ -202,7 +193,7 @@ This server is the output bus for every agent:
 
 ## Deployment
 
-**Production**: ECS Fargate, deployed by `tccw-agent-infra` McpStack CDK stack.
+**Production**: ECS Fargate, deployed by `agent-infra` McpStack CDK stack.
 **Transport**: Streamable HTTP (production), stdio (development).
 **Port: 8004. Container listens on 8080.
 
@@ -232,7 +223,3 @@ tests/
 ## Phase
 
 Phase 1, Plan P06 — Universal output pipeline, required by all Phase 1+ agents.
-
----
-
-*Part of the [The Cloud Clock Work platform](https://github.com/The-Cloud-Clock-Work) | The Cloud Clock Work*

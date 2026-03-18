@@ -1,9 +1,6 @@
-# tccw-agent-core
+# agent-core
 
 > Generic, domain-agnostic platform SDK for building AI agents with the Strands Agents SDK — Blueprint Engine, Execution Modes, Hooks, Observability, Gateway, Memory, Identity, and Policy.
-
-[![CI](https://github.com/The-Cloud-Clock-Work/tccw-agent-core/actions/workflows/ci.yml/badge.svg)](https://github.com/The-Cloud-Clock-Work/tccw-agent-core/actions/workflows/ci.yml)
-[![SonarQube](https://sonar.homeofanton.com/api/project_badges/measure?project=tccw-agent-core&metric=alert_status)](https://sonar.homeofanton.com/dashboard?id=tccw-agent-core)
 
 `agent-core` is a generic Python library for defining, loading, and running AI agents using YAML blueprints with the Strands Agents SDK. It contains no domain-specific knowledge — all domain-specific logic lives in the repos that consume this package.
 
@@ -25,12 +22,9 @@
 
 ```bash
 # From AWS CodeArtifact (production)
-pip install agent-core \
-  --index-url https://tccw-123456789012.d.codeartifact.eu-west-1.amazonaws.com/pypi/tccw-python/simple/
+pip install agent-core
 
 # Development (editable install)
-git clone git@github.com:The-Cloud-Clock-Work/tccw-agent-core.git
-cd tccw-agent-core
 pip install -e ".[dev]"
 ```
 
@@ -60,7 +54,3 @@ pip install -e ".[dev]"
 pytest tests/ -v
 ruff check src/
 ```
-
----
-
-*Part of [The Cloud Clock Work](https://github.com/The-Cloud-Clock-Work) platform*

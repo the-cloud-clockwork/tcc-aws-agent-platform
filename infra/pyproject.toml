@@ -1,5 +1,5 @@
 [project]
-name = "tccw-agent-infra"
+name = "agent-infra"
 version = "0.2.0"
 description = "Generic CDK infrastructure for deploying Strands agents and MCP servers into AWS"
 requires-python = ">=3.12"

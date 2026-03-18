@@ -10,7 +10,7 @@ Generic, domain-agnostic AI agent platform built on AWS Strands Agents SDK, Bedr
 | **Prompt Registry** | `prompts/` | `prompt-registry` | Versioned prompt management with S3 storage and DynamoDB metadata |
 | **Artifacts MCP** | `artifacts/` | `mcp-artifacts` | Universal artifact store — S3 backend with signed URLs and polling |
 | **Agent CLI** | `cli/` | `agent-cli` | CLI for prompt management, strategy validation, and agent graph rendering |
-| **Infrastructure** | `infra/` | `tccw-agent-infra` | CDK stacks: Data, Network, Agent, MCP, Observability, Security |
+| **Infrastructure** | `infra/` | `agent-infra` | CDK stacks: Data, Network, Agent, MCP, Observability, Security |
 
 ## Quick Start
 
@@ -35,10 +35,10 @@ This platform provides the runtime and tooling layer for AI agent systems. Domai
 
 ```
 ┌─────────────────────────────────────────────┐
-│           Domain Repos (e.g. tccw-qitp)     │
+│           Domain Repos                      │
 │  agents / MCPs / risk engine / workflows    │
 ├─────────────────────────────────────────────┤
-│          tccw-aws-agent-platform            │
+│          aws-agent-platform                 │
 │  ┌──────────┐ ┌──────────┐ ┌─────────────┐ │
 │  │ core     │ │ prompts  │ │ artifacts   │ │
 │  │ (lib)    │ │ (lib)    │ │ (MCP)       │ │
@@ -96,4 +96,4 @@ Environments: `dev`, `staging`, `production` (config in `infra/config/`).
 
 ## License
 
-Private — The-Cloud-Clock-Work
+Private

@@ -1,8 +1,6 @@
-# tccw-agent-infra
+# agent-infra
 
 > Generic AWS CDK infrastructure for deploying Strands agents and MCP servers
-
-[![CI](https://github.com/The-Cloud-Clock-Work/tccw-agent-infra/actions/workflows/ci.yml/badge.svg)](https://github.com/The-Cloud-Clock-Work/tccw-agent-infra/actions/workflows/ci.yml)
 
 CDK Python stacks that deploy generic agent platform infrastructure into AWS: data layer (DynamoDB, S3, SQS), networking (VPC, security groups), agent Lambda functions, MCP Fargate services, observability (CloudWatch, X-Ray, SNS), and security (KMS, Secrets Manager, WAF, VPC endpoints).
 
@@ -105,7 +103,3 @@ All cross-stack references use SSM under `/{resource_prefix}/{env}/`. Examples:
 /platform/dev/security/data-key-arn
 /platform/dev/alert-topic-arn
 ```
-
----
-
-*Part of [The Cloud Clock Work](https://github.com/The-Cloud-Clock-Work)*

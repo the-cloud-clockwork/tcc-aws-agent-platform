@@ -1,9 +1,6 @@
-# tccw-prompt-registry
+# prompt-registry
 
 > Prompt Registry — versioned prompt management service
-
-[![CI](https://github.com/The-Cloud-Clock-Work/tccw-prompt-registry/actions/workflows/ci.yml/badge.svg)](https://github.com/The-Cloud-Clock-Work/tccw-prompt-registry/actions/workflows/ci.yml)
-[![SonarQube](https://sonar.homeofanton.com/api/project_badges/measure?project=tccw-prompt-registry&metric=alert_status)](https://sonar.homeofanton.com/dashboard?id=tccw-prompt-registry)
 
 Versioned prompt management service for agent platforms. Stores all agent and MCP prompt text in S3 and exposes a Lambda + API Gateway HTTP API for creation, resolution, promotion, rollback, and diffing. Every prompt is versioned in DynamoDB with a lifecycle (`draft` → `stable` → `deprecated`) and mode-gated access so draft prompts never reach production agents.
 
@@ -127,8 +124,8 @@ The resolver supports three formats for pinning a prompt version:
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `DYNAMODB_TABLE` | Yes | `prompt_registry` | DynamoDB table name (`prompt_registry` in production) |
-| `S3_BUCKET` | Yes | `prompt-registry` | S3 bucket name (`prompt-registry` in production) |
+| `DYNAMODB_TABLE` | Yes | `prompt_registry` | DynamoDB table name |
+| `S3_BUCKET` | Yes | `prompt-registry` | S3 bucket name |
 | `AWS_DEFAULT_REGION` | Yes | — | AWS region (use `eu-west-1` for production) |
 
 ## Usage
@@ -249,13 +246,11 @@ This ensures agents running in production never accidentally consume untested pr
 
 ## Package
 
-Published as `prompt-registry` v0.1.0 to AWS CodeArtifact (`tccw` domain, `tccw-python` repository) for use as a library by platform repos.
+Published as `prompt-registry` v0.1.0 to AWS CodeArtifact for use as a library by platform repos.
 
 ## Development
 
 ```bash
-cd ~/dev/tccw-prompt-registry
-
 # Install with dev dependencies
 pip install -e ".[dev]"
 
@@ -272,7 +267,7 @@ mypy src/
 
 ## Deployment
 
-Deployed as a Lambda function + API Gateway (HTTP proxy integration) via the `tccw-agent-infra` CDK stack (`AgentStack`). The Lambda handler entry point is `prompt_registry.handler.handler`.
+Deployed as a Lambda function + API Gateway (HTTP proxy integration) via the `agent-infra` CDK stack (`AgentStack`). The Lambda handler entry point is `prompt_registry.handler.handler`.
 
 On every push to `main` that modifies `src/` or `pyproject.toml`, the `publish.yml` workflow builds and publishes the package to AWS CodeArtifact automatically.
 
@@ -305,7 +300,3 @@ tests/
 ## Phase
 
 Phase 1 (P04 — Prompt Registry, P09 — Analytics Agent dependency). Required before any Strands agent can be deployed.
-
----
-
-*Part of the [tccw agent platform](https://github.com/The-Cloud-Clock-Work) | The Cloud Clock Work*

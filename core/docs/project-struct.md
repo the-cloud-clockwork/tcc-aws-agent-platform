@@ -1,4 +1,4 @@
-# tccw-agent-core — Project Structure
+# agent-core — Project Structure
 
 ## Root
 
