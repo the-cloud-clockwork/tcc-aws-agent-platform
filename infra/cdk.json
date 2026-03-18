@@ -1,0 +1,20 @@
+{
+  "app": "python3 app.py",
+  "watch": {
+    "include": ["**"],
+    "exclude": [
+      "README.md",
+      "cdk*.json",
+      "requirements*.txt",
+      "source.bat",
+      "**/__pycache__",
+      "tests"
+    ]
+  },
+  "context": {
+    "env": "dev",
+    "account": "835618032093",
+    "region": "eu-west-1",
+    "bedrock_region": "us-west-2"
+  }
+}
