@@ -1,12 +1,16 @@
 """Auto-scaling construct for Fargate services and Lambda provisioned concurrency."""
 from __future__ import annotations
 
-from constructs import Construct
 from aws_cdk import (
     Duration,
+)
+from aws_cdk import (
     aws_ecs as ecs,
+)
+from aws_cdk import (
     aws_lambda as lambda_,
 )
+from constructs import Construct
 
 
 class FargateAutoScaling(Construct):

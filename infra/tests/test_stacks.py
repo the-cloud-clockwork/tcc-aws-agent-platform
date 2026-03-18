@@ -1,14 +1,12 @@
 """CDK tests for all generic platform stacks."""
-import json
-import pytest
 import aws_cdk as cdk
+import pytest
 from aws_cdk import assertions
 
-from stacks.data_stack import DataStack
-from stacks.network_stack import NetworkStack
 from stacks.agent_stack import AgentStack
+from stacks.data_stack import DataStack
 from stacks.mcp_stack import McpStack
-from stacks.observability_stack import ObservabilityStack
+from stacks.network_stack import NetworkStack
 from stacks.security_stack import SecurityStack
 
 
@@ -44,7 +42,10 @@ def _default_config():
         "ssm_root_path": "/platform/dev",
         "execution_mode": "simulation",
         "vpc": {"max_azs": 2, "nat_gateways": 1},
-        "scaling": {"fargate": {"min_tasks": 1, "max_tasks": 2, "target_cpu_percent": 70}, "lambda": {"provisioned_concurrency": 0}},
+        "scaling": {
+            "fargate": {"min_tasks": 1, "max_tasks": 2, "target_cpu_percent": 70},
+            "lambda": {"provisioned_concurrency": 0},
+        },
         "dynamodb": {"billing_mode": "PAY_PER_REQUEST"},
         "s3": {"intelligent_tiering": False, "removal_policy": "DESTROY"},
         "logs": {"retention_days": 14},

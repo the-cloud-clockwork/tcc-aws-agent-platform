@@ -1,10 +1,10 @@
 """VPC Endpoints construct -- reduces NAT Gateway costs and improves security."""
 from __future__ import annotations
 
-from constructs import Construct
 from aws_cdk import (
     aws_ec2 as ec2,
 )
+from constructs import Construct
 
 
 class VpcEndpointsConstruct(Construct):

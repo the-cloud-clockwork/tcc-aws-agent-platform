@@ -1,8 +1,8 @@
 """CDK tests for ObservabilityStack."""
 from __future__ import annotations
 
-import pytest
 import aws_cdk as cdk
+import pytest
 from aws_cdk import assertions
 
 from stacks.observability_stack import ObservabilityStack

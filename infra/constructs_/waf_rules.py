@@ -1,10 +1,10 @@
 """WAF WebACL construct for API Gateway protection."""
 from __future__ import annotations
 
-from constructs import Construct
 from aws_cdk import (
     aws_wafv2 as wafv2,
 )
+from constructs import Construct
 
 
 class WafWebAcl(Construct):

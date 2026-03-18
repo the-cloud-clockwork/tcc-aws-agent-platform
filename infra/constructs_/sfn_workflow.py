@@ -1,15 +1,21 @@
 """SfnWorkflow -- reusable CDK construct: Blueprint YAML to Step Functions state machine."""
 from __future__ import annotations
 
-import yaml
-from constructs import Construct
 import aws_cdk as cdk
+import yaml
 from aws_cdk import (
     Duration,
-    aws_stepfunctions as sfn,
+)
+from aws_cdk import (
     aws_lambda as lambda_,
+)
+from aws_cdk import (
     aws_logs as logs,
 )
+from aws_cdk import (
+    aws_stepfunctions as sfn,
+)
+from constructs import Construct
 
 from constructs_.strands_agent import StrandsAgentTask
 

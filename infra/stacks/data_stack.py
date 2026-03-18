@@ -1,15 +1,22 @@
 """Data stack: S3 buckets, DynamoDB tables, SQS queues."""
-from constructs import Construct
-import aws_cdk as cdk
 from aws_cdk import (
-    Stack,
-    RemovalPolicy,
     Duration,
+    RemovalPolicy,
+    Stack,
+)
+from aws_cdk import (
     aws_dynamodb as dynamodb,
+)
+from aws_cdk import (
     aws_s3 as s3,
+)
+from aws_cdk import (
     aws_sqs as sqs,
+)
+from aws_cdk import (
     aws_ssm as ssm,
 )
+from constructs import Construct
 
 
 class DataStack(Stack):
