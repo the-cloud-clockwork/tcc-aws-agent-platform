@@ -9,7 +9,7 @@ from mcp_artifacts.schemas import ArtifactResult, ArtifactType
 from mcp_artifacts.storage import ArtifactStorage
 
 
-async def get_artifact(  # noqa: S7503 — async required by MCP server framework
+async def get_artifact(
     artifact_id: str,
     storage: ArtifactStorage | None = None,
     catalog: ArtifactCatalog | None = None,

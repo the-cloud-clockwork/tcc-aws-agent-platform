@@ -6,7 +6,6 @@ import pytest
 
 from agent_core.identity.providers import (
     Credential,
-    CredentialError,
     IdentityProvider,
     ProviderRegistry,
 )

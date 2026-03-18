@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from collections import deque
 from pathlib import Path
-from typing import Optional
 
 import typer
 import yaml
@@ -25,7 +24,7 @@ console = Console()
 
 
 def _load_yaml(path: Path) -> dict:
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -154,7 +153,7 @@ def _build_circuit_breaker_section(nodes: list[dict]) -> str | None:
 @graph_app.command("render")
 def render(
     agent_yaml_path: Path = typer.Argument(..., help="Path to agent YAML with multi_agent.pattern=graph"),
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output markdown file path"),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Output markdown file path"),
 ) -> None:
     """Generate ASCII topology diagram from a multi_agent graph YAML.
 

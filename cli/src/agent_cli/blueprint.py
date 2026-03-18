@@ -10,7 +10,6 @@ from pathlib import Path
 import typer
 import yaml
 from rich.console import Console
-from rich.panel import Panel
 from rich.tree import Tree
 
 blueprint_app = typer.Typer(no_args_is_help=True)
@@ -146,5 +145,5 @@ def validate(
 
 def _load_yaml(path: Path) -> dict:
     """Load and parse a YAML file."""
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)

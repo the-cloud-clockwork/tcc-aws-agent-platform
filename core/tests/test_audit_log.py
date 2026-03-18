@@ -5,14 +5,12 @@ and validation logic.
 """
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
 import pytest
 
 from agent_core.observability.audit_log import (
+    DEFAULT_RETENTION_SECONDS,
     AuditLogError,
     AuditLogWriter,
-    DEFAULT_RETENTION_SECONDS,
 )
 
 

@@ -19,8 +19,8 @@ SIGNED_URL_EXPIRY = 3600  # 1 hour
 class ArtifactStorage:
     """Handles S3 put/get and signed URL generation."""
 
-    def __init__(self, s3_client: "S3Client | None" = None, bucket: str = BUCKET_NAME) -> None:
-        self._s3: "S3Client" = s3_client or boto3.client("s3")
+    def __init__(self, s3_client: S3Client | None = None, bucket: str = BUCKET_NAME) -> None:
+        self._s3: S3Client = s3_client or boto3.client("s3")
         self._bucket = bucket
 
     def put_object(self, s3_key: str, body: bytes, content_type: str) -> None:

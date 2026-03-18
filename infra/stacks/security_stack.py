@@ -18,7 +18,6 @@ from aws_cdk import (
     aws_ssm as ssm,
 )
 from constructs import Construct
-
 from constructs_.vpc_endpoints import VpcEndpointsConstruct
 from constructs_.waf_rules import WafWebAcl
 
@@ -94,7 +93,7 @@ class SecurityStack(Stack):
 
         # -- Secrets Manager Secrets (generic placeholders) ----------------
 
-        _rotation_days = config.get("secrets", {}).get("rotation_days", 0)  # noqa: F841 — reserved for rotation policy
+        _rotation_days = config.get("secrets", {}).get("rotation_days", 0)
 
         # Observability API key (e.g. Langfuse)
         self.observability_secret = secretsmanager.Secret(

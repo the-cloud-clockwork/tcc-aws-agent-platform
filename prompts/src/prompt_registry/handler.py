@@ -9,13 +9,10 @@ import re
 import traceback
 from typing import Any
 
-import boto3
-
 from prompt_registry.models import (
     Mode,
     PromptCreateRequest,
     PromptPromoteRequest,
-    PromptResolveResponse,
     PromptRollbackRequest,
     PromptVersion,
     PromptVersionListItem,

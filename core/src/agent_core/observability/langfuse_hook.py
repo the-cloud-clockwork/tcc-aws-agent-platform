@@ -42,7 +42,7 @@ def _get_langfuse_client() -> Any:
 
     Returns None if langfuse is not installed or not configured.
     """
-    global _langfuse_client  # noqa: PLW0603
+    global _langfuse_client
 
     if _langfuse_client is not None:
         return _langfuse_client
@@ -72,7 +72,7 @@ def _get_langfuse_client() -> Any:
 
 def reset_langfuse_client() -> None:
     """Reset the cached Langfuse client. Used in tests."""
-    global _langfuse_client  # noqa: PLW0603
+    global _langfuse_client
     _langfuse_client = None
 
 

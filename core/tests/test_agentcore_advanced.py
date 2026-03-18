@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-import asyncio
 import pytest
 
 from agent_core.agentcore.memory_branching import MemoryBranchManager
-from agent_core.agentcore.streaming import StreamBuffer, StreamEventType, format_sse
 from agent_core.agentcore.multi_tenant import (
     TenantContext,
-    TenantScopedKey,
-    TenantResourceGuard,
     TenantLimitExceeded,
+    TenantResourceGuard,
+    TenantScopedKey,
 )
+from agent_core.agentcore.streaming import StreamBuffer, StreamEventType, format_sse
 
 
 class TestMemoryBranching:

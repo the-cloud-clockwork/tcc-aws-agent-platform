@@ -92,9 +92,8 @@ class TestXRayTracer:
         mock_get_recorder.return_value = mock_recorder
 
         tracer = XRayTracer(service_name="test")
-        with pytest.raises(ValueError, match="boom"):
-            with tracer.subsegment("fail_op"):
-                raise ValueError("boom")
+        with pytest.raises(ValueError, match="boom"), tracer.subsegment("fail_op"):
+            raise ValueError("boom")
 
         mock_subseg.add_exception.assert_called_once()
         mock_recorder.end_subsegment.assert_called_once()

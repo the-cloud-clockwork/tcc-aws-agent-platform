@@ -2,10 +2,10 @@
 
 import typer
 
-from agent_cli.prompt import prompt_app
-from agent_cli.strategy import strategy_app
 from agent_cli.blueprint import blueprint_app
 from agent_cli.graph import graph_app
+from agent_cli.prompt import prompt_app
+from agent_cli.strategy import strategy_app
 
 app = typer.Typer(
     name="agentcli",

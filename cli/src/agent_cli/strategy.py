@@ -6,13 +6,12 @@ Validates strategy YAML files against agent-core StrategyBlueprint Pydantic mode
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import typer
 import yaml
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
+from rich.table import Table
 
 strategy_app = typer.Typer(no_args_is_help=True)
 console = Console()
@@ -28,7 +27,7 @@ def _get_strategies_dir() -> Path:
 
 def _load_yaml(path: Path) -> dict:
     """Load and parse a YAML file."""
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -90,7 +89,7 @@ def validate(
 
 @strategy_app.command("list")
 def list_strategies(
-    directory: Optional[Path] = typer.Option(None, "--dir", help="Strategies directory (default: blueprints/strategies/)"),
+    directory: Path | None = typer.Option(None, "--dir", help="Strategies directory (default: blueprints/strategies/)"),
 ) -> None:
     """List all strategy YAML files in the strategies directory."""
     strategies_dir = directory or _get_strategies_dir()

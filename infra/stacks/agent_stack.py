@@ -20,8 +20,8 @@ from aws_cdk import (
     aws_ssm as ssm,
 )
 from constructs import Construct
-
 from constructs_.auto_scaling import LambdaProvisionedConcurrency
+
 from stacks.data_stack import DataStack
 from stacks.security_stack import SecurityStack
 

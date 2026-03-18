@@ -9,9 +9,6 @@ import pytest
 from moto import mock_aws
 
 from prompt_registry.handler import handler
-from prompt_registry.models import PromptStatus, PromptVersion
-from prompt_registry.registry import PromptRegistry
-from prompt_registry.storage import PromptStorage
 
 TABLE_NAME = "prompt_registry"
 BUCKET_NAME = "prompt-registry"
@@ -61,7 +58,6 @@ def api_env(monkeypatch):
         s3.create_bucket(Bucket=BUCKET_NAME)
 
         # Reload handler module to pick up env vars
-        import importlib
         import prompt_registry.handler as h
         h.TABLE_NAME = TABLE_NAME
         h.BUCKET_NAME = BUCKET_NAME

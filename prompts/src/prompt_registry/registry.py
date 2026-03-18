@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 import boto3
 from boto3.dynamodb.conditions import Key
@@ -32,7 +31,7 @@ class PromptRegistry:
 
     def get_version(
         self, prompt_id: str, version: str
-    ) -> Optional[PromptVersion]:
+    ) -> PromptVersion | None:
         """Get a specific prompt version."""
         resp = self.table.get_item(
             Key={"prompt_id": prompt_id, "version": version}
@@ -52,7 +51,7 @@ class PromptRegistry:
         versions.sort(key=lambda v: _version_sort_key(v.version))
         return versions
 
-    def get_latest_stable(self, prompt_id: str) -> Optional[PromptVersion]:
+    def get_latest_stable(self, prompt_id: str) -> PromptVersion | None:
         """Get the latest stable version for a prompt_id."""
         versions = self.list_versions(prompt_id)
         stable = [v for v in versions if v.status == PromptStatus.STABLE]
@@ -60,7 +59,7 @@ class PromptRegistry:
             return None
         return stable[-1]
 
-    def get_latest_draft(self, prompt_id: str) -> Optional[PromptVersion]:
+    def get_latest_draft(self, prompt_id: str) -> PromptVersion | None:
         """Get the latest draft version for a prompt_id."""
         versions = self.list_versions(prompt_id)
         drafts = [v for v in versions if v.status == PromptStatus.DRAFT]
@@ -70,9 +69,9 @@ class PromptRegistry:
 
     def update_status(
         self, prompt_id: str, version: str, new_status: PromptStatus
-    ) -> Optional[PromptVersion]:
+    ) -> PromptVersion | None:
         """Update the status of a prompt version."""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         try:
             resp = self.table.update_item(
                 Key={"prompt_id": prompt_id, "version": version},
@@ -91,7 +90,7 @@ class PromptRegistry:
                 return None
             raise
 
-    def promote(self, prompt_id: str, version: str) -> Optional[PromptVersion]:
+    def promote(self, prompt_id: str, version: str) -> PromptVersion | None:
         """
         Promote a version to stable.
         Deprecates the current stable version first.
@@ -107,7 +106,7 @@ class PromptRegistry:
 
         return self.update_status(prompt_id, version, PromptStatus.STABLE)
 
-    def rollback(self, prompt_id: str, version: str) -> Optional[PromptVersion]:
+    def rollback(self, prompt_id: str, version: str) -> PromptVersion | None:
         """
         Rollback to a specific version.
         Deprecates the current stable and promotes the target version.
