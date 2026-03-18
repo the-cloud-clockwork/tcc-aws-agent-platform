@@ -1,4 +1,4 @@
-# tccw-agent-cli — Project Structure
+# agent-cli — Project Structure
 
 ## Root
 

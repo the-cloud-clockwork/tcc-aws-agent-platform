@@ -1,4 +1,4 @@
-# tccw-mcp-artifacts — Project Structure
+# mcp-artifacts — Project Structure
 
 ## Root
 

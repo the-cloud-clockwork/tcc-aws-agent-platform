@@ -1,5 +1,5 @@
 [project]
-name = "tccw-aws-agent-platform"
+name = "aws-agent-platform"
 version = "0.1.0"
 description = "AWS AI Agent Platform — monorepo workspace"
 requires-python = ">=3.12"

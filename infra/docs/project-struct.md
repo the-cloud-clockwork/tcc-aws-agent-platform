@@ -1,12 +1,12 @@
-# tccw-agent-infra — Project Structure
+# agent-infra — Project Structure
 
 ## Root
 
 | File | Purpose |
 |---|---|
-| `pyproject.toml` | Package `tccw-agent-infra` v0.2.0. Deps: `aws-cdk-lib>=2.170`, `constructs`, `pyyaml`. Packages: `stacks/` and `constructs_/` |
+| `pyproject.toml` | Package `agent-infra` v0.2.0. Deps: `aws-cdk-lib>=2.170`, `constructs`, `pyyaml`. Packages: `stacks/` and `constructs_/` |
 | `cdk.json` | CDK app config: `python3 app.py`. Default context: `env=dev`, account `835618032093`, region `eu-west-1` |
-| `app.py` | CDK entrypoint. Loads `config/{env}.yaml`, instantiates all 6 stacks in dependency order, applies global tags. Environment selected via `cdk deploy -c env=staging` |
+| `app.py` | CDK entrypoint. Loads `config/{env}.yaml`, instantiates all 6 stacks in dependency sequence, applies global tags. Environment selected via `cdk deploy -c env=staging` |
 | `CLAUDE.md` | Agent instructions |
 | `README.md` | Stack descriptions, deployment guide, multi-env config reference |
 
@@ -74,6 +74,6 @@ All configs define the same tables, buckets, agents, and MCPs. `resource_prefix`
 | File | Coverage |
 |---|---|
 | `test_stacks.py` | 10 tests — DataStack (4 tables, 3 buckets, 2 queues), NetworkStack (VPC, 2 SGs), AgentStack (3 Lambdas, runtime/arch/timeout), McpStack (2 ECS services, Cloud Map namespace) |
-| `test_multi_env.py` | ~17 tests — config validation across all 3 envs: required keys, mode correctness, WAF disabled in dev, production has higher scaling, no "qitp" in config, `resource_prefix` is "platform" everywhere. Stack synthesis: NAT count and WAF WebACL count match config |
+| `test_multi_env.py` | ~17 tests — config validation across all 3 envs: required keys, mode correctness, WAF disabled in dev, production has higher scaling, no domain-specific terms in config, `resource_prefix` is "platform" everywhere. Stack synthesis: NAT count and WAF WebACL count match config |
 | `test_observability_stack.py` | 5 tests — SNS topic, dashboard, X-Ray group naming, log group, SSM parameter |
 | `test_security_stack.py` | 11 tests — 3 KMS keys with rotation, Secrets Manager with CMK, WAF rules (rate limit, managed rules), VPC endpoints (≥8), SSM exports |

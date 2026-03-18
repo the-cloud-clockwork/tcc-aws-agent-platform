@@ -1,21 +1,16 @@
-# tccw-agent-cli
+# agent-cli
 
 > Agent CLI tool for prompt management, strategy validation, and graph rendering
 
-[![CI](https://github.com/The-Cloud-Clock-Work/tccw-agent-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/The-Cloud-Clock-Work/tccw-agent-cli/actions/workflows/ci.yml)
-[![SonarQube](https://sonar.homeofanton.com/api/project_badges/measure?project=tccw-agent-cli&metric=alert_status)](https://sonar.homeofanton.com/dashboard?id=tccw-agent-cli)
-
-`agentcli` is the developer CLI for the tccw agent platform. It provides commands to push and manage prompt templates in the Prompt Registry, validate agent and strategy blueprints against Pydantic schemas, list and promote strategies, and render ASCII topology diagrams from multi-agent graph blueprints. It is used locally by developers and in CI/CD pipelines to enforce schema correctness before any blueprint reaches a deployed agent.
+`agentcli` is the developer CLI for the agent platform. It provides commands to push and manage prompt templates in the Prompt Registry, validate agent and strategy blueprints against Pydantic schemas, list and promote strategies, and render ASCII topology diagrams from multi-agent graph blueprints. It is used locally by developers and in CI/CD pipelines to enforce schema correctness before any blueprint reaches a deployed agent.
 
 ## Installation
 
 ```bash
 # From AWS CodeArtifact (pip)
-pip install agent-cli --index-url https://tccw-835618032093.d.codeartifact.eu-west-1.amazonaws.com/pypi/tccw-python/simple/
+pip install agent-cli
 
 # From source
-git clone git@github.com:The-Cloud-Clock-Work/tccw-agent-cli.git
-cd tccw-agent-cli
 pip install -e ".[dev]"
 ```
 
@@ -52,7 +47,7 @@ agentcli blueprint validate blueprints/strategies/gap_momentum.yaml
 
 ### prompt
 
-Manage prompt templates in the Prompt Registry (tccw-prompt-registry). All commands communicate with the registry API over HTTP.
+Manage prompt templates in the Prompt Registry. All commands communicate with the registry API over HTTP.
 
 ```bash
 # Upload a prompt template
@@ -148,7 +143,7 @@ Developer / CI Pipeline
         v
   agentcli (this repo)
   ├── blueprint lint/validate  →  agent_core.blueprints.{agent,strategy}.{AgentBlueprint,StrategyBlueprint}
-  ├── prompt push/get/list/    →  tccw-prompt-registry API (HTTP)
+  ├── prompt push/get/list/    →  prompt-registry API (HTTP)
   │        diff/promote/rollback
   ├── strategy validate/list/  →  agent_core.blueprints.strategy.StrategyBlueprint
   │        promote
@@ -252,8 +247,6 @@ multi_agent:
 ## Development
 
 ```bash
-cd ~/dev/tccw-agent-cli
-
 # Install with dev dependencies
 pip install -e ".[dev]"
 
@@ -286,7 +279,3 @@ Tests use `typer.testing.CliRunner` for CLI integration tests and `unittest.mock
 ## Phase
 
 Phase 1 (P07) — Developer tooling for blueprint validation, prompt lifecycle management, strategy operations, and multi-agent graph visualization.
-
----
-
-*Part of the [The Cloud Clock Work platform](https://github.com/The-Cloud-Clock-Work) | The Cloud Clock Work*
