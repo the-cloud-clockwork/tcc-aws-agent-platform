@@ -2,12 +2,12 @@
 
 > **Generic, domain-agnostic AI agent platform.**
 > This monorepo contains the control plane: Blueprint Engine, Prompt Registry, Artifacts MCP, CLI, and CDK infrastructure.
-> Domain-specific code (QITP agents, MCPs, risk engine) lives in `tccw-qitp`.
+> Domain-specific code lives in separate domain repos.
 
 ## Repository Structure
 
 ```
-tccw-aws-agent-platform/          ← THIS REPO
+aws-agent-platform/               ← THIS REPO
 ├── core/                          agent-core library (CodeArtifact: agent-core)
 │   ├── src/agent_core/            Blueprint Engine, execution modes, hooks, schemas, gateway, memory, identity, policy
 │   └── tests/
@@ -32,14 +32,6 @@ tccw-aws-agent-platform/          ← THIS REPO
 └── .github/workflows/             CI/CD pipelines
 ```
 
-## Two-Repo Architecture
-
-| Repo | GitHub | Purpose |
-|------|--------|---------|
-| `tccw-aws-agent-platform` | `The-Cloud-Clock-Work/tccw-aws-agent-platform` | Generic platform — agent runtime, prompt management, artifacts, infra |
-| `tccw-qitp` | `The-Cloud-Clock-Work/tccw-qitp` | Domain-specific — QITP agents, 8 MCP servers, risk engine, simulation, dashboard |
-| `tccw-strand-package` | `The-Cloud-Clock-Work/tccw-strand-package` | Specs, plans, design docs (control repo) |
-
 ## Components
 
 | Component | Package | Type | Dependencies |
@@ -48,15 +40,15 @@ tccw-aws-agent-platform/          ← THIS REPO
 | `prompts/` | `prompt-registry` | Python library (CodeArtifact) | boto3, pydantic |
 | `artifacts/` | `mcp-artifacts` | MCP server (Docker) | mcp[server], boto3, pydantic, uvicorn |
 | `cli/` | `agent-cli` | CLI tool (pip) | typer, rich, httpx, pyyaml, agent-core |
-| `infra/` | `tccw-agent-infra` | CDK stacks | aws-cdk-lib, constructs, pyyaml |
+| `infra/` | `agent-infra` | CDK stacks | aws-cdk-lib, constructs, pyyaml |
 
 ## Domain Isolation
 
 This repo is **domain-agnostic**. Hard rules:
 
-- **Zero `qitp_*` imports** — No module in this repo may import from any `qitp_*` package
-- **No domain-specific terms** — No ticker symbols, broker names, trading terminology in source code
-- **Multi-tenant ready** — The platform onboards any workflow type, not just trading
+- **Zero domain imports** — No module in this repo may import from any domain-specific package
+- **No domain-specific terms** — No domain terminology in source code
+- **Multi-tenant ready** — The platform onboards any workflow type
 
 ## Development
 
@@ -111,8 +103,8 @@ cdk deploy -c env=dev
 | Account | `123456789012` |
 | Primary Region | `eu-west-1` |
 | Bedrock Region | `us-west-2` |
-| CodeArtifact Domain | `tccw` |
-| CodeArtifact Repo | `tccw-python` |
+| CodeArtifact Domain | `platform` |
+| CodeArtifact Repo | `platform-python` |
 | SonarQube | `sonar.homeofanton.com` |
 
 ## CI/CD
@@ -131,4 +123,4 @@ cdk deploy -c env=dev
 
 - Python packages: `agent_core`, `prompt_registry`, `mcp_artifacts`, `agent_cli`
 - CDK stacks: `DataStack`, `NetworkStack`, `AgentStack`, `McpStack`, `ObservabilityStack`, `SecurityStack`
-- No `qitp_` prefix anywhere in this repo
+- No domain-specific prefix anywhere in this repo
