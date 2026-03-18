@@ -1,0 +1,107 @@
+# Dev environment configuration
+# Usage: cdk deploy -c env=dev
+
+environment: dev
+account: "123456789012"
+region: eu-west-1
+bedrock_region: us-west-2
+
+resource_prefix: "platform"
+service_discovery_namespace: "platform.local"
+ssm_root_path: "/platform/dev"
+
+execution_mode: simulation
+
+vpc:
+  max_azs: 2
+  nat_gateways: 1
+
+scaling:
+  fargate:
+    min_tasks: 1
+    max_tasks: 2
+    target_cpu_percent: 70
+  lambda:
+    provisioned_concurrency: 0  # No provisioned concurrency in dev
+
+dynamodb:
+  billing_mode: PAY_PER_REQUEST  # On-demand for dev (unpredictable usage)
+
+s3:
+  intelligent_tiering: false  # Not worth it for dev
+  removal_policy: DESTROY
+
+logs:
+  retention_days: 14
+
+mcp_services:
+  cpu: 256
+  memory_mib: 512
+  desired_count: 1
+
+lambda_agents:
+  memory_size: 1024
+  timeout_minutes: 15
+
+waf:
+  enabled: false  # No WAF in dev
+
+secrets:
+  rotation_days: 0  # No rotation in dev
+
+# Data resources — stacks read from config, not hardcoded
+tables:
+  artifacts:
+    partition_key: artifact_id
+  audit_log:
+    partition_key: audit_id
+    sort_key: timestamp
+  prompt_registry:
+    partition_key: prompt_id
+    sort_key: version
+  run_history:
+    partition_key: run_date
+    sort_key: execution_id
+
+buckets:
+  - artifacts
+  - historical-data
+  - prompt-registry
+
+agents:
+  - name: research
+    memory: 1024
+    timeout: 900
+  - name: strategy
+    memory: 1024
+    timeout: 900
+  - name: recommender
+    memory: 1024
+    timeout: 900
+
+mcps:
+  - name: artifacts
+    port: 8000
+    cpu: 256
+    memory: 512
+  - name: data
+    port: 8000
+    cpu: 256
+    memory: 512
+
+# Observability configuration
+observability:
+  log_groups:
+    agents: []  # Auto-populated from agents list
+    mcps: []    # Auto-populated from mcps list
+  metrics:
+    - TokenCostUSD
+    - PipelineStarted
+    - PipelineCompleted
+    - PipelineFailed
+    - AgentLatencyMs
+
+tags:
+  Environment: dev
+  Project: agent-infra
+  CostCenter: platform-dev
