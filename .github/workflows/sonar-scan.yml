@@ -11,8 +11,9 @@ jobs:
     uses: The-Cloud-Clock-Work/.github/.github/workflows/sonar-reusable.yml@main
     with:
       python_version: "3.12"
-      test_command: |
+      install_command: |
         pip install -e "core/[dev]" -e "prompts/[dev]" -e "artifacts/[dev]" -e "cli/[dev]" -e "infra/[dev]"
+      test_command: |
         cd core && pytest --cov=src/agent_core --cov-report=xml -q && cd ..
         cd prompts && pytest --cov=src/prompt_registry --cov-report=xml -q && cd ..
         cd artifacts && pytest --cov=src/mcp_artifacts --cov-report=xml -q && cd ..
