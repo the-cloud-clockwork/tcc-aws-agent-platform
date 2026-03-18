@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Optional
 
 from prompt_registry.models import (
     DRAFT_ALLOWED_MODES,
@@ -21,7 +20,7 @@ class ParsedRef:
     """Result of parsing a prompt reference string."""
 
     prompt_id: str
-    version: Optional[str] = None
+    version: str | None = None
 
 
 def parse_prompt_ref(ref: str) -> ParsedRef:
@@ -63,7 +62,7 @@ class PromptResolver:
         self,
         ref: str,
         mode: Mode = Mode.PRODUCTION,
-    ) -> Optional[PromptResolveResponse]:
+    ) -> PromptResolveResponse | None:
         """
         Resolve a prompt reference to its text content.
 
@@ -78,7 +77,7 @@ class PromptResolver:
 
     def _resolve_pinned(
         self, parsed: ParsedRef, mode: Mode
-    ) -> Optional[PromptResolveResponse]:
+    ) -> PromptResolveResponse | None:
         """Resolve a pinned version reference."""
         assert parsed.version is not None
 
@@ -110,7 +109,7 @@ class PromptResolver:
 
     def _resolve_latest(
         self, parsed: ParsedRef, mode: Mode
-    ) -> Optional[PromptResolveResponse]:
+    ) -> PromptResolveResponse | None:
         """Resolve to the latest version based on mode."""
         # Always try stable first
         prompt = self.registry.get_latest_stable(parsed.prompt_id)

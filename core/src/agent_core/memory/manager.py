@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import UTC
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -267,6 +268,6 @@ def get_memory_manager() -> MemoryManager:
 
 
 def _now_iso() -> str:
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()

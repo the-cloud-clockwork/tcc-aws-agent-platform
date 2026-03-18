@@ -4,13 +4,11 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from agent_core.gateway.target_registry import (
-    GatewayTarget,
-    TargetType,
     AuthType,
+    GatewayTarget,
     TargetRegistry,
+    TargetType,
 )
 
 

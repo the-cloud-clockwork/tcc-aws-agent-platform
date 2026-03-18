@@ -7,14 +7,13 @@ from __future__ import annotations
 
 import difflib
 from pathlib import Path
-from typing import Optional
 
 import httpx
 import typer
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
 from rich.syntax import Syntax
+from rich.table import Table
 
 prompt_app = typer.Typer(no_args_is_help=True)
 console = Console()
@@ -66,7 +65,7 @@ def push(
 @prompt_app.command("get")
 def get(
     id: str = typer.Argument(..., help=_PROMPT_ID_HELP),
-    version: Optional[str] = typer.Option(None, "--version", help="Specific version (default: latest stable)"),
+    version: str | None = typer.Option(None, "--version", help="Specific version (default: latest stable)"),
 ) -> None:
     """Fetch and display a prompt template from the registry."""
     url = f"/api/v1/prompts/{id}"

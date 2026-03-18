@@ -1,9 +1,10 @@
 """Tests for MCP server module — tool registry and dispatch."""
 import json
-import pytest
 from unittest.mock import AsyncMock, patch
 
-from mcp_artifacts.server import TOOLS, handle_list_tools, handle_call_tool
+import pytest
+
+from mcp_artifacts.server import TOOLS, handle_call_tool, handle_list_tools
 
 
 class TestToolRegistry:

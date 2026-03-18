@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
-import pytest
-
-from agent_core.memory.manager import MemoryManager, _InMemoryFallback, get_memory_manager
+from agent_core.memory.manager import MemoryManager, _InMemoryFallback
 
 
 class TestInMemoryFallback:

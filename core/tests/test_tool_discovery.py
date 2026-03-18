@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
-
-from agent_core.gateway.tool_discovery import ToolDiscovery, DiscoveredTool
+from agent_core.gateway.tool_discovery import ToolDiscovery
 
 
 class TestToolDiscovery:

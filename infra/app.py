@@ -8,13 +8,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import yaml
 import aws_cdk as cdk
-
-from stacks.data_stack import DataStack
-from stacks.network_stack import NetworkStack
+import yaml
 from stacks.agent_stack import AgentStack
+from stacks.data_stack import DataStack
 from stacks.mcp_stack import McpStack
+from stacks.network_stack import NetworkStack
 from stacks.observability_stack import ObservabilityStack
 from stacks.security_stack import SecurityStack
 

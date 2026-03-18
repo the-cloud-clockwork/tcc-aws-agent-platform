@@ -16,7 +16,7 @@ from mcp_artifacts.schemas import (
 from mcp_artifacts.storage import ArtifactStorage
 
 
-async def create_artifact(  # noqa: S7503 — async required by MCP server framework
+async def create_artifact(
     type: str,
     content: str,
     metadata: dict[str, Any] | None = None,

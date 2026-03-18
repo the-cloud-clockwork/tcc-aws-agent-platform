@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import pytest
-
 from agent_core.memory.session_bridge import (
-    sfn_execution_id_to_session_id,
-    session_id_to_sfn_execution_arn,
     extract_session_metadata,
+    session_id_to_sfn_execution_arn,
+    sfn_execution_id_to_session_id,
 )
 
 

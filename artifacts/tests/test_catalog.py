@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from mcp_artifacts.catalog import ArtifactCatalog
 from mcp_artifacts.tools.create import create_artifact
 from mcp_artifacts.tools.list_artifacts import list_artifacts
 

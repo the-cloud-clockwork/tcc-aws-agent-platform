@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 from typer.testing import CliRunner
 
+from agent_cli.graph import _build_ascii_diagram, _build_circuit_breaker_section, _build_edge_table, _build_node_table
 from agent_cli.main import app
-from agent_cli.graph import _build_ascii_diagram, _build_node_table, _build_edge_table, _build_circuit_breaker_section
 
 runner = CliRunner()
 

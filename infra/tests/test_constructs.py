@@ -7,7 +7,6 @@ from aws_cdk import (
 from aws_cdk import (
     aws_lambda as lambda_,
 )
-
 from constructs_.sfn_workflow import SfnWorkflow
 from constructs_.strands_agent import StrandsAgentTask
 

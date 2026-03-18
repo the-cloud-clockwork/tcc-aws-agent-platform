@@ -1,8 +1,6 @@
 """Tests for CostTracker."""
 from __future__ import annotations
 
-import pytest
-
 from agent_core.observability.cost_tracker import CostTracker, TokenCost
 
 

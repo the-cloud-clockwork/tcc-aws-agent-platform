@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import json
 from unittest.mock import MagicMock, patch
 
-import pytest
 import httpx
+import pytest
 
 from agent_core.gateway.client import (
     GatewayClient,
-    GatewayError,
     GatewayPolicyDeniedError,
 )
 

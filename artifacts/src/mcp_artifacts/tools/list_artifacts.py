@@ -8,7 +8,7 @@ from mcp_artifacts.catalog import ArtifactCatalog
 from mcp_artifacts.schemas import ArtifactMeta, ArtifactType
 
 
-async def list_artifacts(  # noqa: S7503 — async required by MCP server framework
+async def list_artifacts(
     type: str | None = None,
     agent_id: str | None = None,
     date: str | None = None,

@@ -32,7 +32,7 @@ jobs:
         run: pip install -e ".[dev]"
 
       - name: Lint
-        run: ruff check stacks/ constructs/ tests/
+        run: ruff check stacks/ constructs_/ tests/
 
       - name: Test
         run: pytest -v

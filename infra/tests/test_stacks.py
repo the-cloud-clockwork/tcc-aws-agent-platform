@@ -2,7 +2,6 @@
 import aws_cdk as cdk
 import pytest
 from aws_cdk import assertions
-
 from stacks.agent_stack import AgentStack
 from stacks.data_stack import DataStack
 from stacks.mcp_stack import McpStack

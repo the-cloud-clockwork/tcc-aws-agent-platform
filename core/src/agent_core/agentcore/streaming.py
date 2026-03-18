@@ -13,11 +13,11 @@ In Production: AgentCore Runtime native streaming.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
+from collections.abc import AsyncIterator
 from datetime import datetime
 from enum import Enum
-from typing import Any, AsyncIterator
+from typing import Any
 
 from pydantic import BaseModel, Field
 

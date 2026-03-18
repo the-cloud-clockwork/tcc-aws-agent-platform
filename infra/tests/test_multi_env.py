@@ -7,7 +7,6 @@ import aws_cdk as cdk
 import pytest
 import yaml
 from aws_cdk import assertions
-
 from stacks.network_stack import NetworkStack
 from stacks.security_stack import SecurityStack
 

@@ -26,8 +26,9 @@ from __future__ import annotations
 import functools
 import logging
 import os
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
-from typing import Any, Callable, Generator
+from typing import Any
 
 logger = logging.getLogger("agent_core.xray")
 
@@ -40,7 +41,7 @@ def _get_recorder() -> Any:
 
     Returns None if aws-xray-sdk is not installed or disabled.
     """
-    global _recorder  # noqa: PLW0603
+    global _recorder
 
     if _recorder is not None:
         return _recorder
@@ -63,7 +64,7 @@ def _get_recorder() -> Any:
 
 def reset_recorder() -> None:
     """Reset the cached recorder. Used in tests."""
-    global _recorder  # noqa: PLW0603
+    global _recorder
     _recorder = None
 
 
@@ -79,7 +80,7 @@ class _NoOpSubsegment:
     def add_exception(self, exception: Exception, stack: Any = None) -> None:
         ...  # No-op: X-Ray disabled
 
-    def __enter__(self) -> "_NoOpSubsegment":
+    def __enter__(self) -> _NoOpSubsegment:
         return self
 
     def __exit__(self, *args: Any) -> None:

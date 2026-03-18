@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import pytest
-
 from agent_core.policy.cedar_policies import (
+    CEDAR_SCHEMA,
     CedarPolicy,
     CedarPolicyBuilder,
-    PolicyEffect,
     PolicyAction,
+    PolicyEffect,
     validate_policy_set,
-    CEDAR_SCHEMA,
 )
 
 

@@ -4,14 +4,11 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any
+from datetime import UTC, datetime
+from typing import Any
 
 import boto3
 from boto3.dynamodb.conditions import Attr, Key
-
-if TYPE_CHECKING:
-    from mypy_boto3_dynamodb.service_resource import Table
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +38,7 @@ class ArtifactCatalog:
         idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         """Insert a new catalog entry with status=processing."""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         item: dict[str, Any] = {
             "artifact_id": artifact_id,
             "type": artifact_type,
