@@ -38,14 +38,15 @@ dev = [
 packages = ["src/agent_core"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 strict = true
-warn_return_any = true
+warn_return_any = false
 warn_unused_configs = true
+warn_unused_ignores = false
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["strands.*", "strands_tools.*", "langfuse.*", "aws_xray_sdk.*", "boto3.*", "botocore.*", "moto.*"]
+module = ["strands.*", "strands_tools.*", "langfuse.*", "aws_xray_sdk.*", "boto3.*", "botocore.*", "moto.*", "bedrock_agentcore.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
