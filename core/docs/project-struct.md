@@ -33,7 +33,7 @@ Single import point for the entire library. Re-exports 17 symbols so consumers w
 
 **`loader.py`** — The `BlueprintLoader` reads YAML files from a directory tree, validates them into typed blueprints, and can build a fully wired `strands.Agent` instance. Its `build_strands_agent()` method is the key integration point: it loads the blueprint, checks execution mode permissions, resolves the prompt from the registry, filters MCP tools to only those declared in the blueprint, and returns a ready-to-run agent.
 
-**`strategy.py`** — Defines `StrategyBlueprint` with entry/exit condition trees (`ConditionGroup` of `Condition` objects supporting AND/OR logic), asset scopes, position limits, and required agents/MCPs.
+**`strategy.py`** — Defines `StrategyBlueprint` with entry/exit condition trees (`ConditionGroup` of `Condition` objects supporting AND/OR logic), asset scopes, allocation limits, and required agents/MCPs.
 
 **`workflow.py`** — Defines `WorkflowBlueprint` mapping 1:1 to Step Functions ASL. Contains `WorkflowState` (task/choice/parallel/wait/succeed/fail), `ChoiceRule` for branching, and `TriggerConfig` for EventBridge schedule/event triggers.
 
@@ -101,7 +101,7 @@ Single import point for the entire library. Re-exports 17 symbols so consumers w
 
 ### `identity/` — Credential management
 
-**`providers.py`** — `IdentityProvider` is an abstract base for credential resolution (env vars in Phase 1, AgentCore Identity OAuth/OIDC in Phase 2). `Credential` is the output dataclass. `ProviderRegistry` is a registry pattern so domain repos can register their own providers (e.g., IBKR OAuth).
+**`providers.py`** — `IdentityProvider` is an abstract base for credential resolution (env vars in Phase 1, AgentCore Identity OAuth/OIDC in Phase 2). `Credential` is the output dataclass. `ProviderRegistry` is a registry pattern so domain repos can register their own providers (e.g., third-party OAuth).
 
 ---
 
@@ -137,7 +137,7 @@ Single import point for the entire library. Re-exports 17 symbols so consumers w
 |---|---|
 | `conftest.py` | Shared fixtures: temp blueprint directories with sample YAML, parsed dicts, temp prompt files |
 | `test_agent_blueprint.py` | 9 tests — all AgentBlueprint fields, model config, tools, modes, multi-agent, hooks, minimal required fields |
-| `test_strategy_blueprint.py` | 6 tests — entry/exit condition trees, required agents/MCPs, asset scopes, position limits |
+| `test_strategy_blueprint.py` | 6 tests — entry/exit condition trees, required agents/MCPs, asset scopes, allocation limits |
 | `test_loader.py` | 6 tests — load by ID, load from path, not-found error, workflow state parsing |
 | `test_execution_mode.py` | 6 tests — default simulation, all modes, invalid fallback, mode validation |
 | `test_hooks.py` | 7 tests — ObservabilityHook lifecycle, ConstraintHook trimming and edge cases |
