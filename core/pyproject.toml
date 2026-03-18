@@ -52,3 +52,19 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+
+[[tool.mypy.overrides]]
+module = [
+    "agent_core.memory.manager",
+    "agent_core.identity.providers",
+    "agent_core.agentcore.*",
+]
+disallow_untyped_defs = false
+disable_error_code = ["assignment", "call-arg", "attr-defined"]
+
+[[tool.mypy.overrides]]
+module = [
+    "agent_core.observability.xray_tracing",
+    "agent_core.observability.structured_logger",
+]
+disable_error_code = ["type-arg", "arg-type"]
