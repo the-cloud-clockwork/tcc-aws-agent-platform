@@ -7,35 +7,19 @@ on:
     branches: [main]
 
 jobs:
-  scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install all components
-        run: |
-          pip install -e "core/[dev]"
-          pip install -e "prompts/[dev]"
-          pip install -e "artifacts/[dev]"
-          pip install -e "cli/[dev]"
-          pip install -e "infra/[dev]"
-
-      - name: Run tests with coverage
-        run: |
-          cd core && pytest --cov=src/agent_core --cov-report=xml -q && cd ..
-          cd prompts && pytest --cov=src/prompt_registry --cov-report=xml -q && cd ..
-          cd artifacts && pytest --cov=src/mcp_artifacts --cov-report=xml -q && cd ..
-          cd cli && pytest --cov=src/agent_cli --cov-report=xml -q && cd ..
-          cd infra && pytest --cov-report=xml -q && cd ..
-
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v5
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+  sonar:
+    uses: The-Cloud-Clock-Work/.github/.github/workflows/sonar-reusable.yml@main
+    with:
+      python_version: "3.12"
+      test_command: |
+        pip install -e "core/[dev]" -e "prompts/[dev]" -e "artifacts/[dev]" -e "cli/[dev]" -e "infra/[dev]"
+        cd core && pytest --cov=src/agent_core --cov-report=xml -q && cd ..
+        cd prompts && pytest --cov=src/prompt_registry --cov-report=xml -q && cd ..
+        cd artifacts && pytest --cov=src/mcp_artifacts --cov-report=xml -q && cd ..
+        cd cli && pytest --cov=src/agent_cli --cov-report=xml -q && cd ..
+        cd infra && pytest --cov-report=xml -q && cd ..
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+      CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
