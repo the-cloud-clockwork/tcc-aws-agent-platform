@@ -1,0 +1,55 @@
+name: Publish to CodeArtifact
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component:
+          - { name: core, package: agent-core }
+          - { name: prompts, package: prompt-registry }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: eu-west-1
+
+      - name: Get CodeArtifact token
+        id: codeartifact
+        run: |
+          TOKEN=$(aws codeartifact get-authorization-token \
+            --domain tccw \
+            --domain-owner 835618032093 \
+            --query authorizationToken \
+            --output text)
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Install build tools
+        run: pip install build twine
+
+      - name: Build ${{ matrix.component.package }}
+        working-directory: ${{ matrix.component.name }}
+        run: python -m build
+
+      - name: Publish ${{ matrix.component.package }}
+        working-directory: ${{ matrix.component.name }}
+        env:
+          TWINE_USERNAME: aws
+          TWINE_PASSWORD: ${{ steps.codeartifact.outputs.token }}
+          TWINE_REPOSITORY_URL: https://tccw-835618032093.d.codeartifact.eu-west-1.amazonaws.com/pypi/tccw-python/
+        run: twine upload dist/*
