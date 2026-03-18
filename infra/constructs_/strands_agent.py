@@ -1,12 +1,17 @@
 """StrandsAgentTask -- reusable CDK construct for Step Functions agent invocation."""
-from constructs import Construct
-import aws_cdk as cdk
 from aws_cdk import (
     Duration,
+)
+from aws_cdk import (
     aws_lambda as lambda_,
+)
+from aws_cdk import (
     aws_stepfunctions as sfn,
+)
+from aws_cdk import (
     aws_stepfunctions_tasks as sfn_tasks,
 )
+from constructs import Construct
 
 
 class StrandsAgentTask(Construct):

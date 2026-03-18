@@ -1,19 +1,23 @@
 """MCP stack: ECS Fargate services, ECR repos, Service Discovery."""
-from constructs import Construct
-import aws_cdk as cdk
 from aws_cdk import (
     Stack,
-    Duration,
+)
+from aws_cdk import (
     aws_ec2 as ec2,
+)
+from aws_cdk import (
     aws_ecs as ecs,
-    aws_ecr as ecr,
-    aws_logs as logs,
+)
+from aws_cdk import (
     aws_servicediscovery as sd,
+)
+from aws_cdk import (
     aws_ssm as ssm,
 )
+from constructs import Construct
 
-from constructs_.mcp_service import McpServiceConstruct
 from constructs_.auto_scaling import FargateAutoScaling
+from constructs_.mcp_service import McpServiceConstruct
 
 
 class McpStack(Stack):

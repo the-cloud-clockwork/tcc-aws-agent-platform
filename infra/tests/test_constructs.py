@@ -2,12 +2,14 @@
 import aws_cdk as cdk
 from aws_cdk import (
     Stack,
-    aws_lambda as lambda_,
     assertions,
 )
+from aws_cdk import (
+    aws_lambda as lambda_,
+)
 
-from constructs_.strands_agent import StrandsAgentTask
 from constructs_.sfn_workflow import SfnWorkflow
+from constructs_.strands_agent import StrandsAgentTask
 
 
 class TestStrandsAgentTask:

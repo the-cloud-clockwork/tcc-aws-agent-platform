@@ -3,16 +3,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import aws_cdk as cdk
 import pytest
 import yaml
-import aws_cdk as cdk
 from aws_cdk import assertions
 
-from stacks.data_stack import DataStack
 from stacks.network_stack import NetworkStack
 from stacks.security_stack import SecurityStack
-from stacks.mcp_stack import McpStack
-
 
 CONFIG_DIR = Path(__file__).parent.parent / "config"
 

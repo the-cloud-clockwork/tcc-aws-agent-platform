@@ -1,19 +1,29 @@
 """Agent stack: Lambda functions for each Strands agent."""
-from constructs import Construct
 import aws_cdk as cdk
 from aws_cdk import (
-    Stack,
     Duration,
-    aws_lambda as lambda_,
-    aws_iam as iam,
+    Stack,
+)
+from aws_cdk import (
     aws_ec2 as ec2,
-    aws_ssm as ssm,
+)
+from aws_cdk import (
+    aws_iam as iam,
+)
+from aws_cdk import (
+    aws_lambda as lambda_,
+)
+from aws_cdk import (
     aws_logs as logs,
 )
+from aws_cdk import (
+    aws_ssm as ssm,
+)
+from constructs import Construct
 
+from constructs_.auto_scaling import LambdaProvisionedConcurrency
 from stacks.data_stack import DataStack
 from stacks.security_stack import SecurityStack
-from constructs_.auto_scaling import LambdaProvisionedConcurrency
 
 
 class AgentStack(Stack):

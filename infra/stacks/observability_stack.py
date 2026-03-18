@@ -9,23 +9,39 @@ Includes:
 - X-Ray tracing group
 - Metric alarms for agents and MCPs
 """
-from constructs import Construct
-import aws_cdk as cdk
 from aws_cdk import (
-    Stack,
     Duration,
     RemovalPolicy,
+    Stack,
+)
+from aws_cdk import (
     aws_cloudwatch as cw,
-    aws_lambda as lambda_,
-    aws_ecs as ecs,
-    aws_sns as sns,
+)
+from aws_cdk import (
     aws_cloudwatch_actions as cw_actions,
-    aws_logs as logs,
-    aws_iam as iam,
-    aws_xray as xray,
-    aws_ssm as ssm,
+)
+from aws_cdk import (
+    aws_ecs as ecs,
+)
+from aws_cdk import (
     aws_kms as kms,
 )
+from aws_cdk import (
+    aws_lambda as lambda_,
+)
+from aws_cdk import (
+    aws_logs as logs,
+)
+from aws_cdk import (
+    aws_sns as sns,
+)
+from aws_cdk import (
+    aws_ssm as ssm,
+)
+from aws_cdk import (
+    aws_xray as xray,
+)
+from constructs import Construct
 
 
 class ObservabilityStack(Stack):

@@ -1,20 +1,26 @@
 """Security stack: WAF, Secrets Manager, KMS customer-managed keys."""
 from __future__ import annotations
 
-from constructs import Construct
-import aws_cdk as cdk
 from aws_cdk import (
-    Stack,
-    Duration,
     RemovalPolicy,
-    aws_kms as kms,
-    aws_secretsmanager as secretsmanager,
+    Stack,
+)
+from aws_cdk import (
     aws_ec2 as ec2,
+)
+from aws_cdk import (
+    aws_kms as kms,
+)
+from aws_cdk import (
+    aws_secretsmanager as secretsmanager,
+)
+from aws_cdk import (
     aws_ssm as ssm,
 )
+from constructs import Construct
 
-from constructs_.waf_rules import WafWebAcl
 from constructs_.vpc_endpoints import VpcEndpointsConstruct
+from constructs_.waf_rules import WafWebAcl
 
 
 class SecurityStack(Stack):
@@ -88,7 +94,7 @@ class SecurityStack(Stack):
 
         # -- Secrets Manager Secrets (generic placeholders) ----------------
 
-        rotation_days = config.get("secrets", {}).get("rotation_days", 0)
+        _rotation_days = config.get("secrets", {}).get("rotation_days", 0)  # noqa: F841 — reserved for rotation policy
 
         # Observability API key (e.g. Langfuse)
         self.observability_secret = secretsmanager.Secret(

@@ -1,8 +1,8 @@
 """Tests for the SecurityStack -- WAF, Secrets Manager, KMS, VPC Endpoints."""
 from __future__ import annotations
 
-import pytest
 import aws_cdk as cdk
+import pytest
 from aws_cdk import assertions
 
 from stacks.network_stack import NetworkStack
@@ -20,7 +20,10 @@ def _make_config(env_name: str, waf_enabled: bool = False) -> dict:
         "ssm_root_path": f"/platform/{env_name}",
         "execution_mode": "simulation" if env_name == "dev" else env_name,
         "vpc": {"max_azs": 2, "nat_gateways": 1},
-        "scaling": {"fargate": {"min_tasks": 1, "max_tasks": 2, "target_cpu_percent": 70}, "lambda": {"provisioned_concurrency": 0}},
+        "scaling": {
+            "fargate": {"min_tasks": 1, "max_tasks": 2, "target_cpu_percent": 70},
+            "lambda": {"provisioned_concurrency": 0},
+        },
         "dynamodb": {"billing_mode": "PAY_PER_REQUEST"},
         "s3": {"intelligent_tiering": False, "removal_policy": "DESTROY"},
         "logs": {"retention_days": 14},
