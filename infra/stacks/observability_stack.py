@@ -24,6 +24,7 @@ from aws_cdk import (
     aws_iam as iam,
     aws_xray as xray,
     aws_ssm as ssm,
+    aws_kms as kms,
 )
 
 
@@ -74,11 +75,20 @@ class ObservabilityStack(Stack):
 
         # -- SNS Alert Topic -----------------------------------------------
 
+        alert_key = kms.Key(
+            self,
+            "AlertTopicKey",
+            alias=f"alias/{prefix}-{env_name}-alert-topic",
+            description="KMS key for SNS alert topic encryption",
+            enable_key_rotation=True,
+        )
+
         self.alert_topic = sns.Topic(
             self,
             "AlertTopic",
             topic_name=f"{prefix}-{env_name}-alerts",
             display_name=f"{prefix} {env_name} Alerts",
+            master_key=alert_key,
         )
 
         # Export topic ARN to SSM for other stacks

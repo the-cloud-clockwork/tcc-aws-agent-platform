@@ -11,7 +11,7 @@ import boto3
 from boto3.dynamodb.conditions import Attr, Key
 
 if TYPE_CHECKING:
-    pass
+    from mypy_boto3_dynamodb.service_resource import Table
 
 logger = logging.getLogger(__name__)
 
@@ -116,46 +116,49 @@ class ArtifactCatalog:
         - If no type/agent_id provided, falls back to table scan with filters.
         """
         if artifact_type:
-            kwargs: dict[str, Any] = {
-                "IndexName": "type-created_at-index",
-                "KeyConditionExpression": Key("type").eq(artifact_type),
-                "Limit": limit,
-                "ScanIndexForward": False,
-            }
-            if date:
-                kwargs["KeyConditionExpression"] &= Key("created_at").begins_with(date)
-            if agent_id:
-                kwargs["FilterExpression"] = Attr("agent_id").eq(agent_id)
-            resp = self._table.query(**kwargs)
-
+            resp = self._query_by_type(artifact_type, agent_id, date, limit)
         elif agent_id:
-            kwargs = {
-                "IndexName": "agent_id-created_at-index",
-                "KeyConditionExpression": Key("agent_id").eq(agent_id),
-                "Limit": limit,
-                "ScanIndexForward": False,
-            }
-            if date:
-                kwargs["KeyConditionExpression"] &= Key("created_at").begins_with(date)
-            resp = self._table.query(**kwargs)
-
+            resp = self._query_by_agent(agent_id, date, limit)
         else:
-            scan_kwargs: dict[str, Any] = {"Limit": limit}
-            filters = []
-            if date:
-                filters.append(Attr("created_at").begins_with(date))
-            if filters:
-                combined = filters[0]
-                for f in filters[1:]:
-                    combined &= f
-                scan_kwargs["FilterExpression"] = combined
-            resp = self._table.scan(**scan_kwargs)
+            resp = self._scan_with_filters(date, limit)
 
         items = resp.get("Items", [])
         for item in items:
             if "metadata" in item and isinstance(item["metadata"], str):
                 item["metadata"] = json.loads(item["metadata"])
         return items
+
+    def _query_by_type(
+        self, artifact_type: str, agent_id: str | None, date: str | None, limit: int
+    ) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {
+            "IndexName": "type-created_at-index",
+            "KeyConditionExpression": Key("type").eq(artifact_type),
+            "Limit": limit,
+            "ScanIndexForward": False,
+        }
+        if date:
+            kwargs["KeyConditionExpression"] &= Key("created_at").begins_with(date)
+        if agent_id:
+            kwargs["FilterExpression"] = Attr("agent_id").eq(agent_id)
+        return self._table.query(**kwargs)
+
+    def _query_by_agent(self, agent_id: str, date: str | None, limit: int) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {
+            "IndexName": "agent_id-created_at-index",
+            "KeyConditionExpression": Key("agent_id").eq(agent_id),
+            "Limit": limit,
+            "ScanIndexForward": False,
+        }
+        if date:
+            kwargs["KeyConditionExpression"] &= Key("created_at").begins_with(date)
+        return self._table.query(**kwargs)
+
+    def _scan_with_filters(self, date: str | None, limit: int) -> dict[str, Any]:
+        scan_kwargs: dict[str, Any] = {"Limit": limit}
+        if date:
+            scan_kwargs["FilterExpression"] = Attr("created_at").begins_with(date)
+        return self._table.scan(**scan_kwargs)
 
     # ------------------------------------------------------------------
     # Table bootstrap (for tests / local dev)

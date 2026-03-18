@@ -29,37 +29,28 @@ def _load_yaml(path: Path) -> dict:
         return yaml.safe_load(f)
 
 
-def _build_ascii_diagram(nodes: list[dict], edges: list[dict]) -> str:
-    """Build an ASCII box-and-arrow diagram from nodes and edges.
-
-    Produces a top-down flow layout. Each node is rendered as a box:
-        +------------------+
-        |   node_id        |
-        |   (agent_ref)    |
-        +------------------+
-
-    Edges are shown as vertical arrows with optional labels.
-    """
-    if not nodes:
-        return "(no nodes defined)"
-
-    # Build adjacency: source -> list of (target, label)
+def _build_adjacency(edges: list[dict]) -> dict[str, list[tuple[str, str]]]:
+    """Build adjacency map: source -> list of (target, label)."""
     adjacency: dict[str, list[tuple[str, str]]] = {}
     for edge in edges:
         src = edge.get("from") or edge.get("source", "?")
         tgt = edge.get("to") or edge.get("target", "?")
-        label = edge.get("label", "")
-        adjacency.setdefault(src, []).append((tgt, label))
+        adjacency.setdefault(src, []).append((tgt, edge.get("label", "")))
+    return adjacency
 
-    # Topological sort (simple BFS from nodes with no incoming edges)
-    node_ids = [n.get("id", n.get("node_id", "?")) for n in nodes]
-    incoming = {nid: 0 for nid in node_ids}
+
+def _get_node_id(node: dict) -> str:
+    return node.get("id", node.get("node_id", "?"))
+
+
+def _topological_sort(node_ids: list[str], edges: list[dict], adjacency: dict[str, list[tuple[str, str]]]) -> list[str]:
+    """BFS topological sort of node IDs."""
+    incoming = dict.fromkeys(node_ids, 0)
     for edge in edges:
         tgt = edge.get("to") or edge.get("target", "?")
         if tgt in incoming:
             incoming[tgt] += 1
 
-    # BFS traversal
     queue = deque([nid for nid, cnt in incoming.items() if cnt == 0])
     ordered: list[str] = []
     visited: set[str] = set()
@@ -75,48 +66,47 @@ def _build_ascii_diagram(nodes: list[dict], edges: list[dict]) -> str:
                 if incoming[tgt] <= 0 and tgt not in visited:
                     queue.append(tgt)
 
-    # Add any remaining nodes not reached
     for nid in node_ids:
         if nid not in visited:
             ordered.append(nid)
+    return ordered
 
-    # Node info lookup
-    node_map = {}
-    for n in nodes:
-        nid = n.get("id", n.get("node_id", "?"))
-        node_map[nid] = n
 
-    # Render boxes
+def _render_node_box(nid: str, node: dict, box_width: int = 30) -> list[str]:
+    """Render a single node as ASCII box lines."""
     lines: list[str] = []
-    BOX_WIDTH = 30
+    agent_ref = node.get("agent_ref", node.get("type", ""))
+    node_type = node.get("type", "agent")
 
-    for i, nid in enumerate(ordered):
-        node = node_map.get(nid, {})
-        agent_ref = node.get("agent_ref", node.get("type", ""))
-        node_type = node.get("type", "agent")
+    border = "+" + "-" * (box_width - 2) + "+"
+    lines.append(border)
+    lines.append("|" + f"  {nid}".ljust(box_width - 2) + "|")
+    if agent_ref:
+        lines.append("|" + f"  ({agent_ref})".ljust(box_width - 2) + "|")
+    if node_type == "gate":
+        lines.append("|" + "  [GATE]".ljust(box_width - 2) + "|")
+    lines.append(border)
+    return lines
 
-        # Box top
-        lines.append("+" + "-" * (BOX_WIDTH - 2) + "+")
-        # Node ID line
-        id_line = f"  {nid}"
-        lines.append("|" + id_line.ljust(BOX_WIDTH - 2) + "|")
-        # Agent ref line
-        if agent_ref:
-            ref_line = f"  ({agent_ref})"
-            lines.append("|" + ref_line.ljust(BOX_WIDTH - 2) + "|")
-        # Type line if gate
-        if node_type == "gate":
-            gate_line = "  [GATE]"
-            lines.append("|" + gate_line.ljust(BOX_WIDTH - 2) + "|")
-        # Box bottom
-        lines.append("+" + "-" * (BOX_WIDTH - 2) + "+")
 
-        # Draw arrows to next nodes
+def _build_ascii_diagram(nodes: list[dict], edges: list[dict]) -> str:
+    """Build an ASCII box-and-arrow diagram from nodes and edges."""
+    if not nodes:
+        return "(no nodes defined)"
+
+    adjacency = _build_adjacency(edges)
+    node_ids = [_get_node_id(n) for n in nodes]
+    ordered = _topological_sort(node_ids, edges, adjacency)
+    node_map = {_get_node_id(n): n for n in nodes}
+
+    lines: list[str] = []
+    for nid in ordered:
+        lines.extend(_render_node_box(nid, node_map.get(nid, {})))
         targets = adjacency.get(nid, [])
         if targets:
             for tgt, label in targets:
-                arrow_label = f" --[{label}]--> {tgt}" if label else f" --> {tgt}"
-                lines.append(f"    |{arrow_label}")
+                arrow = f" --[{label}]--> {tgt}" if label else f" --> {tgt}"
+                lines.append(f"    |{arrow}")
             lines.append("    v")
 
     return "\n".join(lines)
@@ -198,7 +188,7 @@ def render(
     edges = multi_agent.get("edges", [])
 
     if not nodes:
-        console.print(f"[yellow]Warning:[/yellow] No nodes defined in multi_agent section.")
+        console.print("[yellow]Warning:[/yellow] No nodes defined in multi_agent section.")
 
     # Build markdown
     agent_name = data.get("name", agent_yaml_path.stem)
