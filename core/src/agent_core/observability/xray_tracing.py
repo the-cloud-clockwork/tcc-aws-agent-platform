@@ -71,19 +71,19 @@ class _NoOpSubsegment:
     """Dummy subsegment when X-Ray is disabled."""
 
     def put_annotation(self, key: str, value: Any) -> None:
-        pass
+        ...  # No-op: X-Ray disabled
 
     def put_metadata(self, key: str, value: Any, namespace: str = "default") -> None:
-        pass
+        ...  # No-op: X-Ray disabled
 
     def add_exception(self, exception: Exception, stack: Any = None) -> None:
-        pass
+        ...  # No-op: X-Ray disabled
 
     def __enter__(self) -> "_NoOpSubsegment":
         return self
 
     def __exit__(self, *args: Any) -> None:
-        pass
+        ...  # No-op: X-Ray disabled
 
 
 class XRayTracer:

@@ -60,6 +60,44 @@ def _validate_strategy_blueprint(data: dict) -> tuple[bool, list[str]]:
         return False, [str(e)]
 
 
+def _validate_by_type(bp_type: str, data: dict) -> tuple[bool, list[str]]:
+    """Dispatch validation to the correct handler."""
+    validators = {
+        "agent": _validate_agent_blueprint,
+        "strategy": _validate_strategy_blueprint,
+    }
+    validator = validators.get(bp_type)
+    if validator:
+        return validator(data)
+    console.print("[yellow]Warning:[/yellow] Could not detect blueprint type. Running basic checks.")
+    return True, []
+
+
+def _build_summary_tree(yaml_path: Path, bp_type: str, data: dict) -> Tree:
+    """Build a Rich tree summarising the blueprint."""
+    tree = Tree(f"[bold]{yaml_path.name}[/bold] ({bp_type} blueprint)")
+    tree.add(f"Name: {data.get('name', '\u2014')}")
+    tree.add(f"Version: {data.get('version', '\u2014')}")
+
+    model = data.get("model")
+    if isinstance(model, dict):
+        model_branch = tree.add("Model")
+        model_branch.add(f"provider: {model.get('provider', '\u2014')}")
+        model_branch.add(f"model_id: {model.get('model_id', '\u2014')}")
+
+    ma = data.get("multi_agent")
+    if ma:
+        ma_branch = tree.add(f"Multi-Agent: {ma.get('pattern', '\u2014')}")
+        if "nodes" in ma:
+            ma_branch.add(f"Nodes: {len(ma['nodes'])}")
+        if "edges" in ma:
+            ma_branch.add(f"Edges: {len(ma['edges'])}")
+
+    if "tools" in data:
+        tree.add(f"Tools: {len(data['tools'])}")
+    return tree
+
+
 @blueprint_app.command("lint")
 def lint(
     yaml_path: Path = typer.Argument(..., help="Path to blueprint YAML file"),
@@ -84,44 +122,13 @@ def lint(
         raise typer.Exit(code=1)
 
     bp_type = _detect_blueprint_type(data)
+    is_valid, errors = _validate_by_type(bp_type, data)
 
-    if bp_type == "agent":
-        is_valid, errors = _validate_agent_blueprint(data)
-    elif bp_type == "strategy":
-        is_valid, errors = _validate_strategy_blueprint(data)
-    else:
-        console.print(f"[yellow]Warning:[/yellow] Could not detect blueprint type. Running basic checks.")
-        is_valid = True
-        errors = []
-
-    # Build a summary tree
-    tree = Tree(f"[bold]{yaml_path.name}[/bold] ({bp_type} blueprint)")
-    tree.add(f"Name: {data.get('name', '\u2014')}")
-    tree.add(f"Version: {data.get('version', '\u2014')}")
-
-    if "model" in data:
-        model_branch = tree.add("Model")
-        model = data["model"]
-        if isinstance(model, dict):
-            model_branch.add(f"provider: {model.get('provider', '\u2014')}")
-            model_branch.add(f"model_id: {model.get('model_id', '\u2014')}")
-
-    if "multi_agent" in data:
-        ma = data["multi_agent"]
-        ma_branch = tree.add(f"Multi-Agent: {ma.get('pattern', '\u2014')}")
-        if "nodes" in ma:
-            ma_branch.add(f"Nodes: {len(ma['nodes'])}")
-        if "edges" in ma:
-            ma_branch.add(f"Edges: {len(ma['edges'])}")
-
-    if "tools" in data:
-        tree.add(f"Tools: {len(data['tools'])}")
-
-    console.print(tree)
+    console.print(_build_summary_tree(yaml_path, bp_type, data))
     console.print()
 
     if is_valid:
-        console.print(f"[green]PASS[/green] \u2014 Blueprint is valid.")
+        console.print("[green]PASS[/green] \u2014 Blueprint is valid.")
     else:
         console.print(f"[red]FAIL[/red] \u2014 {len(errors)} error(s):")
         for e in errors:

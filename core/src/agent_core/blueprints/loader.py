@@ -128,6 +128,52 @@ class BlueprintLoader:
             raise BlueprintLoadError(f"Validation failed for {path}: {exc}") from exc
 
     # ------------------------------------------------------------------
+    # Strands Agent builder -- helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _collect_filtered_tools(client: Any, tool_cfg: Any) -> list[Any]:
+        """Extract declared tools from a filterable MCP client."""
+        tools: list[Any] = []
+        for tname in tool_cfg.tools:
+            if tname in client.tool_names:
+                tools.append(client[tname])
+            else:
+                logger.warning(
+                    "Tool '%s' not found in MCP client '%s'",
+                    tname,
+                    tool_cfg.mcp,
+                )
+        return tools
+
+    def _collect_tools(
+        self,
+        blueprint: AgentBlueprint,
+        mcp_clients: McpClientMap | None,
+    ) -> list[Any]:
+        """Resolve MCP tools declared in the blueprint."""
+        if not mcp_clients:
+            return []
+
+        tools: list[Any] = []
+        for tool_cfg in blueprint.tools:
+            client = mcp_clients.get(tool_cfg.mcp)
+            if client is None:
+                logger.warning(
+                    "MCP client '%s' not provided -- skipping tools %s",
+                    tool_cfg.mcp,
+                    tool_cfg.tools,
+                )
+                continue
+            # Strands MCP clients expose tools that can be filtered by name.
+            if hasattr(client, "tool_names"):
+                tools.extend(self._collect_filtered_tools(client, tool_cfg))
+            else:
+                # Client doesn't support filtering -- add it wholesale.
+                tools.append(client)
+        return tools
+
+    # ------------------------------------------------------------------
     # Strands Agent builder
     # ------------------------------------------------------------------
 
@@ -182,32 +228,7 @@ class BlueprintLoader:
         }
 
         # -- collect tools --
-        tools: list[Any] = []
-        if mcp_clients:
-            for tool_cfg in blueprint.tools:
-                client = mcp_clients.get(tool_cfg.mcp)
-                if client is None:
-                    logger.warning(
-                        "MCP client '%s' not provided -- skipping tools %s",
-                        tool_cfg.mcp,
-                        tool_cfg.tools,
-                    )
-                    continue
-                # Strands MCP clients expose tools that can be filtered by name.
-                if hasattr(client, "tool_names"):
-                    # Filter to only declared tools.
-                    for tname in tool_cfg.tools:
-                        if tname in client.tool_names:
-                            tools.append(client[tname])
-                        else:
-                            logger.warning(
-                                "Tool '%s' not found in MCP client '%s'",
-                                tname,
-                                tool_cfg.mcp,
-                            )
-                else:
-                    # If the client doesn't support filtering, add it wholesale.
-                    tools.append(client)
+        tools = self._collect_tools(blueprint, mcp_clients)
 
         # -- build agent --
         agent = Agent(

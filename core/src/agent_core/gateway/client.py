@@ -78,6 +78,44 @@ class GatewayClient:
             )
         return self._http_client
 
+    def _handle_http_error(
+        self,
+        exc: httpx.HTTPStatusError,
+        tool_name: str,
+        agent_id: str | None,
+        attempt: int,
+    ) -> None:
+        """Handle HTTP status errors from Gateway calls.
+
+        Raises immediately for 403 (policy denied) and non-retryable errors.
+        Returns normally for retryable server errors to let the retry loop continue.
+        """
+        if exc.response.status_code == 403:
+            raise GatewayPolicyDeniedError(
+                tool_name=tool_name,
+                agent_id=agent_id or "unknown",
+            ) from exc
+        if exc.response.status_code >= 500 and attempt < self.max_retries - 1:
+            logger.warning(
+                "Gateway error (attempt %d/%d): %s",
+                attempt + 1,
+                self.max_retries,
+                str(exc),
+            )
+            return
+        raise exc
+
+    @staticmethod
+    def _parse_tool_response(result: dict[str, Any], tool_name: str) -> dict[str, Any]:
+        """Validate a Gateway response and extract the output payload."""
+        if result.get("error"):
+            raise GatewayError(
+                tool_name=tool_name,
+                message=result["error"],
+                code=result.get("error_code", "UNKNOWN"),
+            )
+        return result.get("output", result)
+
     def invoke_tool(
         self,
         tool_name: str,
@@ -121,32 +159,10 @@ class GatewayClient:
                     json=request_body,
                 )
                 response.raise_for_status()
-                result = response.json()
-
-                if result.get("error"):
-                    raise GatewayError(
-                        tool_name=tool_name,
-                        message=result["error"],
-                        code=result.get("error_code", "UNKNOWN"),
-                    )
-
-                return result.get("output", result)
+                return self._parse_tool_response(response.json(), tool_name)
 
             except httpx.HTTPStatusError as e:
-                if e.response.status_code == 403:
-                    raise GatewayPolicyDeniedError(
-                        tool_name=tool_name,
-                        agent_id=agent_id or "unknown",
-                    ) from e
-                if e.response.status_code >= 500 and attempt < self.max_retries - 1:
-                    logger.warning(
-                        "Gateway error (attempt %d/%d): %s",
-                        attempt + 1,
-                        self.max_retries,
-                        str(e),
-                    )
-                    continue
-                raise
+                self._handle_http_error(e, tool_name, agent_id, attempt)
             except httpx.ConnectError:
                 if attempt < self.max_retries - 1:
                     logger.warning(

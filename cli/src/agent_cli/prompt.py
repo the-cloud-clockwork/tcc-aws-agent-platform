@@ -19,6 +19,8 @@ from rich.syntax import Syntax
 prompt_app = typer.Typer(no_args_is_help=True)
 console = Console()
 
+_PROMPT_ID_HELP = "Prompt identifier"
+
 # Registry base URL — override with AGENT_REGISTRY_URL env var
 REGISTRY_URL = "http://localhost:8000"
 
@@ -35,7 +37,7 @@ def _client() -> httpx.Client:
 @prompt_app.command("push")
 def push(
     file: Path = typer.Argument(..., help="Path to prompt template file"),
-    id: str = typer.Option(..., "--id", help="Prompt identifier"),
+    id: str = typer.Option(..., "--id", help=_PROMPT_ID_HELP),
     version: str = typer.Option(..., "--version", help="Semantic version (e.g. 1.0.0)"),
 ) -> None:
     """Upload a prompt template to the registry."""
@@ -63,7 +65,7 @@ def push(
 
 @prompt_app.command("get")
 def get(
-    id: str = typer.Argument(..., help="Prompt identifier"),
+    id: str = typer.Argument(..., help=_PROMPT_ID_HELP),
     version: Optional[str] = typer.Option(None, "--version", help="Specific version (default: latest stable)"),
 ) -> None:
     """Fetch and display a prompt template from the registry."""
@@ -92,7 +94,7 @@ def get(
 
 @prompt_app.command("list")
 def list_versions(
-    id: str = typer.Argument(..., help="Prompt identifier"),
+    id: str = typer.Argument(..., help=_PROMPT_ID_HELP),
 ) -> None:
     """List all versions of a prompt with their status."""
     with _client() as client:
@@ -123,7 +125,7 @@ def list_versions(
 
 @prompt_app.command("diff")
 def diff(
-    id: str = typer.Argument(..., help="Prompt identifier"),
+    id: str = typer.Argument(..., help=_PROMPT_ID_HELP),
     v1: str = typer.Argument(..., help="First version"),
     v2: str = typer.Argument(..., help="Second version"),
 ) -> None:
@@ -157,7 +159,7 @@ def diff(
 
 @prompt_app.command("promote")
 def promote(
-    id: str = typer.Argument(..., help="Prompt identifier"),
+    id: str = typer.Argument(..., help=_PROMPT_ID_HELP),
     version: str = typer.Argument(..., help="Version to promote to stable"),
 ) -> None:
     """Promote a prompt version to stable status."""
@@ -173,7 +175,7 @@ def promote(
 
 @prompt_app.command("rollback")
 def rollback(
-    id: str = typer.Argument(..., help="Prompt identifier"),
+    id: str = typer.Argument(..., help=_PROMPT_ID_HELP),
     version: str = typer.Argument(..., help="Version to rollback to"),
 ) -> None:
     """Rollback a prompt to a previous version (marks it as stable, demotes current)."""
