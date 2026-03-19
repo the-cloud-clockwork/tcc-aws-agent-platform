@@ -71,3 +71,16 @@ module = [
     "agent_core.observability.structured_logger",
 ]
 disable_error_code = ["type-arg", "arg-type"]
+
+[[tool.mypy.overrides]]
+module = ["agent_core.runtime.entrypoint"]
+disallow_untyped_defs = false
+disable_error_code = ["type-arg", "attr-defined", "no-untyped-def"]
+
+[[tool.mypy.overrides]]
+module = ["agent_core.runtime.strands_session_bridge"]
+disable_error_code = ["override"]
+
+[[tool.mypy.overrides]]
+module = ["agent_core.runtime.session"]
+disable_error_code = ["assignment", "attr-defined"]

@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import copy
 import operator
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Literal
+from typing import Any, Literal
 
 from agent_core.blueprints.workflow import WorkflowBlueprint
 

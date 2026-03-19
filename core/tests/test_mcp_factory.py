@@ -14,7 +14,7 @@ class TestCreateMcpClient:
     @patch("agent_core.tools.mcp_factory.streamablehttp_client")
     def test_basic_creation(self, mock_http, mock_mcp_cls):
         mock_mcp_cls.return_value = MagicMock()
-        client = create_mcp_client("test-mcp", "http://localhost:8002")
+        create_mcp_client("test-mcp", "http://localhost:8002")
         mock_mcp_cls.assert_called_once()
         # Verify prefix kwarg
         _, kwargs = mock_mcp_cls.call_args
@@ -24,7 +24,7 @@ class TestCreateMcpClient:
     @patch("agent_core.tools.mcp_factory.streamablehttp_client")
     def test_with_tool_filter(self, mock_http, mock_mcp_cls):
         mock_mcp_cls.return_value = MagicMock()
-        client = create_mcp_client("test-mcp", "http://localhost:8002", tool_filter=["tool_a"])
+        create_mcp_client("test-mcp", "http://localhost:8002", tool_filter=["tool_a"])
         _, kwargs = mock_mcp_cls.call_args
         assert kwargs["tool_filters"] == {"allowed": ["tool_a"]}
 

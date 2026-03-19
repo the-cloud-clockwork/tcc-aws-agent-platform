@@ -45,4 +45,4 @@ class AgentSession:
         return self
 
     def __exit__(self, *exc: Any) -> bool:
-        return self._exit_stack.__exit__(*exc)
+        return bool(self._exit_stack.__exit__(*exc))

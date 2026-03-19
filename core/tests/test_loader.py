@@ -9,7 +9,7 @@ import yaml
 from pydantic import BaseModel, ValidationError
 
 from agent_core.blueprints.agent import MultiAgentConfig
-from agent_core.blueprints.loader import BlueprintLoadError, BlueprintLoader
+from agent_core.blueprints.loader import BlueprintLoader, BlueprintLoadError
 from agent_core.blueprints.session import AgentSession
 from agent_core.execution.mode import ExecutionMode
 
@@ -176,9 +176,8 @@ class TestBuildAgentSession:
         loader = self._make_loader(tmp_blueprints, tmp_prompts, mock_mcp_factory)
         mock_agent_cls.return_value = MagicMock()
 
-        with pytest.raises(RuntimeError):
-            with loader.build_agent_session("gap_detector") as session:
-                raise RuntimeError("test error")
+        with pytest.raises(RuntimeError), loader.build_agent_session("gap_detector") as session:
+            raise RuntimeError("test error")
         # Even on error, MCP clients should be cleaned up
         for client in session._mcp_clients:
             client.__exit__.assert_called_once()
@@ -200,7 +199,7 @@ class TestBuildAgentSession:
         )
         mock_agent_cls.return_value = MagicMock()
 
-        with loader.build_agent_session("gap_detector") as session:
+        with loader.build_agent_session("gap_detector"):
             pass
 
         # Verify hook class was instantiated
@@ -248,7 +247,7 @@ class TestBuildAgentSession:
         )
         mock_agent_cls.return_value = MagicMock()
 
-        with loader.build_agent_session("gap_detector") as session:
+        with loader.build_agent_session("gap_detector"):
             pass
 
         # Verify structured_output_model was passed to Agent
@@ -340,10 +339,11 @@ class TestMultiAgentSession:
             mcp_factory=mock_mcp_factory,
         )
 
-        with patch("agent_core.blueprints.loader.Swarm", create=True) as _:
-            # Patch the import inside the method
-            with patch("strands.multiagent.swarm.Swarm", mock_swarm, create=True):
-                session = loader.build_agent_session("swarm_agent")
+        with (
+            patch("agent_core.blueprints.loader.Swarm", create=True),
+            patch("strands.multiagent.swarm.Swarm", mock_swarm, create=True),
+        ):
+            session = loader.build_agent_session("swarm_agent")
 
         assert isinstance(session, AgentSession)
         assert session.pattern == "swarm"

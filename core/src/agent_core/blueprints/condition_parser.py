@@ -13,7 +13,8 @@ Examples::
 from __future__ import annotations
 
 import operator
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 OPERATORS: dict[str, Callable[..., bool]] = {
     "==": operator.eq,

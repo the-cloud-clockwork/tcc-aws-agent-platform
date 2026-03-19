@@ -9,7 +9,6 @@ import os
 from unittest.mock import patch
 
 import boto3
-import pytest
 
 # Set AWS env vars BEFORE importing modules that use boto3
 os.environ.setdefault("AWS_DEFAULT_REGION", "eu-west-1")
@@ -22,7 +21,6 @@ from moto import mock_aws
 
 from agent_core.runtime.idempotency import IdempotencyStore, generate_idempotency_key
 from agent_core.runtime.session import SessionManager, SessionState
-
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -6,10 +6,7 @@ import pytest
 
 from agent_core.blueprints.strategy import Condition, ConditionGroup, StrategyBlueprint
 from agent_core.blueprints.strategy_evaluator import (
-    ConditionResult,
-    EvaluationResult,
     StrategyEvaluator,
-    StrategyMatch,
 )
 
 
