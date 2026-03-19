@@ -166,11 +166,12 @@ def tmp_prompts(tmp_path: Path) -> Path:
 def mock_mcp_factory():
     """Factory returning mock MCP clients with context manager protocol."""
 
-    def factory(name: str):
+    def factory(name: str, tool_filter: list[str] | None = None):
         client = MagicMock()
         client.__enter__ = MagicMock(return_value=client)
         client.__exit__ = MagicMock(return_value=False)
         client.name = name
+        client.tool_filter = tool_filter
         return client
 
     return factory

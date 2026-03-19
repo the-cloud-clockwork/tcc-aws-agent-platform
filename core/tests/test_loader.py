@@ -262,3 +262,57 @@ class TestBuildAgentSession:
 
         with pytest.raises(BlueprintLoadError, match="no mcp_factory"):
             loader.build_agent_session("gap_detector")
+
+    @patch("agent_core.blueprints.loader.Agent")
+    def test_build_agent_session_tool_filter_passed(
+        self, mock_agent_cls, tmp_blueprints: Path, tmp_prompts: Path, mock_mcp_factory
+    ) -> None:
+        """Verify that blueprint-declared tool names are passed to the factory as tool_filter."""
+        loader = self._make_loader(tmp_blueprints, tmp_prompts, mock_mcp_factory)
+        mock_agent_cls.return_value = MagicMock()
+
+        with loader.build_agent_session("gap_detector") as session:
+            # Sample blueprint has two tool entries:
+            #   data-mcp: [get_watchlist_gaps, get_data, get_volume_profile]
+            #   artifacts-mcp: [create_artifact]
+            data_client = session._mcp_clients[0]
+            artifacts_client = session._mcp_clients[1]
+            assert data_client.tool_filter == ["get_watchlist_gaps", "get_data", "get_volume_profile"]
+            assert artifacts_client.tool_filter == ["create_artifact"]
+
+    @patch("agent_core.blueprints.loader.Agent")
+    def test_build_agent_session_multiple_hooks_uses_composite(
+        self, mock_agent_cls, tmp_blueprints: Path, tmp_prompts: Path, mock_mcp_factory
+    ) -> None:
+        """Verify that multiple hooks are wrapped in CompositeCallbackHandler."""
+        # Modify blueprint to have two hooks
+        bp_path = tmp_blueprints / "agents" / "gap_detector.yaml"
+        with open(bp_path) as f:
+            data = yaml.safe_load(f)
+        data["hooks"] = ["HookA", "HookB"]
+        with open(bp_path, "w") as f:
+            yaml.dump(data, f)
+
+        mock_hook_a = MagicMock()
+        mock_hook_a.return_value = MagicMock()
+        mock_hook_b = MagicMock()
+        mock_hook_b.return_value = MagicMock()
+
+        loader = BlueprintLoader(
+            blueprints_dir=tmp_blueprints,
+            prompt_dir=tmp_prompts,
+            mcp_factory=mock_mcp_factory,
+            hook_registry={"HookA": mock_hook_a, "HookB": mock_hook_b},
+            schema_registry=_DEFAULT_SCHEMA_REG,
+        )
+        mock_agent_cls.return_value = MagicMock()
+
+        with loader.build_agent_session("gap_detector"):
+            pass
+
+        call_kwargs = mock_agent_cls.call_args.kwargs
+        handler = call_kwargs.get("callback_handler")
+        assert handler is not None
+        # Should be a CompositeCallbackHandler, not a raw list
+        assert not isinstance(handler, list), "Multiple hooks must be wrapped, not passed as list"
+        assert callable(handler), "Handler must be callable"
