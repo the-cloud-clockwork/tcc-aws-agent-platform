@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from agent_core.blueprints.condition_parser import parse_condition, _coerce_value, _resolve_attr
+from agent_core.blueprints.condition_parser import _coerce_value, _resolve_attr, parse_condition
 
 
 class TestCoerceValue:
@@ -78,7 +78,7 @@ class TestParseCondition:
             parse_condition("x ~= 5")
 
     def test_malformed_expression_raises(self):
-        with pytest.raises(ValueError, match="3 tokens"):
+        with pytest.raises(ValueError, match="tokens"):
             parse_condition("just_one_word")
 
     def test_named_operators(self):

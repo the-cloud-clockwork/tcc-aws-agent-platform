@@ -3,10 +3,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from agent_core.runtime.handler import GenericHandler
 from agent_core.runtime.agent_config import AgentConfig, AgentConfigRegistry
+from agent_core.runtime.handler import GenericHandler
 from agent_core.runtime.session import SessionManager
 
 
@@ -31,8 +29,8 @@ def _make_handler(
         agent_id="test_agent",
         operation_name="test_op",
         required_fields=["prompt"],
+        build_prompt=lambda params, key: params.get("prompt", ""),
         defaults={},
-        prompt_template="{prompt}",
     )
     registry = AgentConfigRegistry()
     registry.register(config)
@@ -79,7 +77,7 @@ class TestHandlerWithSessionManager:
     """GenericHandler with SessionManager wires create/persist lifecycle."""
 
     @patch("agent_core.runtime.handler.marshal_output", return_value={"raw_output": "ok"})
-    @patch("agent_core.runtime.handler.get_execution_mode")
+    @patch("agent_core.execution.mode.get_execution_mode")
     def test_handler_with_session_manager(self, mock_mode, mock_marshal) -> None:
         mock_mode.return_value = MagicMock(value="simulation")
 
@@ -93,7 +91,7 @@ class TestHandlerWithSessionManager:
         sm.create_session.assert_called_once()
         sm.persist_session.assert_called_once()
 
-    @patch("agent_core.runtime.handler.get_execution_mode")
+    @patch("agent_core.execution.mode.get_execution_mode")
     def test_handler_session_not_persisted_on_error(self, mock_mode) -> None:
         mock_mode.return_value = MagicMock(value="simulation")
 

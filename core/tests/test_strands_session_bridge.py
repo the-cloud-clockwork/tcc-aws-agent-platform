@@ -3,16 +3,12 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock
-
-import pytest
 
 from agent_core.runtime.session import SessionState
 from agent_core.runtime.strands_session_bridge import (
-    StrandsSessionBridge,
     _AGENT_STATE_KEY,
     _MESSAGES_KEY,
-    _MULTI_AGENT_KEY,
+    StrandsSessionBridge,
 )
 
 

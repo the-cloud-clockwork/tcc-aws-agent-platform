@@ -13,7 +13,7 @@ class Condition(BaseModel):
 
     field: str | None = None
     op: str | None = None
-    value: float | str | bool | None = None
+    value: float | str | bool | list[str] | list[float] | None = None
     type: str | None = Field(
         default=None,
         description="Special condition type, e.g. 'trailing_stop'.",

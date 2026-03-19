@@ -5,7 +5,7 @@ __version__ = "0.7.0"
 
 # -- Public API re-exports --
 from agent_core.blueprints.agent import AgentBlueprint, GraphEdgeConfig, GraphNodeConfig
-from agent_core.blueprints.loader import BlueprintLoadError, BlueprintLoader
+from agent_core.blueprints.loader import BlueprintLoader, BlueprintLoadError
 from agent_core.blueprints.session import AgentSession
 from agent_core.blueprints.strategy import StrategyBlueprint
 from agent_core.blueprints.strategy_evaluator import StrategyEvaluator
@@ -64,9 +64,9 @@ __all__ = [
     "RuntimeMode",
     "SessionManager",
     "SessionState",
+    "StrandsSessionBridge",
     "StrategyBlueprint",
     "StrategyEvaluator",
-    "StrandsSessionBridge",
     "StructuredLogger",
     "WorkflowBlueprint",
     "WorkflowExecutor",

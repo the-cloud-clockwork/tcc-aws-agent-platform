@@ -44,11 +44,6 @@ SAMPLE_AGENT_YAML = textwrap.dedent("""\
     output_schema: gap_detection_output_v1
     hooks:
       - ObservabilityHook
-    multi_agent:
-      pattern: swarm
-      execution_timeout: 90
-      node_timeout: 30
-      max_handoffs: 20
 """)
 
 SAMPLE_STRATEGY_YAML = textwrap.dedent("""\

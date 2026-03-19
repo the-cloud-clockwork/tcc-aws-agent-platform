@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from agent_core.blueprints.workflow import (
     ChoiceRule,
     TriggerConfig,
@@ -11,7 +9,6 @@ from agent_core.blueprints.workflow import (
     WorkflowState,
 )
 from agent_core.blueprints.workflow_executor import (
-    WorkflowExecutionResult,
     WorkflowExecutor,
     _resolve_path,
     _set_path,
