@@ -6,8 +6,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
+from agent_core.blueprints.agent import MultiAgentConfig
 from agent_core.blueprints.loader import BlueprintLoadError, BlueprintLoader
 from agent_core.blueprints.session import AgentSession
 from agent_core.execution.mode import ExecutionMode
@@ -316,3 +317,118 @@ class TestBuildAgentSession:
         # Should be a CompositeCallbackHandler, not a raw list
         assert not isinstance(handler, list), "Multiple hooks must be wrapped, not passed as list"
         assert callable(handler), "Handler must be callable"
+
+
+class TestMultiAgentSession:
+    """Tests for multi-agent orchestration in build_agent_session."""
+
+    @patch("agent_core.blueprints.loader.Agent")
+    def test_build_swarm_session(
+        self,
+        mock_agent_cls,
+        tmp_multi_agent_blueprints: Path,
+        tmp_prompts: Path,
+        mock_mcp_factory,
+    ) -> None:
+        """Blueprint with multi_agent: {pattern: swarm} builds a Swarm session."""
+        mock_agent_cls.return_value = MagicMock()
+        mock_swarm = MagicMock()
+
+        loader = BlueprintLoader(
+            blueprints_dir=tmp_multi_agent_blueprints,
+            prompt_dir=tmp_prompts,
+            mcp_factory=mock_mcp_factory,
+        )
+
+        with patch("agent_core.blueprints.loader.Swarm", create=True) as _:
+            # Patch the import inside the method
+            with patch("strands.multiagent.swarm.Swarm", mock_swarm, create=True):
+                session = loader.build_agent_session("swarm_agent")
+
+        assert isinstance(session, AgentSession)
+        assert session.pattern == "swarm"
+        assert session.multi_agent is not None
+
+    @patch("agent_core.blueprints.loader.Agent")
+    def test_build_graph_session(
+        self,
+        mock_agent_cls,
+        tmp_multi_agent_blueprints: Path,
+        tmp_prompts: Path,
+        mock_mcp_factory,
+    ) -> None:
+        """Blueprint with multi_agent: {pattern: graph} builds a Graph session."""
+        mock_agent_cls.return_value = MagicMock()
+        mock_graph_builder = MagicMock()
+        mock_graph = MagicMock()
+        mock_graph_builder.return_value = mock_graph_builder
+        mock_graph_builder.add_node.return_value = MagicMock()
+        mock_graph_builder.build.return_value = mock_graph
+
+        loader = BlueprintLoader(
+            blueprints_dir=tmp_multi_agent_blueprints,
+            prompt_dir=tmp_prompts,
+            mcp_factory=mock_mcp_factory,
+        )
+
+        with patch("strands.multiagent.graph.GraphBuilder", mock_graph_builder, create=True):
+            session = loader.build_agent_session("graph_agent")
+
+        assert isinstance(session, AgentSession)
+        assert session.pattern == "graph"
+        assert session.multi_agent is mock_graph
+
+    @patch("agent_core.blueprints.loader.Agent")
+    def test_build_single_session_no_multi_agent(
+        self,
+        mock_agent_cls,
+        tmp_multi_agent_blueprints: Path,
+        tmp_prompts: Path,
+        mock_mcp_factory,
+    ) -> None:
+        """Blueprint with multi_agent: null returns pattern='single' (backward compat)."""
+        mock_agent_cls.return_value = MagicMock()
+
+        loader = BlueprintLoader(
+            blueprints_dir=tmp_multi_agent_blueprints,
+            prompt_dir=tmp_prompts,
+            mcp_factory=mock_mcp_factory,
+        )
+
+        session = loader.build_agent_session("single_agent")
+
+        assert isinstance(session, AgentSession)
+        assert session.pattern == "single"
+        assert session.multi_agent is None
+
+    def test_session_run_delegates_to_agent(self) -> None:
+        """session.run(prompt) calls session.agent(prompt) when pattern is single."""
+        mock_agent = MagicMock()
+        mock_agent.return_value = {"result": "ok"}
+
+        session = AgentSession(agent=mock_agent, mcp_clients=[])
+        result = session.run("test prompt")
+
+        mock_agent.assert_called_once_with("test prompt")
+        assert result == {"result": "ok"}
+
+    def test_session_run_delegates_to_multi_agent(self) -> None:
+        """session.run(prompt) calls multi_agent(prompt) when pattern is swarm."""
+        mock_agent = MagicMock()
+        mock_multi = MagicMock()
+        mock_multi.return_value = {"swarm_result": "done"}
+
+        session = AgentSession(
+            agent=mock_agent, mcp_clients=[],
+            multi_agent=mock_multi, pattern="swarm",
+        )
+        result = session.run("test prompt")
+
+        mock_multi.assert_called_once_with("test prompt")
+        mock_agent.assert_not_called()
+        assert result == {"swarm_result": "done"}
+
+    def test_multi_agent_config_rejects_invalid_pattern(self) -> None:
+        """MultiAgentConfig rejects patterns other than 'swarm' or 'graph'."""
+        with pytest.raises(ValidationError):
+            MultiAgentConfig(pattern="invalid")

@@ -1,6 +1,8 @@
 """AgentBlueprint Pydantic model."""
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from agent_core.schemas.execution_modes import ExecutionModes
@@ -14,7 +16,7 @@ class MultiAgentConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    pattern: str = Field(
+    pattern: Literal["swarm", "graph"] = Field(
         default="swarm",
         description="Orchestration pattern: 'swarm' or 'graph'.",
     )

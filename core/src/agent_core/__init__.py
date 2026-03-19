@@ -1,7 +1,7 @@
 """Agent Core -- Blueprint Engine, Execution Modes, Hooks, Schemas, Observability, Runtime."""
 from __future__ import annotations
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 # -- Public API re-exports --
 from agent_core.blueprints.agent import AgentBlueprint
