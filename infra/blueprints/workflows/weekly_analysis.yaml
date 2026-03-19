@@ -1,0 +1,192 @@
+id: weekly-gap-analysis
+version: "1.0.0"
+name: Weekly Gap Analysis Pipeline
+description: >
+  End-to-end weekly pipeline: validate market calendar, detect gaps, run
+  sentiment + technical analysis in parallel, evaluate strategies per symbol,
+  synthesize portfolio recommendations, check risk limits. Triggered every
+  Monday at 08:30 CET. Risk Engine failure halts the pipeline (Non-Negotiable #14).
+
+trigger:
+  type: schedule
+  schedule: "cron(30 8 ? * MON *)"
+  timezone: Europe/Madrid
+
+timeout_minutes: 60
+
+states:
+  - id: ValidateMarketCalendar
+    type: task
+    lambda_ref: market-calendar-validator
+    result_path: $.calendar
+    retry:
+      - error_equals: ["Lambda.ServiceException"]
+        interval_seconds: 5
+        max_attempts: 3
+    next: CheckTradingDay
+
+  - id: CheckTradingDay
+    type: choice
+    choices:
+      - condition:
+          path: "$.calendar.is_trading_day"
+          op: eq
+          value: false
+        next: NoOpComplete
+    default: FetchWatchlistGaps
+
+  - id: FetchWatchlistGaps
+    type: task
+    lambda_ref: gap-detector
+    result_path: $.gaps
+    next: CheckGapCount
+    retry:
+      - error_equals: ["Lambda.TooManyRequestsException", "Bedrock.ThrottlingException"]
+        interval_seconds: 3
+        max_attempts: 4
+        backoff_rate: 2.0
+    catch:
+      - error_equals: ["States.ALL"]
+        next: NotifyError
+
+  - id: CheckGapCount
+    type: choice
+    choices:
+      - condition:
+          path: "$.gaps.significant_gaps"
+          op: eq
+          value: 0
+        next: NoOpComplete
+    default: ParallelAnalysis
+
+  - id: ParallelAnalysis
+    type: parallel
+    branches:
+      - states:
+          - id: SentimentAnalysis
+            type: task
+            lambda_ref: sentiment-analyzer
+            result_path: $.sentiment_results
+      - states:
+          - id: TechnicalIndicators
+            type: task
+            lambda_ref: technical-analyzer
+            result_path: $.technical_results
+    result_path: $.analysis
+    next: EvaluateStrategies
+    catch:
+      - error_equals: ["States.ALL"]
+        next: NotifyError
+
+  - id: EvaluateStrategies
+    type: task
+    lambda_ref: strategy-evaluator
+    result_path: $.strategy_results
+    next: SynthesizeRecommendations
+    retry:
+      - error_equals: ["States.TaskFailed"]
+        interval_seconds: 30
+        max_attempts: 2
+        backoff_rate: 2.0
+    catch:
+      - error_equals: ["States.ALL"]
+        next: NotifyError
+
+  - id: SynthesizeRecommendations
+    type: task
+    lambda_ref: portfolio-recommender
+    result_path: $.recommendations
+    next: RouteByMode
+    retry:
+      - error_equals: ["States.TaskFailed"]
+        interval_seconds: 30
+        max_attempts: 2
+        backoff_rate: 2.0
+    catch:
+      - error_equals: ["States.ALL"]
+        next: NotifyError
+
+  - id: RouteByMode
+    type: choice
+    choices:
+      - condition:
+          path: "$.execution_mode"
+          op: eq
+          value: "backtest"
+        next: StoreResults
+    default: CheckRiskLimits
+
+  - id: CheckRiskLimits
+    type: task
+    lambda_ref: risk-engine
+    result_path: $.risk_check
+    next: RouteByRisk
+    catch:
+      - error_equals: ["States.ALL"]
+        next: RiskEngineFailedEscalate
+
+  - id: RouteByRisk
+    type: choice
+    choices:
+      - condition:
+          path: "$.risk_check.result"
+          op: eq
+          value: "FAIL"
+        next: RiskViolationAlert
+    default: TwoFactorGate
+
+  - id: TwoFactorGate
+    type: wait
+    next: SubmitOrder
+
+  - id: SubmitOrder
+    type: task
+    lambda_ref: execution-agent
+    result_path: $.order_result
+    next: SetTrailingStop
+    retry:
+      - error_equals: ["IBKR.RateLimitError"]
+        interval_seconds: 5
+        max_attempts: 2
+    catch:
+      - error_equals: ["States.ALL"]
+        next: NotifyError
+
+  - id: SetTrailingStop
+    type: task
+    lambda_ref: trailing-stop-manager
+    result_path: $.trailing_stop
+    next: StoreResults
+    catch:
+      - error_equals: ["States.ALL"]
+        next: StoreResults
+
+  - id: StoreResults
+    type: task
+    lambda_ref: results-store
+    result_path: $.stored
+    next: PipelineComplete
+    retry:
+      - error_equals: ["States.TaskFailed"]
+        interval_seconds: 5
+        max_attempts: 3
+
+  - id: PipelineComplete
+    type: succeed
+
+  - id: NoOpComplete
+    type: succeed
+
+  - id: NotifyError
+    type: task
+    lambda_ref: telegram-notifier
+    next: WorkflowFailed
+
+  - id: WorkflowFailed
+    type: fail
+
+  - id: RiskViolationAlert
+    type: fail
+
+  - id: RiskEngineFailedEscalate
+    type: fail
