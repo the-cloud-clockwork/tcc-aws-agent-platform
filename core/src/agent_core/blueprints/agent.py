@@ -3,12 +3,34 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agent_core.schemas.execution_modes import ExecutionModes
 from agent_core.schemas.model_config import ModelConfig
 from agent_core.schemas.runtime_config import RuntimeConfig
 from agent_core.schemas.tool_config import ToolConfig
+
+
+class GraphNodeConfig(BaseModel):
+    """A node in a multi-blueprint graph, referencing another agent blueprint."""
+
+    model_config = ConfigDict(frozen=True)
+
+    agent_ref: str = Field(..., description="Blueprint ID to load for this node.")
+    node_id: str = Field(..., description="Unique node identifier within the graph.")
+
+
+class GraphEdgeConfig(BaseModel):
+    """An edge connecting two nodes in a multi-blueprint graph."""
+
+    model_config = ConfigDict(frozen=True)
+
+    from_node: str = Field(..., description="Source node ID.")
+    to_node: str = Field(..., description="Destination node ID.")
+    condition: str | None = Field(
+        default=None,
+        description="Safe expression ('field op value') or None for unconditional.",
+    )
 
 
 class MultiAgentConfig(BaseModel):
@@ -23,6 +45,35 @@ class MultiAgentConfig(BaseModel):
     execution_timeout: int = Field(default=90, gt=0)
     node_timeout: int = Field(default=30, gt=0)
     max_handoffs: int = Field(default=20, gt=0)
+    nodes: list[GraphNodeConfig] = Field(default_factory=list)
+    edges: list[GraphEdgeConfig] = Field(default_factory=list)
+    max_iterations: int = Field(default=20, gt=0)
+    max_node_executions: int | None = Field(default=None)
+    entry_point: str | None = Field(
+        default=None,
+        description="Node ID to start execution from (must be in nodes).",
+    )
+
+    @model_validator(mode="after")
+    def _validate_graph_refs(self) -> MultiAgentConfig:
+        """Validate that edges and entry_point reference declared node IDs."""
+        if not self.nodes:
+            return self
+        node_ids = {n.node_id for n in self.nodes}
+        for edge in self.edges:
+            if edge.from_node not in node_ids:
+                raise ValueError(
+                    f"Edge from_node '{edge.from_node}' not in declared nodes: {node_ids}"
+                )
+            if edge.to_node not in node_ids:
+                raise ValueError(
+                    f"Edge to_node '{edge.to_node}' not in declared nodes: {node_ids}"
+                )
+        if self.entry_point is not None and self.entry_point not in node_ids:
+            raise ValueError(
+                f"entry_point '{self.entry_point}' not in declared nodes: {node_ids}"
+            )
+        return self
 
 
 class ThinkingConfig(BaseModel):

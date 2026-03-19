@@ -432,3 +432,98 @@ class TestMultiAgentSession:
         """MultiAgentConfig rejects patterns other than 'swarm' or 'graph'."""
         with pytest.raises(ValidationError):
             MultiAgentConfig(pattern="invalid")
+
+
+class TestMultiNodeSession:
+    """Tests for multi-node graph/swarm orchestration in build_agent_session."""
+
+    @patch("agent_core.blueprints.loader.Agent")
+    def test_build_multi_node_graph(
+        self,
+        mock_agent_cls,
+        tmp_multi_node_blueprints: Path,
+        tmp_prompts: Path,
+        mock_mcp_factory,
+    ) -> None:
+        """Multi-node graph: loads multiple blueprints and builds Graph."""
+        mock_agent_cls.return_value = MagicMock()
+        mock_graph_builder = MagicMock()
+        mock_graph = MagicMock()
+        mock_graph_builder.return_value = mock_graph_builder
+        mock_graph_builder.add_node.return_value = MagicMock()
+        mock_graph_builder.build.return_value = mock_graph
+
+        loader = BlueprintLoader(
+            blueprints_dir=tmp_multi_node_blueprints,
+            prompt_dir=tmp_prompts,
+            mcp_factory=mock_mcp_factory,
+        )
+
+        with patch("strands.multiagent.graph.GraphBuilder", mock_graph_builder, create=True):
+            session = loader.build_agent_session("multi_graph_agent")
+
+        assert isinstance(session, AgentSession)
+        assert session.pattern == "graph"
+        assert session.multi_agent is mock_graph
+        # 2 node agents + 1 primary = 3 Agent() calls
+        assert mock_agent_cls.call_count == 3
+        # GraphBuilder.add_node called for each node
+        assert mock_graph_builder.add_node.call_count == 2
+
+    @patch("agent_core.blueprints.loader.Agent")
+    def test_build_multi_node_swarm(
+        self,
+        mock_agent_cls,
+        tmp_multi_node_blueprints: Path,
+        tmp_prompts: Path,
+        mock_mcp_factory,
+    ) -> None:
+        """Multi-node swarm: loads multiple blueprints and builds Swarm."""
+        mock_agent_cls.return_value = MagicMock()
+        mock_swarm_cls = MagicMock()
+        mock_swarm = MagicMock()
+        mock_swarm_cls.return_value = mock_swarm
+
+        loader = BlueprintLoader(
+            blueprints_dir=tmp_multi_node_blueprints,
+            prompt_dir=tmp_prompts,
+            mcp_factory=mock_mcp_factory,
+        )
+
+        with patch("strands.multiagent.swarm.Swarm", mock_swarm_cls, create=True):
+            session = loader.build_agent_session("multi_swarm_agent")
+
+        assert isinstance(session, AgentSession)
+        assert session.pattern == "swarm"
+        # Swarm called with list of node agents
+        mock_swarm_cls.assert_called_once()
+        call_kwargs = mock_swarm_cls.call_args
+        assert len(call_kwargs.kwargs.get("nodes", call_kwargs.args[0] if call_kwargs.args else [])) == 2
+
+    @patch("agent_core.blueprints.loader.Agent")
+    def test_multi_node_mcp_clients_collected(
+        self,
+        mock_agent_cls,
+        tmp_multi_node_blueprints: Path,
+        tmp_prompts: Path,
+        mock_mcp_factory,
+    ) -> None:
+        """All MCP clients from all nodes are collected into the session."""
+        mock_agent_cls.return_value = MagicMock()
+        mock_graph_builder = MagicMock()
+        mock_graph = MagicMock()
+        mock_graph_builder.return_value = mock_graph_builder
+        mock_graph_builder.add_node.return_value = MagicMock()
+        mock_graph_builder.build.return_value = mock_graph
+
+        loader = BlueprintLoader(
+            blueprints_dir=tmp_multi_node_blueprints,
+            prompt_dir=tmp_prompts,
+            mcp_factory=mock_mcp_factory,
+        )
+
+        with patch("strands.multiagent.graph.GraphBuilder", mock_graph_builder, create=True):
+            session = loader.build_agent_session("multi_graph_agent")
+
+        # Primary agent + 2 node agents = 3 MCP client sets
+        assert len(session._mcp_clients) == 3
