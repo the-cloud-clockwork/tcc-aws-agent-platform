@@ -1,11 +1,10 @@
-"""Tests for ObservabilityHook and ConstraintHook."""
+"""Tests for ObservabilityHook."""
 from __future__ import annotations
 
 import json
 import logging
 from typing import TYPE_CHECKING
 
-from agent_core.hooks.constraints import ConstraintHook
 from agent_core.hooks.observability import ObservabilityHook
 
 if TYPE_CHECKING:
@@ -54,35 +53,3 @@ class TestObservabilityHook:
         assert hook.agent_id == "unknown"
 
 
-class TestConstraintHook:
-    def test_trims_excess_recommendations(self) -> None:
-        hook = ConstraintHook(max_recommendations=2)
-        result = {
-            "recommendations": [
-                {"target": "AAPL"},
-                {"target": "GOOGL"},
-                {"target": "TSLA"},
-                {"target": "MSFT"},
-            ]
-        }
-        trimmed = hook.on_agent_end(result=result)
-        assert trimmed is not None
-        assert len(trimmed["recommendations"]) == 2
-        assert trimmed["recommendations"][0]["target"] == "AAPL"
-
-    def test_no_trim_when_within_limit(self) -> None:
-        hook = ConstraintHook(max_recommendations=5)
-        result = {"recommendations": [{"target": "AAPL"}]}
-        out = hook.on_agent_end(result=result)
-        assert out is not None
-        assert len(out["recommendations"]) == 1
-
-    def test_none_result(self) -> None:
-        hook = ConstraintHook()
-        assert hook.on_agent_end(result=None) is None
-
-    def test_no_recommendations_key(self) -> None:
-        hook = ConstraintHook()
-        result: dict = {"other_key": 42}
-        out = hook.on_agent_end(result=result)
-        assert out == {"other_key": 42}
