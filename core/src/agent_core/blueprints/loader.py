@@ -422,4 +422,40 @@ class BlueprintLoader:
         agent = Agent(**agent_kwargs)
         logger.info("Built Agent Session '%s' (mode=%s, mcps=%d)", agent_id, current_mode.value, len(mcp_clients))
 
+        # -- multi-agent orchestration --
+        ma = blueprint.multi_agent
+        if ma is not None:
+            if ma.pattern == "swarm":
+                from strands.multiagent.swarm import Swarm
+
+                swarm = Swarm(
+                    nodes=[agent],
+                    max_handoffs=ma.max_handoffs,
+                    execution_timeout=float(ma.execution_timeout),
+                    node_timeout=float(ma.node_timeout),
+                )
+                logger.info("Built Swarm session '%s' (1 node)", agent_id)
+                return AgentSession(
+                    agent=agent, mcp_clients=mcp_clients,
+                    multi_agent=swarm, pattern="swarm",
+                )
+
+            elif ma.pattern == "graph":
+                from strands.multiagent.graph import GraphBuilder
+
+                builder = GraphBuilder()
+                builder.add_node(agent, node_id=agent_id)
+                builder.set_entry_point(agent_id)
+                builder.set_execution_timeout(float(ma.execution_timeout))
+                builder.set_node_timeout(float(ma.node_timeout))
+                graph = builder.build()
+                logger.info("Built Graph session '%s' (1 node)", agent_id)
+                return AgentSession(
+                    agent=agent, mcp_clients=mcp_clients,
+                    multi_agent=graph, pattern="graph",
+                )
+
+            else:
+                logger.warning("Unknown pattern '%s', falling back to single", ma.pattern)
+
         return AgentSession(agent=agent, mcp_clients=mcp_clients)

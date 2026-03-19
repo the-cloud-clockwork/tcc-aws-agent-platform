@@ -31,7 +31,10 @@ def marshal_output(
     Returns:
         JSON-serializable dict. If overflowed, contains claim_check reference.
     """
-    if hasattr(result, "model_dump"):
+    # MultiAgentResult from Swarm or Graph — both have .to_dict() + .status
+    if hasattr(result, "to_dict") and hasattr(result, "status"):
+        output = result.to_dict()
+    elif hasattr(result, "model_dump"):
         output = result.model_dump()
     elif isinstance(result, dict):
         output = result

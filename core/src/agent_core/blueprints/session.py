@@ -11,16 +11,33 @@ if TYPE_CHECKING:
 class AgentSession:
     """Context manager wrapping an Agent + its MCP clients.
 
+    Supports single-agent, Swarm, and Graph patterns via ``run()``.
+
     Usage::
 
         with loader.build_agent_session("gap-detector") as session:
-            result = session.agent("Analyze gaps for AAPL on 2026-03-15")
+            result = session.run("Analyze gaps for AAPL on 2026-03-15")
     """
 
-    def __init__(self, agent: Agent, mcp_clients: list[Any]) -> None:
+    def __init__(
+        self,
+        agent: Agent,
+        mcp_clients: list[Any],
+        *,
+        multi_agent: Any = None,
+        pattern: str = "single",
+    ) -> None:
         self.agent = agent
         self._mcp_clients = mcp_clients
+        self.multi_agent = multi_agent
+        self.pattern = pattern
         self._exit_stack = ExitStack()
+
+    def run(self, prompt: str) -> Any:
+        """Execute via the appropriate pattern (single, swarm, or graph)."""
+        if self.multi_agent is not None:
+            return self.multi_agent(prompt)
+        return self.agent(prompt)
 
     def __enter__(self) -> AgentSession:
         for client in self._mcp_clients:

@@ -10,6 +10,7 @@ from agent_core.runtime.adapter import AgentResult, normalize_payload
 from agent_core.runtime.agent_config import AgentConfigRegistry
 from agent_core.runtime.idempotency import IdempotencyStore, generate_idempotency_key
 from agent_core.runtime.marshal import marshal_output
+from agent_core.runtime.session import SessionManager
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ class GenericHandler:
     """Configurable agent handler that renders any blueprint.
 
     Handles payload normalization, validation, idempotency, agent session
-    lifecycle, output marshalling, and response formatting.
+    lifecycle, session management, output marshalling, and response formatting.
     """
 
     def __init__(
@@ -26,10 +27,12 @@ class GenericHandler:
         loader: BlueprintLoader,
         config_registry: AgentConfigRegistry,
         idempotency_store: IdempotencyStore | None = None,
+        session_manager: SessionManager | None = None,
     ) -> None:
         self._loader = loader
         self._configs = config_registry
         self._idempotency = idempotency_store
+        self._session_manager = session_manager
 
     def handle(self, event: dict[str, Any], context: Any = None) -> dict[str, Any]:
         """Handle a Lambda or AgentCore event."""
@@ -79,10 +82,25 @@ class GenericHandler:
         try:
             user_prompt = config.build_prompt(params, idem_key)
 
+            # Create session if manager present
+            session_state = None
+            if self._session_manager is not None:
+                from agent_core.execution.mode import get_execution_mode
+
+                session_state = self._session_manager.create_session(
+                    session_id=session_id,
+                    agent_id=agent_id,
+                    execution_mode=get_execution_mode().value,
+                )
+
             with self._loader.build_agent_session(agent_id) as session:
-                result = session.agent(user_prompt)
+                result = session.run(user_prompt)
 
             output = marshal_output(result, agent_id, session_id)
+
+            # Persist session on success
+            if self._session_manager is not None and session_state is not None:
+                self._session_manager.persist_session(session_state)
 
             # 7. Store idempotency
             if self._idempotency:
@@ -97,6 +115,7 @@ class GenericHandler:
 
         except Exception as exc:
             logger.exception("Agent '%s' failed", agent_id)
+            # Do NOT persist session on error — avoid storing partial state
             return AgentResult(
                 status="error", agent_id=agent_id, session_id=session_id,
                 error=str(exc),

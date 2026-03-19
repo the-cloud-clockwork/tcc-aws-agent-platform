@@ -177,6 +177,88 @@ def mock_mcp_factory():
     return factory
 
 
+SAMPLE_SWARM_AGENT_YAML = textwrap.dedent("""\
+    id: swarm_agent
+    version: "1.0.0"
+    name: Swarm Test Agent
+    description: Agent with swarm multi-agent config
+    model:
+      provider: bedrock
+      model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
+      temperature: 0.2
+      max_tokens: 4096
+    prompt_ref: gap_detector_v1.2
+    tools:
+      - mcp: data-mcp
+        tools: [get_data]
+    execution_modes:
+      simulation: true
+      staging: true
+      production: true
+    multi_agent:
+      pattern: swarm
+      execution_timeout: 60
+      node_timeout: 20
+      max_handoffs: 10
+""")
+
+SAMPLE_GRAPH_AGENT_YAML = textwrap.dedent("""\
+    id: graph_agent
+    version: "1.0.0"
+    name: Graph Test Agent
+    description: Agent with graph multi-agent config
+    model:
+      provider: bedrock
+      model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
+      temperature: 0.2
+      max_tokens: 4096
+    prompt_ref: gap_detector_v1.2
+    tools:
+      - mcp: data-mcp
+        tools: [get_data]
+    execution_modes:
+      simulation: true
+      staging: true
+      production: true
+    multi_agent:
+      pattern: graph
+      execution_timeout: 90
+      node_timeout: 30
+      max_handoffs: 20
+""")
+
+SAMPLE_SINGLE_AGENT_YAML = textwrap.dedent("""\
+    id: single_agent
+    version: "1.0.0"
+    name: Single Test Agent
+    description: Agent with no multi-agent config
+    model:
+      provider: bedrock
+      model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
+      temperature: 0.2
+      max_tokens: 4096
+    prompt_ref: gap_detector_v1.2
+    tools:
+      - mcp: data-mcp
+        tools: [get_data]
+    execution_modes:
+      simulation: true
+      staging: true
+      production: true
+""")
+
+
+@pytest.fixture()
+def tmp_multi_agent_blueprints(tmp_path: Path, tmp_prompts: Path) -> Path:
+    """Create a temporary blueprints dir with swarm, graph, and single agent YAMLs."""
+    agents_dir = tmp_path / "agents"
+    agents_dir.mkdir()
+    (agents_dir / "swarm_agent.yaml").write_text(SAMPLE_SWARM_AGENT_YAML)
+    (agents_dir / "graph_agent.yaml").write_text(SAMPLE_GRAPH_AGENT_YAML)
+    (agents_dir / "single_agent.yaml").write_text(SAMPLE_SINGLE_AGENT_YAML)
+    return tmp_path
+
+
 @pytest.fixture()
 def sample_hook_registry():
     """Maps hook names to mock hook classes."""
