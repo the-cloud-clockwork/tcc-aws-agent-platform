@@ -40,7 +40,11 @@ class TestAgentBlueprint:
         assert bp.runtime.max_execution_time == 120
 
     def test_multi_agent(self, sample_agent_dict: dict) -> None:
-        bp = AgentBlueprint(**sample_agent_dict)
+        data = {**sample_agent_dict, "multi_agent": {
+            "pattern": "swarm", "execution_timeout": 90,
+            "node_timeout": 30, "max_handoffs": 20,
+        }}
+        bp = AgentBlueprint(**data)
         assert bp.multi_agent is not None
         assert bp.multi_agent.pattern == "swarm"
         assert bp.multi_agent.execution_timeout == 90

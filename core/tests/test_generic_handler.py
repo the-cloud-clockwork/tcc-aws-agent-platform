@@ -48,7 +48,7 @@ def _make_event(agent_id: str = "test_agent", prompt: str = "hello") -> dict:
     return {
         "agent_id": agent_id,
         "session_id": "sess-001",
-        "parameters": {"prompt": prompt},
+        "prompt": prompt,
     }
 
 
