@@ -27,5 +27,5 @@ class AgentSession:
             self._exit_stack.enter_context(client)
         return self
 
-    def __exit__(self, *exc: Any) -> None:
-        self._exit_stack.__exit__(*exc)
+    def __exit__(self, *exc: Any) -> bool:
+        return self._exit_stack.__exit__(*exc)

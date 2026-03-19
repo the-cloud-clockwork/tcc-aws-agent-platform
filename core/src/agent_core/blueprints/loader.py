@@ -362,16 +362,17 @@ class BlueprintLoader:
         """
 
         blueprint = self.load_agent(agent_id)
+        current_mode = mode or get_execution_mode()
 
         # -- mode gate --
-        if mode is not None:
-            if not validate_agent_mode(blueprint.execution_modes, mode):
-                raise BlueprintLoadError(
-                    f"Agent '{agent_id}' is not enabled for mode '{mode.value}'."
-                )
+        if not validate_agent_mode(blueprint.execution_modes, current_mode):
+            raise BlueprintLoadError(
+                f"Agent '{agent_id}' is not enabled for mode '{current_mode.value}'."
+            )
 
         # -- resolve prompt --
         system_prompt = self._resolve_prompt(blueprint.prompt_ref)
+        logger.info("Resolved prompt for %s (%d chars)", agent_id, len(system_prompt))
 
         # -- create MCP clients via factory --
         if self._mcp_factory is None:
@@ -398,7 +399,7 @@ class BlueprintLoader:
         # -- build Strands Agent kwargs --
         agent_kwargs: dict[str, Any] = {
             "system_prompt": system_prompt,
-            "tools": mcp_clients,
+            "tools": mcp_clients if mcp_clients else None,
         }
         agent_kwargs.update(self._build_model_config(blueprint.model))
 
@@ -408,5 +409,6 @@ class BlueprintLoader:
             agent_kwargs["structured_output_model"] = structured_output_model
 
         agent = Agent(**agent_kwargs)
+        logger.info("Built Agent Session '%s' (mode=%s, mcps=%d)", agent_id, current_mode.value, len(mcp_clients))
 
         return AgentSession(agent=agent, mcp_clients=mcp_clients)
