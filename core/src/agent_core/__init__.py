@@ -12,7 +12,6 @@ from agent_core.blueprints.strategy_evaluator import StrategyEvaluator
 from agent_core.blueprints.workflow import WorkflowBlueprint
 from agent_core.blueprints.workflow_executor import WorkflowExecutor
 from agent_core.execution.mode import ExecutionMode, get_execution_mode, validate_agent_mode
-from agent_core.hooks.constraints import ConstraintHook
 from agent_core.hooks.observability import ObservabilityHook
 from agent_core.hooks.observability_hooks import (
     CompositeObservabilityHook,
@@ -48,7 +47,6 @@ __all__ = [
     "BlueprintLoadError",
     "BlueprintLoader",
     "CompositeObservabilityHook",
-    "ConstraintHook",
     "CostTracker",
     "ExecutionMode",
     "GenericHandler",

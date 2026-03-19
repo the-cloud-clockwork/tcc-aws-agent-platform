@@ -265,13 +265,22 @@ class BlueprintLoader:
         return schema_cls
 
     @staticmethod
-    def _build_model_config(model: ModelConfig) -> dict[str, Any]:
+    def _build_model_config(
+        model: ModelConfig,
+        thinking: Any = None,
+    ) -> dict[str, Any]:
         """Build provider-specific model configuration dict."""
-        return {
+        config: dict[str, Any] = {
             "model_id": model.model_id,
             "temperature": model.temperature,
             "max_tokens": model.max_tokens,
         }
+        if thinking is not None and getattr(thinking, "enabled", False):
+            config["thinking"] = {
+                "type": "enabled",
+                "budget_tokens": getattr(thinking, "budget_tokens", 10000),
+            }
+        return config
 
     # ------------------------------------------------------------------
     # Strands Agent builder
@@ -320,7 +329,7 @@ class BlueprintLoader:
         logger.info("Resolved prompt for %s (%d chars)", agent_id, len(system_prompt))
 
         # -- build model kwargs --
-        model_kwargs = self._build_model_config(blueprint.model)
+        model_kwargs = self._build_model_config(blueprint.model, blueprint.thinking)
 
         # -- collect tools --
         tools = self._collect_tools(blueprint, mcp_clients)
@@ -376,7 +385,7 @@ class BlueprintLoader:
             "system_prompt": system_prompt,
             "tools": mcp_clients if mcp_clients else None,
         }
-        kwargs.update(self._build_model_config(blueprint.model))
+        kwargs.update(self._build_model_config(blueprint.model, blueprint.thinking))
 
         if hooks:
             if len(hooks) == 1:
