@@ -1,7 +1,7 @@
-"""Agent Core -- Blueprint Engine, Execution Modes, Hooks, Schemas, Observability."""
+"""Agent Core -- Blueprint Engine, Execution Modes, Hooks, Schemas, Observability, Runtime."""
 from __future__ import annotations
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 # -- Public API re-exports --
 from agent_core.blueprints.agent import AgentBlueprint
@@ -26,9 +26,19 @@ from agent_core.observability import (
     XRayTracer,
 )
 from agent_core.prompt.client import PromptRegistryClient, PromptResolutionError
+from agent_core.runtime.adapter import AgentPayload, AgentResult, RuntimeMode, normalize_payload
+from agent_core.runtime.agent_config import AgentConfig, AgentConfigRegistry
+from agent_core.runtime.handler import GenericHandler
+from agent_core.runtime.idempotency import IdempotencyStore, generate_idempotency_key
+from agent_core.runtime.marshal import marshal_output
+from agent_core.runtime.session import SessionManager, SessionState
 
 __all__ = [
     "AgentBlueprint",
+    "AgentConfig",
+    "AgentConfigRegistry",
+    "AgentPayload",
+    "AgentResult",
     "AgentSession",
     "AlertPublisher",
     "AuditLogWriter",
@@ -38,17 +48,25 @@ __all__ = [
     "ConstraintHook",
     "CostTracker",
     "ExecutionMode",
+    "GenericHandler",
+    "IdempotencyStore",
     "LangfuseHook",
     "LogSchema",
     "ObservabilityHook",
     "PromptRegistryClient",
     "PromptResolutionError",
+    "RuntimeMode",
+    "SessionManager",
+    "SessionState",
     "StrategyBlueprint",
     "StructuredLogger",
     "WorkflowBlueprint",
     "XRayTracer",
     "create_observability_hooks",
+    "generate_idempotency_key",
     "get_execution_mode",
+    "marshal_output",
+    "normalize_payload",
     "validate_agent_mode",
 ]
 
