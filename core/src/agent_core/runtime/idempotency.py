@@ -86,7 +86,7 @@ class IdempotencyStore:
             )
             logger.info("Idempotency stored: %s (ttl=%dh)", key, ttl_hours)
         except Exception as exc:
-            if "ConditionalCheckFailedException" in str(type(exc).__name__):
+            if "ConditionalCheckFailedException" in str(exc):
                 logger.info("Idempotency key already exists: %s", key)
             else:
                 logger.warning("Idempotency store failed for '%s'", key, exc_info=True)
