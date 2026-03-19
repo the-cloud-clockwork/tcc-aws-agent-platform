@@ -179,6 +179,7 @@ def main() -> None:
 
         asyncio.run(_run())
     elif transport == "http":
+        import contextlib
         import uvicorn
         from starlette.applications import Starlette
         from starlette.responses import JSONResponse
@@ -192,12 +193,17 @@ def main() -> None:
         async def health(_request):
             return JSONResponse({"status": "ok"})
 
+        @contextlib.asynccontextmanager
+        async def lifespan(_app):
+            async with session_manager.run():
+                yield
+
         starlette_app = Starlette(
             routes=[
                 Route("/health", endpoint=health),
                 Mount("/mcp", app=session_manager.handle_request),
             ],
-            lifespan=session_manager.run,
+            lifespan=lifespan,
         )
         logging.info("Starting HTTP transport on %s:%d", host, port)
         config = uvicorn.Config(starlette_app, host=host, port=port, log_level="info")
