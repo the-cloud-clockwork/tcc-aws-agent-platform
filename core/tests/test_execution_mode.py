@@ -1,15 +1,10 @@
 """Tests for ExecutionMode enum and helpers."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import pytest
 
 from agent_core.execution.mode import ExecutionMode, get_execution_mode, validate_agent_mode
 from agent_core.schemas.execution_modes import ExecutionModes
-
-if TYPE_CHECKING:
-    pass
 
 
 class TestExecutionMode:
@@ -32,20 +27,22 @@ class TestExecutionMode:
         with pytest.raises(ValueError):
             get_execution_mode()
 
-    def test_domain_aliases(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("EXECUTION_MODE", "backtest")
-        assert get_execution_mode() == ExecutionMode.SIMULATION
+    def test_aliases_parameter(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        aliases = {"dev": "simulation", "qa": "staging", "prod": "production"}
 
-        monkeypatch.setenv("EXECUTION_MODE", "paper")
-        assert get_execution_mode() == ExecutionMode.STAGING
+        monkeypatch.setenv("EXECUTION_MODE", "dev")
+        assert get_execution_mode(aliases=aliases) == ExecutionMode.SIMULATION
 
-        monkeypatch.setenv("EXECUTION_MODE", "live")
-        assert get_execution_mode() == ExecutionMode.PRODUCTION
+        monkeypatch.setenv("EXECUTION_MODE", "qa")
+        assert get_execution_mode(aliases=aliases) == ExecutionMode.STAGING
 
-    def test_domain_name_property(self) -> None:
-        assert ExecutionMode.SIMULATION.domain_name == "backtest"
-        assert ExecutionMode.STAGING.domain_name == "paper"
-        assert ExecutionMode.PRODUCTION.domain_name == "live"
+        monkeypatch.setenv("EXECUTION_MODE", "prod")
+        assert get_execution_mode(aliases=aliases) == ExecutionMode.PRODUCTION
+
+    def test_aliases_unknown_still_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("EXECUTION_MODE", "unknown")
+        with pytest.raises(ValueError):
+            get_execution_mode(aliases={"dev": "simulation"})
 
     def test_validate_agent_mode_enabled(self) -> None:
         modes = ExecutionModes(simulation=True, staging=True, production=False)
@@ -62,3 +59,27 @@ class TestExecutionMode:
         modes = ExecutionModes()  # simulation=True, staging=False, production=False
         assert validate_agent_mode(modes, ExecutionMode.SIMULATION) is True
         assert validate_agent_mode(modes, ExecutionMode.STAGING) is False
+
+
+class TestExecutionModesFieldAliases:
+    def test_no_aliases_by_default(self) -> None:
+        modes = ExecutionModes(simulation=True, staging=False)
+        assert modes.simulation is True
+        assert modes.staging is False
+
+    def test_field_aliases_resolve(self) -> None:
+        ExecutionModes.field_aliases = {"dev": "simulation", "qa": "staging"}
+        try:
+            modes = ExecutionModes(dev=True, qa=True)  # type: ignore[call-arg]
+            assert modes.simulation is True
+            assert modes.staging is True
+        finally:
+            ExecutionModes.field_aliases = {}
+
+    def test_canonical_takes_precedence(self) -> None:
+        ExecutionModes.field_aliases = {"dev": "simulation"}
+        try:
+            modes = ExecutionModes(simulation=False, dev=True)  # type: ignore[call-arg]
+            assert modes.simulation is False  # canonical wins
+        finally:
+            ExecutionModes.field_aliases = {}
