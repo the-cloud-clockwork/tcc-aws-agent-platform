@@ -103,9 +103,9 @@ class TestHandlerWithSessionManager:
 
         resp = handler.handle(_make_event())
 
-        assert resp["statusCode"] == 200  # error is in body, not HTTP status
         import json
+        assert resp["statusCode"] == 500
         body = json.loads(resp["body"])
-        assert body["status"] == "error"
+        assert "agent blew up" in body["error"]
         sm.create_session.assert_called_once()
         sm.persist_session.assert_not_called()
