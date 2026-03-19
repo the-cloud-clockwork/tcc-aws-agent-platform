@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import sys
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -163,16 +165,47 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
 # ------------------------------------------------------------------
 
 def main() -> None:
-    """Run the MCP server over stdio."""
+    """Run the MCP server — select transport based on MCP_TRANSPORT env var."""
     import asyncio
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
-    async def _run() -> None:
-        async with stdio_server() as (read_stream, write_stream):
-            await app.run(read_stream, write_stream, app.create_initialization_options())
+    transport = os.environ.get("MCP_TRANSPORT", "stdio").lower()
 
-    asyncio.run(_run())
+    if transport == "stdio":
+        async def _run() -> None:
+            async with stdio_server() as (read_stream, write_stream):
+                await app.run(read_stream, write_stream, app.create_initialization_options())
+
+        asyncio.run(_run())
+    elif transport == "http":
+        import uvicorn
+        from starlette.applications import Starlette
+        from starlette.responses import JSONResponse
+        from starlette.routing import Mount, Route
+        from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+
+        host = os.environ.get("MCP_HOST", "0.0.0.0")
+        port = int(os.environ.get("MCP_PORT", "8080"))
+        session_manager = StreamableHTTPSessionManager(app=app, stateless=True)
+
+        async def health(_request):
+            return JSONResponse({"status": "ok"})
+
+        starlette_app = Starlette(
+            routes=[
+                Route("/health", endpoint=health),
+                Mount("/mcp", app=session_manager.handle_request),
+            ],
+            lifespan=session_manager.run,
+        )
+        logging.info("Starting HTTP transport on %s:%d", host, port)
+        config = uvicorn.Config(starlette_app, host=host, port=port, log_level="info")
+        uvicorn_server = uvicorn.Server(config)
+        asyncio.run(uvicorn_server.serve())
+    else:
+        logging.error("Unknown MCP_TRANSPORT=%s. Use 'stdio' or 'http'.", transport)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
