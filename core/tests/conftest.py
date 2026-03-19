@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import textwrap
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 import pytest
 import yaml
@@ -159,3 +160,37 @@ def tmp_prompts(tmp_path: Path) -> Path:
         "You are a gap detection agent (latest). Analyse price gaps."
     )
     return prompts_dir
+
+
+@pytest.fixture()
+def mock_mcp_factory():
+    """Factory returning mock MCP clients with context manager protocol."""
+
+    def factory(name: str):
+        client = MagicMock()
+        client.__enter__ = MagicMock(return_value=client)
+        client.__exit__ = MagicMock(return_value=False)
+        client.name = name
+        return client
+
+    return factory
+
+
+@pytest.fixture()
+def sample_hook_registry():
+    """Maps hook names to mock hook classes."""
+    mock_hook_cls = MagicMock()
+    mock_hook_cls.return_value = MagicMock()  # instance
+    return {"ObservabilityHook": mock_hook_cls}
+
+
+@pytest.fixture()
+def sample_schema_registry():
+    """Maps schema names to Pydantic models."""
+    from pydantic import BaseModel
+
+    class TestOutput(BaseModel):
+        result: str
+        score: float
+
+    return {"TestOutput": TestOutput}
