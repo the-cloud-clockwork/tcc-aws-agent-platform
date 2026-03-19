@@ -23,6 +23,15 @@ class MultiAgentConfig(BaseModel):
     max_handoffs: int = Field(default=20, gt=0)
 
 
+class ThinkingConfig(BaseModel):
+    """Extended thinking configuration for agents that need deeper reasoning."""
+
+    model_config = ConfigDict(frozen=True)
+
+    enabled: bool = False
+    budget_tokens: int = 10000
+
+
 class AgentBlueprint(BaseModel):
     """Full specification for a single agent, loaded from YAML."""
 
@@ -46,6 +55,8 @@ class AgentBlueprint(BaseModel):
     )
     hooks: list[str] = Field(default_factory=list)
     multi_agent: MultiAgentConfig | None = None
+    tags: list[str] = Field(default_factory=list)
+    thinking: ThinkingConfig | None = None
 
 
 AgentBlueprint.model_rebuild()

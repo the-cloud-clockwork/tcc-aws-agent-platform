@@ -11,7 +11,7 @@ class ModelConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    provider: Literal["bedrock", "anthropic", "litellm"] = "bedrock"
+    provider: Literal["bedrock", "anthropic", "litellm", "vertex"] = "bedrock"
     model_id: str = Field(
         ...,
         description="Fully qualified model identifier, e.g. us.anthropic.claude-sonnet-4-20250514-v1:0",
