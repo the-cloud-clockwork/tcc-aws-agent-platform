@@ -4,6 +4,18 @@ from __future__ import annotations
 __version__ = "0.7.0"
 
 # -- Public API re-exports --
+from agent_core.a2a.discovery import AgentDiscovery, DiscoveredAgent
+from agent_core.a2a.models import (
+    AgentAuthentication,
+    AgentCapabilities,
+    AgentCard,
+    AgentSkill,
+    Task,
+    TaskMessage,
+    TaskState,
+    TaskStatus,
+)
+from agent_core.a2a.task_handler import A2ATaskHandler
 from agent_core.blueprints.agent import AgentBlueprint, GraphEdgeConfig, GraphNodeConfig
 from agent_core.blueprints.loader import BlueprintLoadError, BlueprintLoader
 from agent_core.blueprints.session import AgentSession
@@ -29,25 +41,35 @@ from agent_core.observability import (
 from agent_core.prompt.client import PromptRegistryClient, PromptResolutionError
 from agent_core.runtime.adapter import AgentPayload, AgentResult, RuntimeMode, normalize_payload
 from agent_core.runtime.agent_config import AgentConfig, AgentConfigRegistry
+from agent_core.runtime.entrypoint import AgentCoreApp, register_agent
 from agent_core.runtime.handler import GenericHandler
 from agent_core.runtime.idempotency import IdempotencyStore, generate_idempotency_key
 from agent_core.runtime.marshal import marshal_output
 from agent_core.runtime.session import SessionManager, SessionState
 from agent_core.runtime.strands_session_bridge import StrandsSessionBridge
+from agent_core.tools.mcp_factory import create_mcp_client
 
 __all__ = [
+    "A2ATaskHandler",
+    "AgentAuthentication",
     "AgentBlueprint",
+    "AgentCapabilities",
+    "AgentCard",
     "AgentConfig",
     "AgentConfigRegistry",
+    "AgentCoreApp",
+    "AgentDiscovery",
     "AgentPayload",
     "AgentResult",
     "AgentSession",
+    "AgentSkill",
     "AlertPublisher",
     "AuditLogWriter",
     "BlueprintLoadError",
     "BlueprintLoader",
     "CompositeObservabilityHook",
     "CostTracker",
+    "DiscoveredAgent",
     "ExecutionMode",
     "GenericHandler",
     "GraphEdgeConfig",
@@ -65,13 +87,19 @@ __all__ = [
     "StrategyEvaluator",
     "StrandsSessionBridge",
     "StructuredLogger",
+    "Task",
+    "TaskMessage",
+    "TaskState",
+    "TaskStatus",
     "WorkflowBlueprint",
     "WorkflowExecutor",
     "XRayTracer",
+    "create_mcp_client",
     "create_observability_hooks",
     "generate_idempotency_key",
     "get_execution_mode",
     "marshal_output",
     "normalize_payload",
+    "register_agent",
     "validate_agent_mode",
 ]
