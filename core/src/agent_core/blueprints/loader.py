@@ -2,16 +2,25 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import yaml
+from pydantic import BaseModel
 
 from agent_core.blueprints.agent import AgentBlueprint
+from agent_core.blueprints.session import AgentSession
 from agent_core.blueprints.strategy import StrategyBlueprint
 from agent_core.blueprints.workflow import WorkflowBlueprint
 from agent_core.execution.mode import ExecutionMode, get_execution_mode, validate_agent_mode
 from agent_core.prompt.client import PromptRegistryClient
+from agent_core.schemas.model_config import ModelConfig
+
+try:
+    from strands import Agent  # type: ignore[import-untyped]
+except ImportError:  # pragma: no cover
+    Agent = None  # type: ignore[assignment,misc]
 
 logger = logging.getLogger(__name__)
 
@@ -35,15 +44,43 @@ class BlueprintLoader:
     prompt_client:
         Optional :class:`PromptRegistryClient` used when building agents.
         If ``None`` a default client is created.
+    prompt_dir:
+        Optional local prompt directory. If *prompt_client* is ``None`` and
+        *prompt_dir* is provided, a :class:`PromptRegistryClient` is created
+        with this directory as its local fallback.
+    mcp_factory:
+        Optional callable ``(mcp_name) -> mcp_client`` used by
+        :meth:`build_agent_session` to create MCP clients automatically.
+    hook_registry:
+        Mapping of hook name to hook class, used by
+        :meth:`build_agent_session` to instantiate hooks declared in blueprints.
+    schema_registry:
+        Mapping of schema name to Pydantic model class, used by
+        :meth:`build_agent_session` to resolve ``output_schema`` references.
     """
 
     def __init__(
         self,
         blueprints_dir: str | Path,
         prompt_client: PromptRegistryClient | None = None,
+        *,
+        prompt_dir: str | Path | None = None,
+        mcp_factory: Callable[[str], Any] | None = None,
+        hook_registry: dict[str, type] | None = None,
+        schema_registry: dict[str, type[BaseModel]] | None = None,
     ) -> None:
         self.blueprints_dir = Path(blueprints_dir)
-        self.prompt_client = prompt_client or PromptRegistryClient()
+        self._prompt_dir = Path(prompt_dir) if prompt_dir else None
+        self._mcp_factory = mcp_factory
+        self._hook_registry = hook_registry
+        self._schema_registry = schema_registry
+
+        if prompt_client is not None:
+            self.prompt_client = prompt_client
+        elif prompt_dir is not None:
+            self.prompt_client = PromptRegistryClient(local_dir=prompt_dir)
+        else:
+            self.prompt_client = PromptRegistryClient()
 
     # ------------------------------------------------------------------
     # YAML helpers
@@ -173,6 +210,69 @@ class BlueprintLoader:
                 tools.append(client)
         return tools
 
+    def _resolve_prompt(self, prompt_ref: str) -> str:
+        """Resolve a prompt reference to its text via the prompt client."""
+        try:
+            return self.prompt_client.get(prompt_ref)
+        except Exception as exc:
+            raise BlueprintLoadError(
+                f"Failed to resolve prompt '{prompt_ref}': {exc}"
+            ) from exc
+
+    def _resolve_hooks(self, hook_names: list[str]) -> list[Any]:
+        """Instantiate hooks declared in a blueprint.
+
+        Returns an empty list when no hooks are declared.
+
+        Raises
+        ------
+        BlueprintLoadError
+            If the blueprint declares hooks but no ``hook_registry`` was
+            configured, or if a hook name is not found in the registry.
+        """
+        if not hook_names:
+            return []
+        if self._hook_registry is None:
+            raise BlueprintLoadError(
+                f"Blueprint declares hooks {hook_names} but no hook_registry configured."
+            )
+        hooks: list[Any] = []
+        for name in hook_names:
+            hook_cls = self._hook_registry.get(name)
+            if hook_cls is None:
+                raise BlueprintLoadError(
+                    f"Unknown hook '{name}'. Available: {list(self._hook_registry.keys())}"
+                )
+            hooks.append(hook_cls())
+        return hooks
+
+    def _resolve_output_schema(self, schema_name: str | None) -> type[BaseModel] | None:
+        """Resolve an output schema name to its Pydantic model class.
+
+        Returns ``None`` when *schema_name* is ``None``.
+        """
+        if schema_name is None:
+            return None
+        if self._schema_registry is None:
+            raise BlueprintLoadError(
+                f"Blueprint declares output_schema '{schema_name}' but no schema_registry configured."
+            )
+        schema_cls = self._schema_registry.get(schema_name)
+        if schema_cls is None:
+            raise BlueprintLoadError(
+                f"Unknown output schema '{schema_name}'. Available: {list(self._schema_registry.keys())}"
+            )
+        return schema_cls
+
+    @staticmethod
+    def _build_model_config(model: ModelConfig) -> dict[str, Any]:
+        """Build provider-specific model configuration dict."""
+        return {
+            "model_id": model.model_id,
+            "temperature": model.temperature,
+            "max_tokens": model.max_tokens,
+        }
+
     # ------------------------------------------------------------------
     # Strands Agent builder
     # ------------------------------------------------------------------
@@ -205,7 +305,6 @@ class BlueprintLoader:
         -------
         A ``strands.Agent`` instance ready to invoke.
         """
-        from strands import Agent  # type: ignore[import-untyped]
 
         blueprint = self.load_agent(agent_id)
         current_mode = mode or get_execution_mode()
@@ -217,15 +316,11 @@ class BlueprintLoader:
             )
 
         # -- resolve prompt --
-        system_prompt = self.prompt_client.get(blueprint.prompt_ref)
+        system_prompt = self._resolve_prompt(blueprint.prompt_ref)
         logger.info("Resolved prompt for %s (%d chars)", agent_id, len(system_prompt))
 
         # -- build model kwargs --
-        model_kwargs: dict[str, Any] = {
-            "model_id": blueprint.model.model_id,
-            "temperature": blueprint.model.temperature,
-            "max_tokens": blueprint.model.max_tokens,
-        }
+        model_kwargs = self._build_model_config(blueprint.model)
 
         # -- collect tools --
         tools = self._collect_tools(blueprint, mcp_clients)
@@ -238,3 +333,80 @@ class BlueprintLoader:
         )
         logger.info("Built Strands Agent '%s' (mode=%s)", agent_id, current_mode.value)
         return agent
+
+    # ------------------------------------------------------------------
+    # Agent Session builder
+    # ------------------------------------------------------------------
+
+    def build_agent_session(
+        self,
+        agent_id: str,
+        mode: ExecutionMode | None = None,
+    ) -> AgentSession:
+        """Build an :class:`AgentSession` with full lifecycle management.
+
+        Unlike :meth:`build_strands_agent`, this method uses the configured
+        ``mcp_factory`` to create MCP clients automatically and wraps them in
+        an :class:`AgentSession` context manager that ensures proper cleanup.
+
+        Parameters
+        ----------
+        agent_id:
+            The ``id`` field of the agent blueprint.
+        mode:
+            Override execution mode (defaults to env-var-based mode).
+
+        Returns
+        -------
+        An :class:`AgentSession` to be used as a context manager.
+        """
+
+        blueprint = self.load_agent(agent_id)
+
+        # -- mode gate --
+        if mode is not None:
+            if not validate_agent_mode(blueprint.execution_modes, mode):
+                raise BlueprintLoadError(
+                    f"Agent '{agent_id}' is not enabled for mode '{mode.value}'."
+                )
+
+        # -- resolve prompt --
+        system_prompt = self._resolve_prompt(blueprint.prompt_ref)
+
+        # -- create MCP clients via factory --
+        if self._mcp_factory is None:
+            raise BlueprintLoadError(
+                f"Cannot build agent session for '{agent_id}': no mcp_factory configured. "
+                "Pass mcp_factory to BlueprintLoader or use build_strands_agent() with explicit mcp_clients."
+            )
+        mcp_clients: list[Any] = []
+        for tool_cfg in blueprint.tools:
+            try:
+                client = self._mcp_factory(tool_cfg.mcp)
+                mcp_clients.append(client)
+            except Exception as exc:
+                raise BlueprintLoadError(
+                    f"Failed to create MCP client for '{tool_cfg.mcp}': {exc}"
+                ) from exc
+
+        # -- resolve hooks --
+        hooks = self._resolve_hooks(blueprint.hooks)
+
+        # -- resolve output schema --
+        structured_output_model = self._resolve_output_schema(blueprint.output_schema)
+
+        # -- build Strands Agent kwargs --
+        agent_kwargs: dict[str, Any] = {
+            "system_prompt": system_prompt,
+            "tools": mcp_clients,
+        }
+        agent_kwargs.update(self._build_model_config(blueprint.model))
+
+        if hooks:
+            agent_kwargs["callback_handler"] = hooks[0] if len(hooks) == 1 else hooks
+        if structured_output_model is not None:
+            agent_kwargs["structured_output_model"] = structured_output_model
+
+        agent = Agent(**agent_kwargs)
+
+        return AgentSession(agent=agent, mcp_clients=mcp_clients)

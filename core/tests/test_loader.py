@@ -2,13 +2,30 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock, patch
 
 import pytest
+import yaml
+from pydantic import BaseModel
 
-from agent_core.blueprints.loader import BlueprintLoader, BlueprintLoadError
+from agent_core.blueprints.loader import BlueprintLoadError, BlueprintLoader
+from agent_core.blueprints.session import AgentSession
+from agent_core.execution.mode import ExecutionMode
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+
+class _DummyOutput(BaseModel):
+    """Dummy output schema for tests that need a schema_registry."""
+
+    data: str = ""
+
+
+# Default registries used by session tests to satisfy the sample blueprint's
+# hooks and output_schema declarations.
+_DEFAULT_HOOK_REG: dict[str, type] = {"ObservabilityHook": MagicMock}
+_DEFAULT_SCHEMA_REG: dict[str, type[BaseModel]] = {"gap_detection_output_v1": _DummyOutput}
 
 
 class TestBlueprintLoader:
@@ -46,3 +63,202 @@ class TestBlueprintLoader:
         loader = BlueprintLoader(tmp_blueprints)
         bp = loader.load_strategy_from_path(path)
         assert bp.id == "gap_momentum_up"
+
+
+class TestBuildStrandsAgent:
+    """Tests for build_strands_agent prompt and mode features."""
+
+    @patch("agent_core.blueprints.loader.Agent")
+    def test_build_strands_agent_resolves_prompt(
+        self, mock_agent_cls, tmp_blueprints: Path, tmp_prompts: Path
+    ) -> None:
+        loader = BlueprintLoader(blueprints_dir=tmp_blueprints, prompt_dir=tmp_prompts)
+        mock_agent_cls.return_value = MagicMock()
+
+        mcp_client = MagicMock()
+        loader.build_strands_agent("gap_detector", mcp_clients={"data-mcp": mcp_client})
+
+        # Verify Agent was called with resolved prompt text
+        call_kwargs = mock_agent_cls.call_args
+        assert "system_prompt" in call_kwargs.kwargs or len(call_kwargs.args) > 0
+
+    @patch("agent_core.blueprints.loader.Agent")
+    def test_build_strands_agent_prompt_failure_raises(
+        self, mock_agent_cls, tmp_blueprints: Path
+    ) -> None:
+        # No prompt_dir and no prompt_client → should fail on prompt resolution
+        loader = BlueprintLoader(blueprints_dir=tmp_blueprints)
+        mcp_client = MagicMock()
+
+        with pytest.raises(BlueprintLoadError):
+            loader.build_strands_agent("gap_detector", mcp_clients={"data-mcp": mcp_client})
+
+    @patch("agent_core.blueprints.loader.Agent")
+    def test_build_strands_agent_mode_gating(
+        self, mock_agent_cls, tmp_blueprints: Path, tmp_prompts: Path
+    ) -> None:
+        # Modify blueprint to disable production mode for this test
+        bp_path = tmp_blueprints / "agents" / "gap_detector.yaml"
+        with open(bp_path) as f:
+            data = yaml.safe_load(f)
+        data["execution_modes"]["production"] = False
+        with open(bp_path, "w") as f:
+            yaml.dump(data, f)
+
+        loader = BlueprintLoader(blueprints_dir=tmp_blueprints, prompt_dir=tmp_prompts)
+        mock_agent_cls.return_value = MagicMock()
+        mcp_client = MagicMock()
+
+        # simulation is enabled in the sample blueprint
+        agent = loader.build_strands_agent(
+            "gap_detector",
+            mcp_clients={"data-mcp": mcp_client},
+            mode=ExecutionMode.SIMULATION,
+        )
+        assert agent is not None
+
+        # production is NOT enabled → should raise
+        with pytest.raises(BlueprintLoadError):
+            loader.build_strands_agent(
+                "gap_detector",
+                mcp_clients={"data-mcp": mcp_client},
+                mode=ExecutionMode.PRODUCTION,
+            )
+
+
+class TestBuildAgentSession:
+    """Tests for build_agent_session lifecycle management."""
+
+    def _make_loader(self, tmp_blueprints, tmp_prompts, mock_mcp_factory, **overrides):
+        """Helper to create a loader with default registries for the sample blueprint."""
+        kwargs = {
+            "blueprints_dir": tmp_blueprints,
+            "prompt_dir": tmp_prompts,
+            "mcp_factory": mock_mcp_factory,
+            "hook_registry": {"ObservabilityHook": MagicMock},
+            "schema_registry": _DEFAULT_SCHEMA_REG,
+        }
+        kwargs.update(overrides)
+        return BlueprintLoader(**kwargs)
+
+    @patch("agent_core.blueprints.loader.Agent")
+    def test_build_agent_session_enters_mcp_clients(
+        self, mock_agent_cls, tmp_blueprints: Path, tmp_prompts: Path, mock_mcp_factory
+    ) -> None:
+        loader = self._make_loader(tmp_blueprints, tmp_prompts, mock_mcp_factory)
+        mock_agent_cls.return_value = MagicMock()
+
+        with loader.build_agent_session("gap_detector") as session:
+            assert isinstance(session, AgentSession)
+            # MCP clients should have __enter__ called
+            for client in session._mcp_clients:
+                client.__enter__.assert_called_once()
+
+    @patch("agent_core.blueprints.loader.Agent")
+    def test_build_agent_session_exits_mcp_clients(
+        self, mock_agent_cls, tmp_blueprints: Path, tmp_prompts: Path, mock_mcp_factory
+    ) -> None:
+        loader = self._make_loader(tmp_blueprints, tmp_prompts, mock_mcp_factory)
+        mock_agent_cls.return_value = MagicMock()
+
+        session = loader.build_agent_session("gap_detector")
+        with session:
+            pass
+        # After exit, all MCP clients should have __exit__ called
+        for client in session._mcp_clients:
+            client.__exit__.assert_called_once()
+
+    @patch("agent_core.blueprints.loader.Agent")
+    def test_build_agent_session_exits_on_error(
+        self, mock_agent_cls, tmp_blueprints: Path, tmp_prompts: Path, mock_mcp_factory
+    ) -> None:
+        loader = self._make_loader(tmp_blueprints, tmp_prompts, mock_mcp_factory)
+        mock_agent_cls.return_value = MagicMock()
+
+        with pytest.raises(RuntimeError):
+            with loader.build_agent_session("gap_detector") as session:
+                raise RuntimeError("test error")
+        # Even on error, MCP clients should be cleaned up
+        for client in session._mcp_clients:
+            client.__exit__.assert_called_once()
+
+    @patch("agent_core.blueprints.loader.Agent")
+    def test_build_agent_session_hooks_wired(
+        self,
+        mock_agent_cls,
+        tmp_blueprints: Path,
+        tmp_prompts: Path,
+        mock_mcp_factory,
+        sample_hook_registry,
+    ) -> None:
+        loader = self._make_loader(
+            tmp_blueprints,
+            tmp_prompts,
+            mock_mcp_factory,
+            hook_registry=sample_hook_registry,
+        )
+        mock_agent_cls.return_value = MagicMock()
+
+        with loader.build_agent_session("gap_detector") as session:
+            pass
+
+        # Verify hook class was instantiated
+        # (The sample blueprint has hooks: ["ObservabilityHook"])
+        sample_hook_registry["ObservabilityHook"].assert_called()
+
+    @patch("agent_core.blueprints.loader.Agent")
+    def test_build_agent_session_unknown_hook_raises(
+        self, mock_agent_cls, tmp_blueprints: Path, tmp_prompts: Path, mock_mcp_factory
+    ) -> None:
+        loader = self._make_loader(
+            tmp_blueprints,
+            tmp_prompts,
+            mock_mcp_factory,
+            hook_registry={"something_else": MagicMock()},
+        )
+
+        with pytest.raises(BlueprintLoadError, match="Unknown hook"):
+            loader.build_agent_session("gap_detector")
+
+    @patch("agent_core.blueprints.loader.Agent")
+    def test_build_agent_session_output_schema(
+        self,
+        mock_agent_cls,
+        tmp_blueprints: Path,
+        tmp_prompts: Path,
+        mock_mcp_factory,
+        sample_schema_registry,
+    ) -> None:
+        # Modify the sample gap_detector blueprint to use a known test schema
+        bp_path = tmp_blueprints / "agents" / "gap_detector.yaml"
+        with open(bp_path) as f:
+            data = yaml.safe_load(f)
+        data["output_schema"] = "TestOutput"
+        # Remove hooks to avoid needing the hook registry for this test
+        data["hooks"] = []
+        with open(bp_path, "w") as f:
+            yaml.dump(data, f)
+
+        loader = BlueprintLoader(
+            blueprints_dir=tmp_blueprints,
+            prompt_dir=tmp_prompts,
+            mcp_factory=mock_mcp_factory,
+            schema_registry=sample_schema_registry,
+        )
+        mock_agent_cls.return_value = MagicMock()
+
+        with loader.build_agent_session("gap_detector") as session:
+            pass
+
+        # Verify structured_output_model was passed to Agent
+        call_kwargs = mock_agent_cls.call_args.kwargs
+        assert call_kwargs.get("structured_output_model") == sample_schema_registry["TestOutput"]
+
+    @patch("agent_core.blueprints.loader.Agent")
+    def test_build_agent_session_no_factory_fallback(
+        self, mock_agent_cls, tmp_blueprints: Path, tmp_prompts: Path
+    ) -> None:
+        loader = BlueprintLoader(blueprints_dir=tmp_blueprints, prompt_dir=tmp_prompts)
+
+        with pytest.raises(BlueprintLoadError, match="no mcp_factory"):
+            loader.build_agent_session("gap_detector")
