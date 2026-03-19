@@ -4,18 +4,6 @@ from __future__ import annotations
 __version__ = "0.7.0"
 
 # -- Public API re-exports --
-from agent_core.a2a.discovery import AgentDiscovery, DiscoveredAgent
-from agent_core.a2a.models import (
-    AgentAuthentication,
-    AgentCapabilities,
-    AgentCard,
-    AgentSkill,
-    Task,
-    TaskMessage,
-    TaskState,
-    TaskStatus,
-)
-from agent_core.a2a.task_handler import A2ATaskHandler
 from agent_core.blueprints.agent import AgentBlueprint, GraphEdgeConfig, GraphNodeConfig
 from agent_core.blueprints.loader import BlueprintLoadError, BlueprintLoader
 from agent_core.blueprints.session import AgentSession
@@ -50,26 +38,19 @@ from agent_core.runtime.strands_session_bridge import StrandsSessionBridge
 from agent_core.tools.mcp_factory import create_mcp_client
 
 __all__ = [
-    "A2ATaskHandler",
-    "AgentAuthentication",
     "AgentBlueprint",
-    "AgentCapabilities",
-    "AgentCard",
     "AgentConfig",
     "AgentConfigRegistry",
     "AgentCoreApp",
-    "AgentDiscovery",
     "AgentPayload",
     "AgentResult",
     "AgentSession",
-    "AgentSkill",
     "AlertPublisher",
     "AuditLogWriter",
     "BlueprintLoadError",
     "BlueprintLoader",
     "CompositeObservabilityHook",
     "CostTracker",
-    "DiscoveredAgent",
     "ExecutionMode",
     "GenericHandler",
     "GraphEdgeConfig",
@@ -87,10 +68,6 @@ __all__ = [
     "StrategyEvaluator",
     "StrandsSessionBridge",
     "StructuredLogger",
-    "Task",
-    "TaskMessage",
-    "TaskState",
-    "TaskStatus",
     "WorkflowBlueprint",
     "WorkflowExecutor",
     "XRayTracer",
