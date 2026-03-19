@@ -65,7 +65,7 @@ class BlueprintLoader:
         prompt_client: PromptRegistryClient | None = None,
         *,
         prompt_dir: str | Path | None = None,
-        mcp_factory: Callable[[str], Any] | None = None,
+        mcp_factory: Callable[..., Any] | None = None,
         hook_registry: dict[str, type] | None = None,
         schema_registry: dict[str, type[BaseModel]] | None = None,
     ) -> None:
@@ -383,6 +383,13 @@ class BlueprintLoader:
         mcp_clients: list[Any] = []
         for tool_cfg in blueprint.tools:
             try:
+                client = self._mcp_factory(
+                    tool_cfg.mcp,
+                    tool_filter=tool_cfg.tools if tool_cfg.tools else None,
+                )
+                mcp_clients.append(client)
+            except TypeError:
+                # Factory doesn't accept tool_filter kwarg — fall back to unfiltered
                 client = self._mcp_factory(tool_cfg.mcp)
                 mcp_clients.append(client)
             except Exception as exc:
@@ -404,7 +411,11 @@ class BlueprintLoader:
         agent_kwargs.update(self._build_model_config(blueprint.model))
 
         if hooks:
-            agent_kwargs["callback_handler"] = hooks[0] if len(hooks) == 1 else hooks
+            if len(hooks) == 1:
+                agent_kwargs["callback_handler"] = hooks[0]
+            else:
+                from strands.handlers.callback_handler import CompositeCallbackHandler
+                agent_kwargs["callback_handler"] = CompositeCallbackHandler(*hooks)
         if structured_output_model is not None:
             agent_kwargs["structured_output_model"] = structured_output_model
 
