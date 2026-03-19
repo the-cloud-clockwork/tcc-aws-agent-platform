@@ -29,6 +29,7 @@ class McpServiceConstruct(Construct):
     - ECS task definition with health check
     - Service Discovery A record
     - CloudWatch log group
+    - Configurable container port
     """
 
     def __init__(
@@ -43,10 +44,14 @@ class McpServiceConstruct(Construct):
         vpc: ec2.IVpc,
         security_group: ec2.ISecurityGroup,
         resource_prefix: str = "platform",
+        container_port: int = 8000,
+        cpu: int = 256,
+        memory_limit_mib: int = 512,
     ) -> None:
         super().__init__(scope, construct_id)
 
         self.mcp_name = mcp_name
+        self.container_port = container_port
         prefix = resource_prefix
         removal = RemovalPolicy.DESTROY if env_name == "dev" else RemovalPolicy.RETAIN
 
@@ -85,8 +90,8 @@ class McpServiceConstruct(Construct):
             self,
             "TaskDef",
             family=f"{prefix}-{env_name}-mcp-{mcp_name}",
-            cpu=256,
-            memory_limit_mib=512,
+            cpu=cpu,
+            memory_limit_mib=memory_limit_mib,
         )
 
         self.container = self.task_definition.add_container(
@@ -102,10 +107,10 @@ class McpServiceConstruct(Construct):
             environment={
                 "ENV_NAME": env_name,
                 "MCP_NAME": mcp_name,
-                "PORT": "8000",
+                "PORT": str(container_port),
             },
             health_check=ecs.HealthCheck(
-                command=["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"],
+                command=["CMD-SHELL", f"curl -f http://localhost:{container_port}/health || exit 1"],
                 interval=Duration.seconds(30),
                 timeout=Duration.seconds(5),
                 retries=3,
@@ -114,7 +119,7 @@ class McpServiceConstruct(Construct):
         )
 
         self.container.add_port_mappings(
-            ecs.PortMapping(container_port=8000, protocol=ecs.Protocol.TCP)
+            ecs.PortMapping(container_port=container_port, protocol=ecs.Protocol.TCP)
         )
 
         # -- Fargate Service -----------------------------------------------

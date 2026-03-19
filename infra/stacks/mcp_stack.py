@@ -41,11 +41,23 @@ class McpStack(Stack):
         ssm_root = config.get("ssm_root_path", f"/{prefix}/{env_name}")
         sd_namespace = config.get("service_discovery_namespace", f"{prefix}.local")
 
-        # Build MCP name list from config or context
+        # Build MCP config list from config or context
         mcp_configs = config.get("mcps", [])
-        mcp_names: list[str] = self.node.try_get_context("mcps") or [
-            m["name"] for m in mcp_configs
-        ] or ["artifacts", "data"]
+        if not mcp_configs:
+            mcp_configs = [
+                {"name": "artifacts", "port": 8004},
+                {"name": "market-data", "port": 8002},
+            ]
+
+        # Allow context override of MCP names
+        context_mcps = self.node.try_get_context("mcps")
+        if context_mcps:
+            mcp_configs = [{"name": n, "port": 8000} for n in context_mcps]
+
+        # Default MCP resource config
+        mcp_defaults = config.get("mcp_services", {})
+        default_cpu = mcp_defaults.get("cpu", 256)
+        default_memory = mcp_defaults.get("memory_mib", 512)
 
         # -- ECS Cluster ---------------------------------------------------
 
@@ -68,8 +80,14 @@ class McpStack(Stack):
         # -- MCP Services --------------------------------------------------
 
         self.services: dict[str, ecs.FargateService] = {}
+        self.mcp_endpoints: dict[str, str] = {}
 
-        for mcp_name in mcp_names:
+        for mcp_cfg in mcp_configs:
+            mcp_name = mcp_cfg["name"]
+            mcp_port = mcp_cfg.get("port", 8000)
+            mcp_cpu = mcp_cfg.get("cpu", default_cpu)
+            mcp_memory = mcp_cfg.get("memory", default_memory)
+
             mcp = McpServiceConstruct(
                 self,
                 f"Mcp-{mcp_name}",
@@ -80,8 +98,12 @@ class McpStack(Stack):
                 vpc=vpc,
                 security_group=mcp_sg,
                 resource_prefix=prefix,
+                container_port=mcp_port,
+                cpu=mcp_cpu,
+                memory_limit_mib=mcp_memory,
             )
             self.services[mcp_name] = mcp.service
+            self.mcp_endpoints[mcp_name] = f"http://{mcp_name}.{sd_namespace}:{mcp_port}"
 
             # Add auto-scaling if max_tasks > 1
             scaling_config = config.get("scaling", {}).get("fargate", {})
@@ -99,5 +121,5 @@ class McpStack(Stack):
                 self,
                 f"SSM-mcp-{mcp_name}-endpoint",
                 parameter_name=f"{ssm_root}/mcps/{mcp_name}/endpoint",
-                string_value=f"{mcp_name}.{sd_namespace}",
+                string_value=f"{mcp_name}.{sd_namespace}:{mcp_port}",
             )

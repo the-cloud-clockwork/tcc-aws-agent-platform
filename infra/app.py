@@ -16,6 +16,7 @@ from stacks.mcp_stack import McpStack
 from stacks.network_stack import NetworkStack
 from stacks.observability_stack import ObservabilityStack
 from stacks.security_stack import SecurityStack
+from stacks.workflow_stack import WorkflowStack
 
 
 def load_config(env_name: str) -> dict:
@@ -77,6 +78,18 @@ security = SecurityStack(
     vpc=network.vpc,
 )
 
+# -- MCP Stack (before Agents — agents need MCP endpoints) -----------------
+
+mcps = McpStack(
+    app,
+    f"{prefix}-mcps",
+    env=cdk_env,
+    env_name=env_name,
+    config=config,
+    vpc=network.vpc,
+    mcp_sg=network.mcp_sg,
+)
+
 # -- Agent Stack -----------------------------------------------------------
 
 agents = AgentStack(
@@ -89,18 +102,19 @@ agents = AgentStack(
     agent_sg=network.agent_sg,
     data_stack=data,
     security_stack=security,
+    mcp_endpoints=mcps.mcp_endpoints,
 )
 
-# -- MCP Stack -------------------------------------------------------------
+# -- Workflow Stack --------------------------------------------------------
 
-mcps = McpStack(
+workflows = WorkflowStack(
     app,
-    f"{prefix}-mcps",
+    f"{prefix}-workflows",
     env=cdk_env,
     env_name=env_name,
     config=config,
-    vpc=network.vpc,
-    mcp_sg=network.mcp_sg,
+    agent_functions=agents.functions,
+    data_stack=data,
 )
 
 # -- Observability Stack ---------------------------------------------------

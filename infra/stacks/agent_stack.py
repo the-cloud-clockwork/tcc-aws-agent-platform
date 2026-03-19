@@ -26,6 +26,21 @@ from stacks.data_stack import DataStack
 from stacks.security_stack import SecurityStack
 
 
+# MCP URI environment variable mapping
+# Key: env var name, Value: (mcp_name, default_port)
+MCP_ENV_VARS = {
+    "MARKET_DATA_MCP_URI": ("market-data", 8002),
+    "SENTIMENT_MCP_URI": ("sentiment", 8003),
+    "ARTIFACTS_MCP_URI": ("artifacts", 8004),
+    "BACKTEST_MCP_URI": ("backtest", 8005),
+    "CHARTING_MCP_URI": ("charting", 8006),
+    "IBKR_MCP_URI": ("ibkr", 8001),
+    "TWO_FA_MCP_URI": ("twofa", 8007),
+    "ML_PREDICT_MCP_URI": ("ml-predict", 8008),
+    "TECHNICAL_MCP_URI": ("technical", 8009),
+}
+
+
 class AgentStack(Stack):
     """Provisions Lambda functions for all agents."""
 
@@ -40,27 +55,34 @@ class AgentStack(Stack):
         agent_sg: ec2.ISecurityGroup,
         data_stack: DataStack,
         security_stack: SecurityStack,
+        mcp_endpoints: dict[str, str] | None = None,
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
         self.env_name = env_name
         self.config = config
+        self.mcp_endpoints = mcp_endpoints or {}
         prefix = config.get("resource_prefix", "platform")
         ssm_root = config.get("ssm_root_path", f"/{prefix}/{env_name}")
         sd_namespace = config.get("service_discovery_namespace", f"{prefix}.local")
         bedrock_region = config.get("bedrock_region", "us-west-2")
 
-        agent_names = self._resolve_agent_names(config)
+        agent_configs = self._resolve_agent_configs(config)
         strands_layer = self._create_strands_layer()
         agent_policy = self._create_agent_policy(prefix, env_name, data_stack, ssm_root)
 
         self.functions: dict[str, lambda_.Function] = {}
 
-        for agent_name in agent_names:
+        for agent_cfg in agent_configs:
+            agent_name = agent_cfg["name"]
+            handler = agent_cfg.get("handler", "handler.lambda_handler")
+            memory = agent_cfg.get("memory", config.get("lambda_agents", {}).get("memory_size", 1024))
+
             fn = self._create_agent_function(
-                agent_name, prefix, env_name, config, bedrock_region,
-                strands_layer, vpc, agent_sg, data_stack, sd_namespace,
+                agent_name, handler, memory, prefix, env_name, config,
+                bedrock_region, strands_layer, vpc, agent_sg,
+                data_stack, sd_namespace,
             )
             fn.role.add_managed_policy(agent_policy)
             self.functions[agent_name] = fn
@@ -75,19 +97,24 @@ class AgentStack(Stack):
             )
 
             provisioned = config.get("scaling", {}).get("lambda", {}).get("provisioned_concurrency", 0)
-            if provisioned > 0 and agent_name in ("research", "recommender"):
+            if provisioned > 0 and agent_name in ("portfolio-recommender",):
                 LambdaProvisionedConcurrency(
                     self, f"PC-{agent_name}", function=fn,
                     provisioned_concurrent_executions=provisioned,
                 )
 
-    def _resolve_agent_names(self, config: dict) -> list[str]:
+    def _resolve_agent_configs(self, config: dict) -> list[dict]:
         agent_configs = config.get("agents", [])
-        return (
-            self.node.try_get_context("agents")
-            or [a["name"] for a in agent_configs]
-            or ["research", "strategy", "recommender"]
-        )
+        context_agents = self.node.try_get_context("agents")
+        if context_agents:
+            return [{"name": n} for n in context_agents]
+        if agent_configs:
+            return agent_configs
+        return [
+            {"name": "gap-detector"},
+            {"name": "sentiment-analyzer"},
+            {"name": "strategy-evaluator"},
+        ]
 
     def _create_strands_layer(self) -> lambda_.ILayerVersion:
         return lambda_.LayerVersion.from_layer_version_arn(
@@ -154,8 +181,19 @@ class AgentStack(Stack):
         buckets = list(data_stack.buckets.values())
         return buckets[0].bucket_name if buckets else ""
 
+    def _build_mcp_env_vars(self, sd_namespace: str) -> dict[str, str]:
+        """Build MCP URI environment variables from Cloud Map DNS or passed endpoints."""
+        env_vars = {}
+        for env_key, (mcp_name, default_port) in MCP_ENV_VARS.items():
+            if mcp_name in self.mcp_endpoints:
+                env_vars[env_key] = self.mcp_endpoints[mcp_name]
+            else:
+                env_vars[env_key] = f"http://{mcp_name}.{sd_namespace}:{default_port}"
+        return env_vars
+
     def _create_agent_function(
-        self, agent_name: str, prefix: str, env_name: str, config: dict,
+        self, agent_name: str, handler: str, memory: int,
+        prefix: str, env_name: str, config: dict,
         bedrock_region: str, strands_layer: lambda_.ILayerVersion,
         vpc: ec2.IVpc, agent_sg: ec2.ISecurityGroup,
         data_stack: DataStack, sd_namespace: str,
@@ -170,30 +208,45 @@ class AgentStack(Stack):
             retention=log_retention,
             removal_policy=cdk.RemovalPolicy.DESTROY,
         )
+
+        # Build environment variables
+        env = {
+            "ENV_NAME": env_name,
+            "AGENT_ID": agent_name,
+            "EXECUTION_MODE": config.get("execution_mode", "simulation"),
+            "BEDROCK_REGION": bedrock_region,
+            "BLUEPRINTS_DIR": "blueprints",
+            "PROMPTS_DIR": "prompts",
+            "ARTIFACTS_TABLE": self._resolve_table_name(data_stack, "artifacts"),
+            "ARTIFACTS_BUCKET": self._resolve_bucket_name(data_stack, "artifacts"),
+            "ARTIFACT_QUEUE_URL": data_stack.artifact_queue.queue_url,
+            "SERVICE_DISCOVERY_NAMESPACE": sd_namespace,
+        }
+        # Add MCP URI env vars
+        env.update(self._build_mcp_env_vars(sd_namespace))
+
+        # Use packaged ZIP if dist directory exists, else stub
+        code_path = "lambda/agents/dist"
+        import os
+        if not os.path.isdir(os.path.join(os.path.dirname(__file__), "..", code_path)):
+            code_path = "lambda/agents/example"
+
         return lambda_.Function(
             self, f"AgentFn-{agent_name}",
             function_name=f"{prefix}-{env_name}-agent-{agent_name}",
             runtime=lambda_.Runtime.PYTHON_3_12,
             architecture=lambda_.Architecture.ARM_64,
-            handler="handler.lambda_handler",
-            code=lambda_.Code.from_asset("lambda/agents/example"),
+            handler=handler,
+            code=lambda_.Code.from_asset(code_path),
             timeout=Duration.minutes(15),
-            memory_size=config.get("lambda_agents", {}).get("memory_size", 1024),
+            memory_size=memory,
             layers=[strands_layer],
             vpc=vpc,
             vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
             security_groups=[agent_sg],
             tracing=lambda_.Tracing.ACTIVE,
             log_group=log_group,
-            environment={
-                "ENV_NAME": env_name,
-                "EXECUTION_MODE": config.get("execution_mode", "simulation"),
-                "BEDROCK_REGION": bedrock_region,
-                "ARTIFACTS_TABLE": self._resolve_table_name(data_stack, "artifacts"),
-                "ARTIFACTS_BUCKET": self._resolve_bucket_name(data_stack, "artifacts"),
-                "ARTIFACT_QUEUE_URL": data_stack.artifact_queue.queue_url,
-                "SERVICE_DISCOVERY_NAMESPACE": sd_namespace,
-            },
+            environment=env,
         )
 
     @staticmethod

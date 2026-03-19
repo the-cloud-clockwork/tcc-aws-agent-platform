@@ -69,23 +69,74 @@ buckets:
   - prompt-registry
 
 agents:
-  - name: research
+  - name: gap-detector
+    handler: qitp_agents.gap_detector.handler.handler
     memory: 1024
     timeout: 900
-  - name: strategy
+  - name: sentiment-analyzer
+    handler: qitp_agents.sentiment_analyzer.handler.handler
     memory: 1024
     timeout: 900
-  - name: recommender
+  - name: strategy-evaluator
+    handler: qitp_agents.strategy_evaluator.handler.handler
+    memory: 1024
+    timeout: 900
+  - name: portfolio-recommender
+    handler: qitp_agents.portfolio_recommender.handler.handler
+    memory: 2048
+    timeout: 900
+  - name: technical-analyzer
+    handler: qitp_agents.technical_analyzer.handler.handler
+    memory: 1024
+    timeout: 900
+  - name: ml-predictor
+    handler: qitp_agents.ml_predictor.handler.handler
+    memory: 1024
+    timeout: 900
+  - name: watchlist-screener
+    handler: qitp_agents.watchlist_screener.handler.handler
+    memory: 1024
+    timeout: 900
+  - name: tax-reporter
+    handler: qitp_agents.tax_reporter.handler.handler
     memory: 1024
     timeout: 900
 
 mcps:
   - name: artifacts
-    port: 8000
+    port: 8004
     cpu: 256
     memory: 512
-  - name: data
-    port: 8000
+  - name: market-data
+    port: 8002
+    cpu: 256
+    memory: 512
+  - name: sentiment
+    port: 8003
+    cpu: 256
+    memory: 512
+  - name: technical
+    port: 8009
+    cpu: 256
+    memory: 512
+  - name: backtest
+    port: 8005
+    cpu: 256
+    memory: 512
+  - name: charting
+    port: 8006
+    cpu: 256
+    memory: 512
+  - name: ibkr
+    port: 8001
+    cpu: 256
+    memory: 512
+  - name: twofa
+    port: 8007
+    cpu: 256
+    memory: 512
+  - name: ml-predict
+    port: 8008
     cpu: 256
     memory: 512
 
