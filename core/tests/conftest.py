@@ -277,3 +277,126 @@ def sample_schema_registry():
         score: float
 
     return {"TestOutput": TestOutput}
+
+
+# ---------------------------------------------------------------------------
+# Multi-node graph/swarm YAML fixtures (Phase 5)
+# ---------------------------------------------------------------------------
+
+SAMPLE_NODE_A_YAML = textwrap.dedent("""\
+    id: node_a
+    version: "1.0.0"
+    name: Node A Agent
+    description: First node in multi-node graph
+    model:
+      provider: bedrock
+      model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
+      temperature: 0.2
+      max_tokens: 4096
+    prompt_ref: gap_detector_v1.2
+    tools:
+      - mcp: data-mcp
+        tools: [get_data]
+    execution_modes:
+      simulation: true
+      staging: true
+      production: true
+""")
+
+SAMPLE_NODE_B_YAML = textwrap.dedent("""\
+    id: node_b
+    version: "1.0.0"
+    name: Node B Agent
+    description: Second node in multi-node graph
+    model:
+      provider: bedrock
+      model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
+      temperature: 0.2
+      max_tokens: 4096
+    prompt_ref: gap_detector_v1.2
+    tools:
+      - mcp: data-mcp
+        tools: [get_data]
+    execution_modes:
+      simulation: true
+      staging: true
+      production: true
+""")
+
+SAMPLE_MULTI_NODE_GRAPH_YAML = textwrap.dedent("""\
+    id: multi_graph_agent
+    version: "1.0.0"
+    name: Multi-Node Graph Agent
+    description: Agent orchestrating a multi-node graph
+    model:
+      provider: bedrock
+      model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
+      temperature: 0.2
+      max_tokens: 4096
+    prompt_ref: gap_detector_v1.2
+    tools:
+      - mcp: data-mcp
+        tools: [get_data]
+    execution_modes:
+      simulation: true
+      staging: true
+      production: true
+    multi_agent:
+      pattern: graph
+      execution_timeout: 120
+      node_timeout: 45
+      max_handoffs: 15
+      entry_point: analyze
+      nodes:
+        - agent_ref: node_a
+          node_id: analyze
+        - agent_ref: node_b
+          node_id: evaluate
+      edges:
+        - from_node: analyze
+          to_node: evaluate
+""")
+
+SAMPLE_MULTI_NODE_SWARM_YAML = textwrap.dedent("""\
+    id: multi_swarm_agent
+    version: "1.0.0"
+    name: Multi-Node Swarm Agent
+    description: Agent orchestrating a multi-node swarm
+    model:
+      provider: bedrock
+      model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
+      temperature: 0.2
+      max_tokens: 4096
+    prompt_ref: gap_detector_v1.2
+    tools:
+      - mcp: data-mcp
+        tools: [get_data]
+    execution_modes:
+      simulation: true
+      staging: true
+      production: true
+    multi_agent:
+      pattern: swarm
+      execution_timeout: 90
+      node_timeout: 30
+      max_handoffs: 20
+      max_iterations: 15
+      entry_point: detector
+      nodes:
+        - agent_ref: node_a
+          node_id: detector
+        - agent_ref: node_b
+          node_id: analyzer
+""")
+
+
+@pytest.fixture()
+def tmp_multi_node_blueprints(tmp_path: Path, tmp_prompts: Path) -> Path:
+    """Create a temporary blueprints dir with multi-node graph/swarm YAMLs."""
+    agents_dir = tmp_path / "agents"
+    agents_dir.mkdir(exist_ok=True)
+    (agents_dir / "node_a.yaml").write_text(SAMPLE_NODE_A_YAML)
+    (agents_dir / "node_b.yaml").write_text(SAMPLE_NODE_B_YAML)
+    (agents_dir / "multi_graph_agent.yaml").write_text(SAMPLE_MULTI_NODE_GRAPH_YAML)
+    (agents_dir / "multi_swarm_agent.yaml").write_text(SAMPLE_MULTI_NODE_SWARM_YAML)
+    return tmp_path

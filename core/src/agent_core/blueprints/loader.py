@@ -335,6 +335,61 @@ class BlueprintLoader:
         return agent
 
     # ------------------------------------------------------------------
+    # Agent Session builder -- single-node helpers
+    # ------------------------------------------------------------------
+
+    def _create_mcp_clients(self, blueprint: AgentBlueprint) -> list[Any]:
+        """Create MCP clients for a blueprint via factory."""
+        if self._mcp_factory is None:
+            raise BlueprintLoadError(
+                f"Cannot build agent session for '{blueprint.id}': no mcp_factory configured. "
+                "Pass mcp_factory to BlueprintLoader or use build_strands_agent() with explicit mcp_clients."
+            )
+        clients: list[Any] = []
+        for tool_cfg in blueprint.tools:
+            try:
+                client = self._mcp_factory(
+                    tool_cfg.mcp,
+                    tool_filter=tool_cfg.tools if tool_cfg.tools else None,
+                )
+                clients.append(client)
+            except TypeError:
+                client = self._mcp_factory(tool_cfg.mcp)
+                clients.append(client)
+            except Exception as exc:
+                raise BlueprintLoadError(
+                    f"Failed to create MCP client for '{tool_cfg.mcp}': {exc}"
+                ) from exc
+        return clients
+
+    def _build_agent_kwargs(
+        self,
+        blueprint: AgentBlueprint,
+        mcp_clients: list[Any],
+    ) -> dict[str, Any]:
+        """Build common Agent constructor kwargs."""
+        system_prompt = self._resolve_prompt(blueprint.prompt_ref)
+        hooks = self._resolve_hooks(blueprint.hooks)
+        structured_output_model = self._resolve_output_schema(blueprint.output_schema)
+
+        kwargs: dict[str, Any] = {
+            "system_prompt": system_prompt,
+            "tools": mcp_clients if mcp_clients else None,
+        }
+        kwargs.update(self._build_model_config(blueprint.model))
+
+        if hooks:
+            if len(hooks) == 1:
+                kwargs["callback_handler"] = hooks[0]
+            else:
+                from strands.handlers.callback_handler import CompositeCallbackHandler
+                kwargs["callback_handler"] = CompositeCallbackHandler(*hooks)
+        if structured_output_model is not None:
+            kwargs["structured_output_model"] = structured_output_model
+
+        return kwargs
+
+    # ------------------------------------------------------------------
     # Agent Session builder
     # ------------------------------------------------------------------
 
@@ -375,49 +430,10 @@ class BlueprintLoader:
         logger.info("Resolved prompt for %s (%d chars)", agent_id, len(system_prompt))
 
         # -- create MCP clients via factory --
-        if self._mcp_factory is None:
-            raise BlueprintLoadError(
-                f"Cannot build agent session for '{agent_id}': no mcp_factory configured. "
-                "Pass mcp_factory to BlueprintLoader or use build_strands_agent() with explicit mcp_clients."
-            )
-        mcp_clients: list[Any] = []
-        for tool_cfg in blueprint.tools:
-            try:
-                client = self._mcp_factory(
-                    tool_cfg.mcp,
-                    tool_filter=tool_cfg.tools if tool_cfg.tools else None,
-                )
-                mcp_clients.append(client)
-            except TypeError:
-                # Factory doesn't accept tool_filter kwarg — fall back to unfiltered
-                client = self._mcp_factory(tool_cfg.mcp)
-                mcp_clients.append(client)
-            except Exception as exc:
-                raise BlueprintLoadError(
-                    f"Failed to create MCP client for '{tool_cfg.mcp}': {exc}"
-                ) from exc
+        mcp_clients = self._create_mcp_clients(blueprint)
 
-        # -- resolve hooks --
-        hooks = self._resolve_hooks(blueprint.hooks)
-
-        # -- resolve output schema --
-        structured_output_model = self._resolve_output_schema(blueprint.output_schema)
-
-        # -- build Strands Agent kwargs --
-        agent_kwargs: dict[str, Any] = {
-            "system_prompt": system_prompt,
-            "tools": mcp_clients if mcp_clients else None,
-        }
-        agent_kwargs.update(self._build_model_config(blueprint.model))
-
-        if hooks:
-            if len(hooks) == 1:
-                agent_kwargs["callback_handler"] = hooks[0]
-            else:
-                from strands.handlers.callback_handler import CompositeCallbackHandler
-                agent_kwargs["callback_handler"] = CompositeCallbackHandler(*hooks)
-        if structured_output_model is not None:
-            agent_kwargs["structured_output_model"] = structured_output_model
+        # -- build agent kwargs --
+        agent_kwargs = self._build_agent_kwargs(blueprint, mcp_clients)
 
         agent = Agent(**agent_kwargs)
         logger.info("Built Agent Session '%s' (mode=%s, mcps=%d)", agent_id, current_mode.value, len(mcp_clients))
@@ -425,6 +441,13 @@ class BlueprintLoader:
         # -- multi-agent orchestration --
         ma = blueprint.multi_agent
         if ma is not None:
+            # Multi-node path: ma.nodes is non-empty
+            if ma.nodes:
+                return self._build_multi_node_session(
+                    ma, agent, agent_id, mcp_clients, current_mode,
+                )
+
+            # Single-node path (Phase 4 backward compat)
             if ma.pattern == "swarm":
                 from strands.multiagent.swarm import Swarm
 
@@ -459,3 +482,98 @@ class BlueprintLoader:
                 logger.warning("Unknown pattern '%s', falling back to single", ma.pattern)
 
         return AgentSession(agent=agent, mcp_clients=mcp_clients)
+
+    # ------------------------------------------------------------------
+    # Multi-node session builder
+    # ------------------------------------------------------------------
+
+    def _build_multi_node_session(
+        self,
+        ma: Any,
+        primary_agent: Any,
+        primary_id: str,
+        primary_mcp_clients: list[Any],
+        current_mode: ExecutionMode,
+    ) -> AgentSession:
+        """Build a multi-node Swarm or Graph session from node configs.
+
+        Each node references a separate blueprint. All MCP clients are
+        collected into the AgentSession for proper lifecycle cleanup.
+        """
+        all_mcp_clients = list(primary_mcp_clients)
+        node_agents: dict[str, Any] = {}
+
+        for node_cfg in ma.nodes:
+            node_bp = self.load_agent(node_cfg.agent_ref)
+
+            if not validate_agent_mode(node_bp.execution_modes, current_mode):
+                raise BlueprintLoadError(
+                    f"Node agent '{node_cfg.agent_ref}' is not enabled for "
+                    f"mode '{current_mode.value}'."
+                )
+
+            node_mcp_clients = self._create_mcp_clients(node_bp)
+            all_mcp_clients.extend(node_mcp_clients)
+
+            node_kwargs = self._build_agent_kwargs(node_bp, node_mcp_clients)
+            node_agent = Agent(**node_kwargs)
+            node_agents[node_cfg.node_id] = node_agent
+            logger.info("Built node agent '%s' (blueprint=%s)", node_cfg.node_id, node_cfg.agent_ref)
+
+        if ma.pattern == "swarm":
+            from strands.multiagent.swarm import Swarm
+
+            agent_list = list(node_agents.values())
+            entry = node_agents.get(ma.entry_point) if ma.entry_point else None
+            swarm = Swarm(
+                nodes=agent_list,
+                entry_point=entry,
+                max_handoffs=ma.max_handoffs,
+                max_iterations=ma.max_iterations,
+                execution_timeout=float(ma.execution_timeout),
+                node_timeout=float(ma.node_timeout),
+            )
+            logger.info("Built multi-node Swarm '%s' (%d nodes)", primary_id, len(agent_list))
+            return AgentSession(
+                agent=primary_agent,
+                mcp_clients=all_mcp_clients,
+                multi_agent=swarm,
+                pattern="swarm",
+            )
+
+        elif ma.pattern == "graph":
+            from strands.multiagent.graph import GraphBuilder
+
+            builder = GraphBuilder()
+            for node_id, node_agent in node_agents.items():
+                builder.add_node(node_agent, node_id=node_id)
+
+            for edge in ma.edges:
+                if edge.condition is not None:
+                    from agent_core.blueprints.condition_parser import parse_condition
+                    cond_fn = parse_condition(edge.condition)
+                    builder.add_edge(edge.from_node, edge.to_node, condition=cond_fn)
+                else:
+                    builder.add_edge(edge.from_node, edge.to_node)
+
+            if ma.entry_point:
+                builder.set_entry_point(ma.entry_point)
+            elif ma.nodes:
+                builder.set_entry_point(ma.nodes[0].node_id)
+
+            builder.set_execution_timeout(float(ma.execution_timeout))
+            builder.set_node_timeout(float(ma.node_timeout))
+            if ma.max_node_executions is not None:
+                builder.set_max_node_executions(ma.max_node_executions)
+
+            graph = builder.build()
+            logger.info("Built multi-node Graph '%s' (%d nodes, %d edges)",
+                        primary_id, len(node_agents), len(ma.edges))
+            return AgentSession(
+                agent=primary_agent,
+                mcp_clients=all_mcp_clients,
+                multi_agent=graph,
+                pattern="graph",
+            )
+
+        raise BlueprintLoadError(f"Unknown multi-agent pattern: {ma.pattern}")

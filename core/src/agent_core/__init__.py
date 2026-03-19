@@ -1,14 +1,16 @@
 """Agent Core -- Blueprint Engine, Execution Modes, Hooks, Schemas, Observability, Runtime."""
 from __future__ import annotations
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 
 # -- Public API re-exports --
-from agent_core.blueprints.agent import AgentBlueprint
+from agent_core.blueprints.agent import AgentBlueprint, GraphEdgeConfig, GraphNodeConfig
 from agent_core.blueprints.loader import BlueprintLoadError, BlueprintLoader
 from agent_core.blueprints.session import AgentSession
 from agent_core.blueprints.strategy import StrategyBlueprint
+from agent_core.blueprints.strategy_evaluator import StrategyEvaluator
 from agent_core.blueprints.workflow import WorkflowBlueprint
+from agent_core.blueprints.workflow_executor import WorkflowExecutor
 from agent_core.execution.mode import ExecutionMode, get_execution_mode, validate_agent_mode
 from agent_core.hooks.constraints import ConstraintHook
 from agent_core.hooks.observability import ObservabilityHook
@@ -32,6 +34,7 @@ from agent_core.runtime.handler import GenericHandler
 from agent_core.runtime.idempotency import IdempotencyStore, generate_idempotency_key
 from agent_core.runtime.marshal import marshal_output
 from agent_core.runtime.session import SessionManager, SessionState
+from agent_core.runtime.strands_session_bridge import StrandsSessionBridge
 
 __all__ = [
     "AgentBlueprint",
@@ -49,6 +52,8 @@ __all__ = [
     "CostTracker",
     "ExecutionMode",
     "GenericHandler",
+    "GraphEdgeConfig",
+    "GraphNodeConfig",
     "IdempotencyStore",
     "LangfuseHook",
     "LogSchema",
@@ -59,8 +64,11 @@ __all__ = [
     "SessionManager",
     "SessionState",
     "StrategyBlueprint",
+    "StrategyEvaluator",
+    "StrandsSessionBridge",
     "StructuredLogger",
     "WorkflowBlueprint",
+    "WorkflowExecutor",
     "XRayTracer",
     "create_observability_hooks",
     "generate_idempotency_key",
@@ -69,5 +77,3 @@ __all__ = [
     "normalize_payload",
     "validate_agent_mode",
 ]
-
-# Backward compatibility alias (deprecated)
