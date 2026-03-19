@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -uo pipefail
 # Build and push MCP Docker images to ECR.
 # Each MCP gets its own ECR repository.
 
@@ -50,16 +50,27 @@ for name in "${!MCPS[@]}"; do
     continue
   fi
 
-  # Create ECR repo if not exists
-  aws ecr describe-repositories --repository-names "$repo" --region "$REGION" 2>/dev/null || \
-    aws ecr create-repository \
-      --repository-name "$repo" \
-      --region "$REGION" \
-      --image-scanning-configuration scanOnPush=true \
-      --tags Key=Environment,Value="$ENV_NAME" Key=Project,Value=agent-infra
+  # ECR repos are managed by CDK — verify it exists before pushing
+  if ! aws ecr describe-repositories --repository-names "$repo" --region "$REGION" >/dev/null 2>&1; then
+    echo "    WARNING: ECR repo $repo not found — deploy CDK first. Skipping."
+    FAILED+=("$name")
+    continue
+  fi
 
   # Build for linux/amd64 (Fargate)
-  docker build --platform linux/amd64 -t "$full_repo:latest" "$path"
+  # backtest needs monorepo root as build context (depends on simulation/)
+  if [ "$name" = "backtest" ]; then
+    build_ctx="$QITP_ROOT"
+    build_args="-f $path/Dockerfile"
+  else
+    build_ctx="$path"
+    build_args=""
+  fi
+  if ! docker build --platform linux/amd64 $build_args -t "$full_repo:latest" "$build_ctx"; then
+    echo "    ERROR: Docker build failed for $name — skipping"
+    FAILED+=("$name")
+    continue
+  fi
 
   # Push
   docker push "$full_repo:latest"
