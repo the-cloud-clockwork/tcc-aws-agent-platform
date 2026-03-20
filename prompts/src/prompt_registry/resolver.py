@@ -103,7 +103,7 @@ class PromptResolver:
         return PromptResolveResponse(
             prompt_id=prompt.prompt_id,
             version=prompt.version,
-            text=text,
+            content=text,
             status=prompt.status,
         )
 
@@ -125,6 +125,6 @@ class PromptResolver:
         return PromptResolveResponse(
             prompt_id=prompt.prompt_id,
             version=prompt.version,
-            text=text,
+            content=text,
             status=prompt.status,
         )

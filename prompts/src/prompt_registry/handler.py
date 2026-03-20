@@ -85,8 +85,8 @@ def handle_create_prompt(event: dict) -> dict:
     if existing:
         return _response(409, {"error": f"Version {req.version} already exists for {req.prompt_id}"})
 
-    # Write text to S3
-    s3_key = storage.put(req.prompt_id, req.version, req.text)
+    # Write content to S3
+    s3_key = storage.put(req.prompt_id, req.version, req.content)
 
     # Write metadata to DynamoDB
     prompt = PromptVersion(

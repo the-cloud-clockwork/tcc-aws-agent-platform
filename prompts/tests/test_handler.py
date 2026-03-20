@@ -70,7 +70,7 @@ class TestCreatePrompt:
         event = _api_event("POST", "/prompts", body={
             "prompt_id": "gap_detector",
             "version": "1.0.0",
-            "text": "You are a gap detector.",
+            "content": "You are a gap detector.",
             "description": "Initial version",
             "tags": ["gap"],
         })
@@ -84,7 +84,7 @@ class TestCreatePrompt:
         event = _api_event("POST", "/prompts", body={
             "prompt_id": "gap_detector",
             "version": "1.0.0",
-            "text": "text",
+            "content": "text",
         })
         handler(event)
         resp = handler(event)
@@ -101,7 +101,7 @@ class TestGetPrompt:
         # Create and promote
         handler(_api_event("POST", "/prompts", body={
             "prompt_id": "gap_detector", "version": "1.0.0",
-            "text": "Version one.",
+            "content": "Version one.",
         }))
         handler(_api_event(
             "POST", "/prompts/gap_detector/promote",
@@ -116,16 +116,16 @@ class TestGetPrompt:
         assert resp["statusCode"] == 200
         body = json.loads(resp["body"])
         assert body["version"] == "1.0.0"
-        assert body["text"] == "Version one."
+        assert body["content"] == "Version one."
 
     def test_get_specific_version(self, api_env):
         handler(_api_event("POST", "/prompts", body={
             "prompt_id": "gap_detector", "version": "1.0.0",
-            "text": "V1.",
+            "content": "V1.",
         }))
         handler(_api_event("POST", "/prompts", body={
             "prompt_id": "gap_detector", "version": "2.0.0",
-            "text": "V2.",
+            "content": "V2.",
         }))
         # Promote 1.0.0
         handler(_api_event(
@@ -143,7 +143,7 @@ class TestGetPrompt:
         assert resp["statusCode"] == 200
         body = json.loads(resp["body"])
         assert body["version"] == "2.0.0"
-        assert body["text"] == "V2."
+        assert body["content"] == "V2."
 
     def test_get_not_found(self, api_env):
         resp = handler(_api_event(
@@ -158,7 +158,7 @@ class TestListVersions:
         for ver in ["1.0.0", "1.2.0", "2.0.0"]:
             handler(_api_event("POST", "/prompts", body={
                 "prompt_id": "gap_detector", "version": ver,
-                "text": f"Version {ver}.",
+                "content": f"Version {ver}.",
             }))
 
         resp = handler(_api_event(
@@ -173,7 +173,7 @@ class TestListVersions:
 class TestPromote:
     def test_promote_success(self, api_env):
         handler(_api_event("POST", "/prompts", body={
-            "prompt_id": "gap_detector", "version": "1.0.0", "text": "V1.",
+            "prompt_id": "gap_detector", "version": "1.0.0", "content": "V1.",
         }))
 
         resp = handler(_api_event(
@@ -197,10 +197,10 @@ class TestPromote:
 class TestRollback:
     def test_rollback_success(self, api_env):
         handler(_api_event("POST", "/prompts", body={
-            "prompt_id": "gap_detector", "version": "1.0.0", "text": "V1.",
+            "prompt_id": "gap_detector", "version": "1.0.0", "content": "V1.",
         }))
         handler(_api_event("POST", "/prompts", body={
-            "prompt_id": "gap_detector", "version": "2.0.0", "text": "V2.",
+            "prompt_id": "gap_detector", "version": "2.0.0", "content": "V2.",
         }))
         # Promote 1.0.0 then 2.0.0
         handler(_api_event(
@@ -230,11 +230,11 @@ class TestDiff:
     def test_diff_two_versions(self, api_env):
         handler(_api_event("POST", "/prompts", body={
             "prompt_id": "gap_detector", "version": "1.0.0",
-            "text": "Line 1\nLine 2\nLine 3\n",
+            "content": "Line 1\nLine 2\nLine 3\n",
         }))
         handler(_api_event("POST", "/prompts", body={
             "prompt_id": "gap_detector", "version": "1.2.0",
-            "text": "Line 1\nLine 2 modified\nLine 3\nLine 4\n",
+            "content": "Line 1\nLine 2 modified\nLine 3\nLine 4\n",
         }))
 
         resp = handler(_api_event(
