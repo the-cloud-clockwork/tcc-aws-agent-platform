@@ -82,11 +82,11 @@ class NetworkStack(Stack):
             allow_all_outbound=True,
         )
 
-        # Allow agents to reach MCPs on ports 8001-8009
+        # Allow agents to reach MCPs on port 8080
         self.mcp_sg.add_ingress_rule(
             peer=self.agent_sg,
-            connection=ec2.Port.tcp_range(8001, 8009),
-            description="Allow agent Lambdas to call MCP services (ports 8001-8009)",
+            connection=ec2.Port.tcp(8080),
+            description="Allow agent Lambdas to call MCP services (port 8080)",
         )
 
         # -- SSM Parameters ------------------------------------------------
