@@ -70,6 +70,7 @@ class SfnWorkflow(Construct):
         for step_def in steps:
             if "agent" in step_def:
                 agent_name = step_def["agent"]
+                params = step_def.get("input_mapping")
                 task = StrandsAgentTask(
                     self,
                     f"Task-{agent_name}",
@@ -77,6 +78,7 @@ class SfnWorkflow(Construct):
                     agent_name=agent_name,
                     output_bucket_name=output_bucket_name,
                     env_name=env_name,
+                    parameters=params,
                 )
                 chain_steps.append(task.task)
 
@@ -84,6 +86,7 @@ class SfnWorkflow(Construct):
                 branches = []
                 for branch_def in step_def["parallel"]:
                     agent_name = branch_def["agent"]
+                    params = branch_def.get("input_mapping")
                     task = StrandsAgentTask(
                         self,
                         f"Task-{agent_name}",
@@ -91,6 +94,7 @@ class SfnWorkflow(Construct):
                         agent_name=agent_name,
                         output_bucket_name=output_bucket_name,
                         env_name=env_name,
+                        parameters=params,
                     )
                     branches.append(task.task)
 

@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 # Module-level cache for CloudFront private key
 _cf_private_key: str | None = None
 
-BUCKET_NAME = "mcp-artifacts"
+BUCKET_NAME = os.environ.get("ARTIFACTS_BUCKET", "mcp-artifacts")
 SIGNED_URL_EXPIRY = 3600  # 1 hour
 
 

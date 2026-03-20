@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import UTC, datetime
 from typing import Any
 
@@ -12,7 +13,7 @@ from boto3.dynamodb.conditions import Attr, Key
 
 logger = logging.getLogger(__name__)
 
-TABLE_NAME = "mcp_artifacts"
+TABLE_NAME = os.environ.get("ARTIFACTS_TABLE", "mcp_artifacts")
 
 
 class ArtifactCatalog:
