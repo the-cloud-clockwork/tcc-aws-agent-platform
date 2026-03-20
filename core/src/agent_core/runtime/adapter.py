@@ -42,6 +42,8 @@ class AgentResult:
     output: dict[str, Any] = field(default_factory=dict)
     claim_check: bool = False
     artifact_id: str | None = None
+    s3_key: str = ""
+    tier: str = "platform"
     memory_updates: dict[str, Any] = field(default_factory=dict)
     error: str | None = None
 
@@ -49,13 +51,14 @@ class AgentResult:
         """Return response compatible with Step Functions ResultSelector.
 
         The StrandsAgentTask construct expects top-level fields:
-          artifact_id, success, s3_key, agent
+          artifact_id, success, s3_key, agent, tier
         """
         if self.status == "error":
             return {
                 "success": False,
                 "artifact_id": "",
                 "s3_key": "",
+                "tier": self.tier,
                 "error": self.error,
                 "agent_id": self.agent_id,
             }
@@ -63,15 +66,17 @@ class AgentResult:
         if self.claim_check:
             body = {
                 "claim_check": True,
-                "artifact_id": self.artifact_id,
-                "message": "Output exceeded 256KB. Full result stored as artifact.",
+                "artifact_id": self.artifact_id or "",
+                "s3_key": self.s3_key,
+                "message": "Full result stored as artifact.",
             }
         if self.memory_updates:
             body["_memory_updates"] = self.memory_updates
         return {
             "success": True,
             "artifact_id": self.artifact_id or "",
-            "s3_key": body.get("s3_key", ""),
+            "s3_key": self.s3_key or body.get("s3_key", ""),
+            "tier": self.tier,
             "agent_id": self.agent_id,
             "output": body,
         }
@@ -84,6 +89,9 @@ class AgentResult:
             "output": self.output if not self.claim_check else {
                 "claim_check": True, "artifact_id": self.artifact_id,
             },
+            "artifact_id": self.artifact_id or "",
+            "s3_key": self.s3_key,
+            "tier": self.tier,
             "memory_updates": self.memory_updates,
             "error": self.error,
         }
