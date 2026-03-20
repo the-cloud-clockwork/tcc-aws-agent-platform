@@ -9,7 +9,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-MODULES=(core infra cli prompts)
+MODULES=(core infra cli prompts artifacts)
 
 lock_module() {
     local mod="$1"

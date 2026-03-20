@@ -1,4 +1,4 @@
-"""Data stack: S3 buckets, DynamoDB tables, SQS queues."""
+"""Data stack: S3 buckets, DynamoDB tables, SQS queues, scheduled sync Lambdas."""
 from aws_cdk import (
     Duration,
     RemovalPolicy,
@@ -8,7 +8,19 @@ from aws_cdk import (
     aws_dynamodb as dynamodb,
 )
 from aws_cdk import (
+    aws_events as events,
+)
+from aws_cdk import (
+    aws_events_targets as events_targets,
+)
+from aws_cdk import (
+    aws_lambda as lambda_,
+)
+from aws_cdk import (
     aws_s3 as s3,
+)
+from aws_cdk import (
+    aws_sns as sns,
 )
 from aws_cdk import (
     aws_sqs as sqs,
@@ -188,6 +200,57 @@ class DataStack(Stack):
         self.queues = {
             "artifact-notifications": self.artifact_queue,
         }
+
+        # -- CNMV Ban List Sync Lambda + EventBridge -----------------------
+
+        risk_state_table = self.tables.get("risk_state")
+        if risk_state_table is not None:
+            # SNS topic for sync failure alerts
+            self.cnmv_alert_topic = sns.Topic(
+                self,
+                "CNMVSyncAlertTopic",
+                topic_name=f"{prefix}-{env_name}-cnmv-sync-alerts",
+                display_name="CNMV Ban List Sync Alerts",
+            )
+
+            # DLQ for failed Lambda invocations
+            cnmv_dlq = sqs.Queue(
+                self,
+                "CNMVSyncDLQ",
+                queue_name=f"{prefix}-{env_name}-cnmv-sync-dlq",
+                retention_period=Duration.days(14),
+            )
+
+            # Lambda function
+            self.cnmv_sync_lambda = lambda_.Function(
+                self,
+                "CNMVBanSync",
+                function_name=f"{prefix}-{env_name}-cnmv-ban-sync",
+                runtime=lambda_.Runtime.PYTHON_3_12,
+                handler="qitp_risk_engine.cnmv_sync.handler",
+                code=lambda_.Code.from_asset("placeholder-cnmv-sync"),
+                memory_size=512,
+                timeout=Duration.seconds(60),
+                dead_letter_queue=cnmv_dlq,
+                environment={
+                    "RISK_STATE_TABLE": risk_state_table.table_name,
+                    "ALERT_TOPIC_ARN": self.cnmv_alert_topic.topic_arn,
+                },
+            )
+
+            # Grant write to risk_state table
+            risk_state_table.grant_write_data(self.cnmv_sync_lambda)
+            # Grant publish to SNS alert topic
+            self.cnmv_alert_topic.grant_publish(self.cnmv_sync_lambda)
+
+            # EventBridge rule: 07:00 CET = 05:00 UTC, weekdays only
+            events.Rule(
+                self,
+                "CNMVSyncSchedule",
+                rule_name=f"{prefix}-{env_name}-cnmv-ban-sync-schedule",
+                schedule=events.Schedule.expression("cron(0 5 ? * MON-FRI *)"),
+                targets=[events_targets.LambdaFunction(self.cnmv_sync_lambda)],
+            )
 
         # -- SSM Parameters (for cross-stack references) -------------------
 
