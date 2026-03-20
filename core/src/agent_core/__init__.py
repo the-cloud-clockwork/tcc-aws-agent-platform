@@ -25,9 +25,10 @@ from agent_core.observability import (
     XRayTracer,
 )
 from agent_core.prompt.client import PromptRegistryClient, PromptResolutionError
-from agent_core.runtime.adapter import AgentPayload, AgentResult, RuntimeMode, normalize_payload
+from agent_core.runtime.adapter import AgentPayload, AgentResult, InvocationContext, normalize_payload
 from agent_core.runtime.agent_config import AgentConfig, AgentConfigRegistry
-from agent_core.runtime.entrypoint import AgentCoreApp, register_agent
+from agent_core.runtime.config_gen import generate_agentcore_config, generate_dockerfile
+from agent_core.runtime.entrypoint import AgentCoreApp
 from agent_core.runtime.handler import GenericHandler
 from agent_core.runtime.idempotency import IdempotencyStore, generate_idempotency_key
 from agent_core.runtime.marshal import marshal_output
@@ -55,12 +56,12 @@ __all__ = [
     "GraphEdgeConfig",
     "GraphNodeConfig",
     "IdempotencyStore",
+    "InvocationContext",
     "LangfuseHook",
     "LogSchema",
     "ObservabilityHook",
     "PromptRegistryClient",
     "PromptResolutionError",
-    "RuntimeMode",
     "SessionManager",
     "SessionState",
     "StrandsSessionBridge",
@@ -70,11 +71,12 @@ __all__ = [
     "XRayTracer",
     "create_mcp_client",
     "create_observability_hooks",
+    "generate_agentcore_config",
+    "generate_dockerfile",
     "generate_idempotency_key",
     "get_execution_mode",
     "marshal_output",
     "normalize_payload",
-    "register_agent",
     "validate_agent_mode",
     "BaseMCPServer",
     "VersionedS3Store",

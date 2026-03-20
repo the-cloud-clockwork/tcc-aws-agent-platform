@@ -9,23 +9,23 @@
 
 **Vision:** Agents run on AgentCore Runtime (microVM per session, port 8080, `@app.entrypoint`). NOT Lambda.
 
-- [x] `runtime/entrypoint.py` — `AgentCoreApp` class exists with agent registration
+- [x] `runtime/entrypoint.py` — `AgentCoreApp` wraps `BedrockAgentCoreApp` with `@app.entrypoint` decorator
 - [x] `runtime/handler.py` — `GenericHandler` dispatches by `agent_id` from event payload
 - [x] `runtime/session.py` — `SessionManager` + `SessionState` for session lifecycle
 - [x] `runtime/idempotency.py` — DynamoDB-backed idempotency store
 - [x] `runtime/agent_config.py` — `AgentConfig` + `AgentConfigRegistry` for per-agent prompt builders
-- [x] `runtime/adapter.py` — Payload normalization (Lambda vs AgentCore)
+- [x] `runtime/adapter.py` — `InvocationContext` + `AgentPayload` + `AgentResult` for AgentCore Runtime
 - [x] `runtime/marshal.py` — Output marshalling
-- [ ] Align `AgentCoreApp` with `BedrockAgentCoreApp` contract (`@app.entrypoint` decorator pattern)
-- [ ] Expose `POST /invocations` + `GET /ping` on port 8080 (Runtime contract)
-- [ ] Support `context.session_id` and `context.request_headers` in entrypoint
-- [ ] Add streaming support (`async def` + `yield` for SSE responses)
-- [ ] Add middleware support (Starlette middleware stack)
-- [ ] Add `.bedrock_agentcore.yaml` generation from blueprint YAML
-- [ ] Dockerfile template generation (ARM64, OTEL wrapper, port 8080/8000/9000)
-- [ ] Remove Lambda-as-agent-host assumptions — Lambda is for tools only
-- [ ] Add `runtime.type: agentcore` blueprint field (vs current `lambda`)
-- [ ] Add `idle_timeout_minutes`, `network_mode`, `protocol` to `RuntimeConfig` schema
+- [x] Align `AgentCoreApp` with `BedrockAgentCoreApp` contract (`@app.entrypoint` decorator pattern)
+- [x] Expose `POST /invocations` + `GET /ping` on port 8080 (Runtime contract)
+- [x] Support `context.session_id` and `context.request_headers` in entrypoint
+- [x] Add streaming support (`async def` + `yield` for SSE responses)
+- [x] Add middleware support (Starlette middleware stack)
+- [x] Add `.bedrock_agentcore.yaml` generation from blueprint YAML
+- [x] Dockerfile template generation (ARM64, OTEL wrapper, port 8080/8000/9000)
+- [x] Remove Lambda-as-agent-host assumptions — Lambda is for tools only
+- [x] Add `runtime.type: agentcore` blueprint field (vs current `lambda`)
+- [x] Add `idle_timeout_minutes`, `network_mode`, `protocol` to `RuntimeConfig` schema
 
 ---
 
