@@ -13,6 +13,7 @@ async def list_artifacts(
     agent_id: str | None = None,
     date: str | None = None,
     limit: int = 50,
+    execution_id: str | None = None,
     catalog: ArtifactCatalog | None = None,
 ) -> list[dict[str, Any]]:
     """List artifacts with optional filters. Returns metadata only, no URLs.
@@ -34,12 +35,15 @@ async def list_artifacts(
     """
     _catalog = catalog or ArtifactCatalog()
 
-    entries = _catalog.list_entries(
-        artifact_type=type,
-        agent_id=agent_id,
-        date=date,
-        limit=limit,
-    )
+    if execution_id:
+        entries = _catalog.list_by_execution(execution_id)
+    else:
+        entries = _catalog.list_entries(
+            artifact_type=type,
+            agent_id=agent_id,
+            date=date,
+            limit=limit,
+        )
 
     results: list[dict[str, Any]] = []
     for entry in entries:

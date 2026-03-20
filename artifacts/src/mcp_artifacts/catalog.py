@@ -36,6 +36,9 @@ class ArtifactCatalog:
         execution_id: str | None = None,
         metadata: dict | None = None,
         idempotency_key: str | None = None,
+        tier: str = "platform",
+        kms_key_alias: str | None = None,
+        pipeline_date: str = "",
     ) -> dict[str, Any]:
         """Insert a new catalog entry with status=processing."""
         now = datetime.now(UTC).isoformat()
@@ -46,6 +49,7 @@ class ArtifactCatalog:
             "s3_key": s3_key,
             "created_at": now,
             "metadata": json.dumps(metadata or {}),
+            "tier": tier,
         }
         if agent_id:
             item["agent_id"] = agent_id
@@ -53,6 +57,10 @@ class ArtifactCatalog:
             item["execution_id"] = execution_id
         if idempotency_key:
             item["idempotency_key"] = idempotency_key
+        if kms_key_alias:
+            item["kms_key_alias"] = kms_key_alias
+        if pipeline_date:
+            item["pipeline_date"] = pipeline_date
 
         self._table.put_item(Item=item)
         logger.info("Created catalog entry %s (type=%s)", artifact_id, artifact_type)
@@ -103,6 +111,7 @@ class ArtifactCatalog:
         agent_id: str | None = None,
         date: str | None = None,
         limit: int = 50,
+        execution_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Query/scan the catalog with optional filters.
 
@@ -112,7 +121,9 @@ class ArtifactCatalog:
         - date: filter created_at begins_with date string (YYYY-MM-DD)
         - If no type/agent_id provided, falls back to table scan with filters.
         """
-        if artifact_type:
+        if execution_id:
+            resp = self._scan_with_execution_id(execution_id, artifact_type, agent_id, date, limit)
+        elif artifact_type:
             resp = self._query_by_type(artifact_type, agent_id, date, limit)
         elif agent_id:
             resp = self._query_by_agent(agent_id, date, limit)
@@ -124,6 +135,27 @@ class ArtifactCatalog:
             if "metadata" in item and isinstance(item["metadata"], str):
                 item["metadata"] = json.loads(item["metadata"])
         return items
+
+    def list_by_execution(self, execution_id: str) -> list[dict[str, Any]]:
+        """List all artifacts for a given execution_id."""
+        return self.list_entries(execution_id=execution_id, limit=200)
+
+    def _scan_with_execution_id(
+        self,
+        execution_id: str,
+        artifact_type: str | None,
+        agent_id: str | None,
+        date: str | None,
+        limit: int,
+    ) -> dict[str, Any]:
+        filter_expr = Attr("execution_id").eq(execution_id)
+        if artifact_type:
+            filter_expr &= Attr("type").eq(artifact_type)
+        if agent_id:
+            filter_expr &= Attr("agent_id").eq(agent_id)
+        if date:
+            filter_expr &= Attr("created_at").begins_with(date)
+        return self._table.scan(FilterExpression=filter_expr, Limit=limit)
 
     def _query_by_type(
         self, artifact_type: str, agent_id: str | None, date: str | None, limit: int
@@ -182,6 +214,7 @@ class ArtifactCatalog:
                 {"AttributeName": "type", "AttributeType": "S"},
                 {"AttributeName": "created_at", "AttributeType": "S"},
                 {"AttributeName": "agent_id", "AttributeType": "S"},
+                {"AttributeName": "execution_id", "AttributeType": "S"},
             ],
             GlobalSecondaryIndexes=[
                 {
@@ -197,6 +230,14 @@ class ArtifactCatalog:
                     "KeySchema": [
                         {"AttributeName": "agent_id", "KeyType": "HASH"},
                         {"AttributeName": "created_at", "KeyType": "RANGE"},
+                    ],
+                    "Projection": {"ProjectionType": "ALL"},
+                },
+                {
+                    "IndexName": "execution_id-agent_id-index",
+                    "KeySchema": [
+                        {"AttributeName": "execution_id", "KeyType": "HASH"},
+                        {"AttributeName": "agent_id", "KeyType": "RANGE"},
                     ],
                     "Projection": {"ProjectionType": "ALL"},
                 },
