@@ -21,6 +21,9 @@ dependencies = [
 runtime = [
     "boto3>=1.35",
 ]
+cache = [
+    "redis>=5.0,<6",
+]
 observability = [
     "langfuse>=2.0,<3",
     "aws-xray-sdk>=2.12,<3",
@@ -49,7 +52,7 @@ warn_unused_ignores = false
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["strands.*", "strands_tools.*", "langfuse.*", "aws_xray_sdk.*", "boto3.*", "botocore.*", "moto.*", "bedrock_agentcore.*"]
+module = ["strands.*", "strands_tools.*", "langfuse.*", "aws_xray_sdk.*", "boto3.*", "botocore.*", "moto.*", "bedrock_agentcore.*", "redis.*", "uvicorn.*", "starlette.*", "mcp.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
