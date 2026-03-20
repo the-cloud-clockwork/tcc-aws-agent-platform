@@ -11,6 +11,7 @@ from pathlib import Path
 import aws_cdk as cdk
 import yaml
 from stacks.agent_stack import AgentStack
+from stacks.api_stack import ApiStack
 from stacks.data_stack import DataStack
 from stacks.mcp_stack import McpStack
 from stacks.network_stack import NetworkStack
@@ -51,14 +52,6 @@ for tag_key, tag_value in config.get("tags", {}).items():
 
 # -- Core Stacks -----------------------------------------------------------
 
-data = DataStack(
-    app,
-    f"{prefix}-data",
-    env=cdk_env,
-    env_name=env_name,
-    config=config,
-)
-
 network = NetworkStack(
     app,
     f"{prefix}-network",
@@ -67,7 +60,7 @@ network = NetworkStack(
     config=config,
 )
 
-# -- Security Stack --------------------------------------------------------
+# -- Security Stack (before Data — data stack needs KMS keys for bucket policy)
 
 security = SecurityStack(
     app,
@@ -76,6 +69,15 @@ security = SecurityStack(
     env_name=env_name,
     config=config,
     vpc=network.vpc,
+)
+
+data = DataStack(
+    app,
+    f"{prefix}-data",
+    env=cdk_env,
+    env_name=env_name,
+    config=config,
+    security_stack=security,
 )
 
 # -- MCP Stack (before Agents — agents need MCP endpoints) -----------------
@@ -88,6 +90,7 @@ mcps = McpStack(
     config=config,
     vpc=network.vpc,
     mcp_sg=network.mcp_sg,
+    data_stack=data,
 )
 
 # -- Agent Stack -----------------------------------------------------------
@@ -115,6 +118,7 @@ workflows = WorkflowStack(
     config=config,
     agent_functions=agents.functions,
     data_stack=data,
+    manifest_lambda=agents.manifest_lambda,
 )
 
 # -- Observability Stack ---------------------------------------------------
@@ -127,6 +131,19 @@ observability = ObservabilityStack(
     config=config,
     agent_functions=agents.functions,
     mcp_services=mcps.services,
+)
+
+# -- API Stack (REST API for dashboard artifact retrieval) -----------------
+
+api = ApiStack(
+    app,
+    f"{prefix}-api",
+    env=cdk_env,
+    env_name=env_name,
+    config=config,
+    vpc=network.vpc,
+    data_stack=data,
+    security_stack=security,
 )
 
 app.synth()

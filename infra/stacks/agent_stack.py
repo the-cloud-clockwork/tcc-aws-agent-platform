@@ -29,15 +29,15 @@ from stacks.security_stack import SecurityStack
 # MCP URI environment variable mapping
 # Key: env var name, Value: (mcp_name, default_port)
 MCP_ENV_VARS = {
-    "MARKET_DATA_MCP_URI": ("market-data", 8002),
-    "SENTIMENT_MCP_URI": ("sentiment", 8003),
-    "ARTIFACTS_MCP_URI": ("artifacts", 8004),
-    "BACKTEST_MCP_URI": ("backtest", 8005),
-    "CHARTING_MCP_URI": ("charting", 8006),
-    "IBKR_MCP_URI": ("ibkr", 8001),
-    "TWO_FA_MCP_URI": ("twofa", 8007),
-    "ML_PREDICT_MCP_URI": ("ml-predict", 8008),
-    "TECHNICAL_MCP_URI": ("technical", 8009),
+    "MARKET_DATA_MCP_URI": ("market-data", 8080),
+    "SENTIMENT_MCP_URI": ("sentiment", 8080),
+    "ARTIFACTS_MCP_URI": ("artifacts", 8080),
+    "BACKTEST_MCP_URI": ("backtest", 8080),
+    "CHARTING_MCP_URI": ("charting", 8080),
+    "IBKR_MCP_URI": ("ibkr", 8080),
+    "TWO_FA_MCP_URI": ("twofa", 8080),
+    "ML_PREDICT_MCP_URI": ("ml-predict", 8080),
+    "TECHNICAL_MCP_URI": ("technical", 8080),
 }
 
 
@@ -69,7 +69,6 @@ class AgentStack(Stack):
         bedrock_region = config.get("bedrock_region", "us-west-2")
 
         agent_configs = self._resolve_agent_configs(config)
-        strands_layer = self._create_strands_layer()
         agent_policy = self._create_agent_policy(prefix, env_name, data_stack, ssm_root)
 
         self.functions: dict[str, lambda_.Function] = {}
@@ -81,7 +80,7 @@ class AgentStack(Stack):
 
             fn = self._create_agent_function(
                 agent_name, handler, memory, prefix, env_name, config,
-                bedrock_region, strands_layer, vpc, agent_sg,
+                bedrock_region, vpc, agent_sg,
                 data_stack, sd_namespace,
             )
             fn.role.add_managed_policy(agent_policy)
@@ -103,6 +102,53 @@ class AgentStack(Stack):
                     provisioned_concurrent_executions=provisioned,
                 )
 
+        # -- Manifest Lambda -----------------------------------------------
+
+        artifacts_table_name = self._resolve_table_name(data_stack, "artifacts")
+        artifacts_bucket_name = self._resolve_bucket_name(data_stack, "artifacts")
+
+        code_path = "lambda/agents/dist"
+        import os as _os
+        if not _os.path.isdir(_os.path.join(_os.path.dirname(__file__), "..", code_path)):
+            code_path = "lambda/agents/example"
+
+        self.manifest_lambda = lambda_.Function(
+            self, "StoreManifestFunction",
+            function_name=f"{prefix}-{env_name}-store-manifest",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            architecture=lambda_.Architecture.ARM_64,
+            handler="agent_core.runtime.manifest.handler",
+            code=lambda_.Code.from_asset(code_path),
+            memory_size=512,
+            timeout=Duration.seconds(60),
+            environment={
+                "ENV_NAME": env_name,
+                "ARTIFACTS_BUCKET": artifacts_bucket_name,
+                "ARTIFACTS_TABLE": artifacts_table_name,
+            },
+            vpc=vpc,
+            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
+            tracing=lambda_.Tracing.ACTIVE,
+        )
+
+        # Grant manifest Lambda S3 write + DynamoDB write
+        artifacts_bucket = data_stack.buckets.get("artifacts")
+        if artifacts_bucket:
+            artifacts_bucket.grant_write(self.manifest_lambda)
+        artifacts_table = data_stack.tables.get("artifacts")
+        if artifacts_table:
+            artifacts_table.grant_write_data(self.manifest_lambda)
+
+        # -- KMS Grants for agent Lambdas ----------------------------------
+
+        for fn in self.functions.values():
+            security_stack.platform_artifacts_key.grant_encrypt_decrypt(fn)
+            security_stack.domain_artifacts_key.grant_encrypt_decrypt(fn)
+
+        # Also grant KMS to manifest Lambda
+        security_stack.platform_artifacts_key.grant_encrypt_decrypt(self.manifest_lambda)
+        security_stack.domain_artifacts_key.grant_encrypt_decrypt(self.manifest_lambda)
+
     def _resolve_agent_configs(self, config: dict) -> list[dict]:
         agent_configs = config.get("agents", [])
         context_agents = self.node.try_get_context("agents")
@@ -116,14 +162,6 @@ class AgentStack(Stack):
             {"name": "strategy-evaluator"},
         ]
 
-    def _create_strands_layer(self) -> lambda_.ILayerVersion:
-        return lambda_.LayerVersion.from_layer_version_arn(
-            self, "StrandsLayer",
-            layer_version_arn=(
-                f"arn:aws:lambda:{self.region}:856699698935"
-                f":layer:strands-agents-py312-arm64:1"
-            ),
-        )
 
     def _create_agent_policy(
         self, prefix: str, env_name: str, data_stack: DataStack, ssm_root: str,
@@ -194,7 +232,7 @@ class AgentStack(Stack):
     def _create_agent_function(
         self, agent_name: str, handler: str, memory: int,
         prefix: str, env_name: str, config: dict,
-        bedrock_region: str, strands_layer: lambda_.ILayerVersion,
+        bedrock_region: str,
         vpc: ec2.IVpc, agent_sg: ec2.ISecurityGroup,
         data_stack: DataStack, sd_namespace: str,
     ) -> lambda_.Function:
@@ -240,7 +278,6 @@ class AgentStack(Stack):
             code=lambda_.Code.from_asset(code_path),
             timeout=Duration.minutes(15),
             memory_size=memory,
-            layers=[strands_layer],
             vpc=vpc,
             vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
             security_groups=[agent_sg],

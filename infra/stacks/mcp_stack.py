@@ -31,6 +31,7 @@ class McpStack(Stack):
         config: dict,
         vpc: ec2.IVpc,
         mcp_sg: ec2.ISecurityGroup,
+        data_stack=None,
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -116,6 +117,16 @@ class McpStack(Stack):
                     max_tasks=scaling_config.get("max_tasks", 3),
                     target_cpu_percent=scaling_config.get("target_cpu_percent", 70),
                 )
+
+            # Add CloudFront env vars for artifacts MCP
+            if mcp_name == "artifacts":
+                cf_config = config.get("cloudfront", {})
+                if cf_config.get("enabled", False) and data_stack and hasattr(data_stack, "artifacts_distribution") and data_stack.artifacts_distribution:
+                    mcp.container.add_environment("CLOUDFRONT_DOMAIN", data_stack.artifacts_distribution.distribution_domain_name)
+                if cf_config.get("key_pair_id"):
+                    mcp.container.add_environment("CLOUDFRONT_KEY_PAIR_ID", cf_config["key_pair_id"])
+                if cf_config.get("private_key_secret_arn"):
+                    mcp.container.add_environment("CLOUDFRONT_PRIVATE_KEY_SECRET_ARN", cf_config["private_key_secret_arn"])
 
             ssm.StringParameter(
                 self,

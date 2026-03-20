@@ -15,6 +15,9 @@ from aws_cdk import (
 from aws_cdk import (
     aws_stepfunctions as sfn,
 )
+from aws_cdk import (
+    aws_stepfunctions_tasks as sfn_tasks,
+)
 from constructs import Construct
 
 from constructs_.strands_agent import StrandsAgentTask
@@ -52,6 +55,7 @@ class SfnWorkflow(Construct):
         output_bucket_name: str,
         env_name: str,
         resource_prefix: str = "platform",
+        manifest_lambda: lambda_.IFunction | None = None,
     ) -> None:
         super().__init__(scope, construct_id)
 
@@ -103,6 +107,27 @@ class SfnWorkflow(Construct):
         definition = chain_steps[0]
         for step in chain_steps[1:]:
             definition = definition.next(step)
+
+        # Append StoreManifest step if manifest Lambda is provided
+        if manifest_lambda is not None:
+            manifest_task = sfn_tasks.LambdaInvoke(
+                self, "StoreManifest",
+                lambda_function=manifest_lambda,
+                payload=sfn.TaskInput.from_object({
+                    "execution_id": sfn.JsonPath.string_at("$$.Execution.Name"),
+                    "pipeline": sfn.JsonPath.string_at("$$.StateMachine.Name"),
+                    "date": sfn.JsonPath.string_at("$.date"),
+                    "results": sfn.JsonPath.string_at("$.results"),
+                    "started_at": sfn.JsonPath.string_at("$.started_at"),
+                }),
+                result_selector={
+                    "artifact_id": sfn.JsonPath.string_at("$.Payload.artifact_id"),
+                    "s3_key": sfn.JsonPath.string_at("$.Payload.s3_key"),
+                    "success": sfn.JsonPath.string_at("$.Payload.success"),
+                },
+                result_path="$.results._manifest",
+            )
+            definition = definition.next(manifest_task)
 
         # Log group for state machine
         log_group = logs.LogGroup(

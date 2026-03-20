@@ -91,6 +91,26 @@ class SecurityStack(Stack):
             removal_policy=removal,
         )
 
+        # Platform artifacts KMS key — all platform services can use
+        self.platform_artifacts_key = kms.Key(
+            self,
+            "PlatformArtifactsKey",
+            alias=f"alias/{config.get('kms', {}).get('platform_artifacts_key_alias', 'platform-artifacts')}",
+            description="Encrypts platform-tier artifacts (operational metadata, manifests)",
+            enable_key_rotation=True,
+            removal_policy=removal,
+        )
+
+        # Domain artifacts KMS key — restricted to authorized services only
+        self.domain_artifacts_key = kms.Key(
+            self,
+            "DomainArtifactsKey",
+            alias=f"alias/{config.get('kms', {}).get('domain_artifacts_key_alias', 'qitp-domain-artifacts')}",
+            description="Encrypts domain-tier artifacts (financial data, recommendations)",
+            enable_key_rotation=True,
+            removal_policy=removal,
+        )
+
         # -- Secrets Manager Secrets (generic placeholders) ----------------
 
         _rotation_days = config.get("secrets", {}).get("rotation_days", 0)
@@ -141,6 +161,18 @@ class SecurityStack(Stack):
             "SSM-storage-key-arn",
             parameter_name=f"{ssm_root}/security/storage-key-arn",
             string_value=self.storage_key.key_arn,
+        )
+        ssm.StringParameter(
+            self,
+            "SSM-platform-artifacts-key-arn",
+            parameter_name=f"{ssm_root}/security/platform-artifacts-key-arn",
+            string_value=self.platform_artifacts_key.key_arn,
+        )
+        ssm.StringParameter(
+            self,
+            "SSM-domain-artifacts-key-arn",
+            parameter_name=f"{ssm_root}/security/domain-artifacts-key-arn",
+            string_value=self.domain_artifacts_key.key_arn,
         )
 
         for secret_name, secret in self.secrets.items():

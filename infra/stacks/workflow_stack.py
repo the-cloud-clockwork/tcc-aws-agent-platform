@@ -43,6 +43,7 @@ class WorkflowStack(Stack):
         config: dict,
         agent_functions: dict[str, lambda_.IFunction],
         data_stack: DataStack,
+        manifest_lambda: lambda_.IFunction | None = None,
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -61,4 +62,5 @@ class WorkflowStack(Stack):
             output_bucket_name=output_bucket_name,
             env_name=env_name,
             resource_prefix=prefix,
+            manifest_lambda=manifest_lambda,
         )

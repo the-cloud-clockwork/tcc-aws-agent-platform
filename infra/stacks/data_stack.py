@@ -16,6 +16,15 @@ from aws_cdk import (
 from aws_cdk import (
     aws_ssm as ssm,
 )
+from aws_cdk import (
+    aws_cloudfront as cloudfront,
+)
+from aws_cdk import (
+    aws_cloudfront_origins as origins,
+)
+from aws_cdk import (
+    aws_iam as iam,
+)
 from constructs import Construct
 
 
@@ -29,6 +38,7 @@ class DataStack(Stack):
         *,
         env_name: str,
         config: dict | None = None,
+        security_stack=None,
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -88,6 +98,65 @@ class DataStack(Stack):
                 enforce_ssl=True,
             )
             self.buckets[name] = bucket
+
+        # -- S3 Bucket Policy (KMS enforcement by prefix) -----------------
+
+        artifacts_bucket = self.buckets.get("artifacts")
+        if artifacts_bucket and security_stack is not None:
+            platform_key_arn = security_stack.platform_artifacts_key.key_arn
+            domain_key_arn = security_stack.domain_artifacts_key.key_arn
+
+            # Deny PutObject to platform/ without platform KMS key
+            artifacts_bucket.add_to_resource_policy(iam.PolicyStatement(
+                sid="DenyPlatformWithoutPlatformKey",
+                effect=iam.Effect.DENY,
+                principals=[iam.AnyPrincipal()],
+                actions=["s3:PutObject"],
+                resources=[f"{artifacts_bucket.bucket_arn}/platform/*"],
+                conditions={
+                    "StringNotEquals": {
+                        "s3:x-amz-server-side-encryption-aws-kms-key-id": platform_key_arn,
+                    },
+                },
+            ))
+
+            # Deny PutObject to domain/ without domain KMS key
+            artifacts_bucket.add_to_resource_policy(iam.PolicyStatement(
+                sid="DenyDomainWithoutDomainKey",
+                effect=iam.Effect.DENY,
+                principals=[iam.AnyPrincipal()],
+                actions=["s3:PutObject"],
+                resources=[f"{artifacts_bucket.bucket_arn}/domain/*"],
+                conditions={
+                    "StringNotEquals": {
+                        "s3:x-amz-server-side-encryption-aws-kms-key-id": domain_key_arn,
+                    },
+                },
+            ))
+
+        # -- CloudFront Distribution (optional) ----------------------------
+
+        self.artifacts_distribution = None
+        if config.get("cloudfront", {}).get("enabled", False) and artifacts_bucket:
+            oac = cloudfront.CfnOriginAccessControl(
+                self, "ArtifactsOAC",
+                origin_access_control_config={
+                    "name": f"{prefix}-{env_name}-artifacts-oac",
+                    "originAccessControlOriginType": "s3",
+                    "signingBehavior": "always",
+                    "signingProtocol": "sigv4",
+                },
+            )
+
+            self.artifacts_distribution = cloudfront.Distribution(
+                self, "ArtifactsDistribution",
+                default_behavior=cloudfront.BehaviorOptions(
+                    origin=origins.S3BucketOrigin.with_origin_access_control(artifacts_bucket),
+                    viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
+                    cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,
+                ),
+                comment=f"{prefix}-{env_name} artifact delivery",
+            )
 
         # -- SQS Queues ----------------------------------------------------
 
