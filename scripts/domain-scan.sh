@@ -1,186 +1,70 @@
 #!/usr/bin/env bash
 # Domain contamination scanner
 # Usage:
-#   ./scripts/domain-scan.sh                  # scan with default terms
-#   ./scripts/domain-scan.sh trading risk     # add extra terms to scan
+#   ./scripts/domain-scan.sh          # HARD terms only (must be zero)
+#   ./scripts/domain-scan.sh --full   # HARD + SOFT terms (context-dependent)
 #
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-# ── Base terms (always scanned) ──────────────────────────────────────
-# Sourced from tccw-qitp domain vocabulary. Case-insensitive.
-TERMS=(
-  # ─── Project/org branding ───
+# ── HARD terms (always a violation — must be ZERO) ─────────────────────
+HARD_TERMS=(
+  # Project/org branding
   qitp
   tccw
   "The.Cloud.Clock.Work"
   "/home/iamroot"
 
-  # ─── Trading domain — core concepts ───
-  trading
-  backtest
-  paper
-  broker
+  # Broker-specific
   ibkr
-  ohlcv
-  ticker
-  portfolio
-  watchlist
-  trailing_stop
-  drawdown
-  equity_curve
-  sharpe
-  sortino
-  calmar
-  slippage
-  commission
-  nav
-  pnl
-  trade
-  trades
+  interactive_brokers
+  ib_gateway
+  tws
 
-  # ─── Trading domain — instruments & markets ───
-  forex
-  cfd
-  etf
-  isin
-  dividend
-  earnings
-  spread
-  eur
-  usd
-  currency
-  exchange
-
-  # ─── Trading domain — signals & strategies ───
-  sentiment
-  sentiment_score
-  market-data
-  market_data
-  bullish
-  bearish
-  momentum
-  reversion
-  breakout
-  continuation
-  exhaustion
-  gap_pct
-  gap_momentum
-  gap
-  volume_ratio
-  rsi
-  macd
-  bollinger
-  atr
-  sma
-  ema
-  composite
-  signal
-  neutral
-
-  # ─── Trading domain — orders & execution ───
-  place_order
-  order_type
-  order_id
-  order_details
-  limit_price
-  stop_price
-  short_sell
-  trailing_stop
-  position_size
-  buy
-  sell
-  short
-  long
-  side
-  quantity
-  fill
-
-  # ─── Trading domain — symbols & tickers ───
-  AAPL
-  SPY
-  TSLA
-  symbol
-  symbols
-
-  # ─── Trading domain — risk & portfolio ───
-  risk
-  risk_config
-  risk_state
-  circuit_breaker
-  breaker
-  threshold_pct
-  sector
-  concentration
-  leverage
-  margin
-  initial_capital
-  nav
-  position
-  positions
-
-  # ─── Trading domain — time/schedule ───
-  market_calendar
-  trading_day
-  monday
-  weekly_analysis
-
-  # ─── Trading domain — backtest/simulation ───
-  equity_curve
-  strategy
-  strategy_id
-  walk_forward
-  win_rate
-  profit_factor
-  holding_days
-  entry_price
-  exit_price
-  bars
-  bar
-  candle
-
-  # ─── Trading domain — tax & reporting ───
-  tax
-  irpf
-  cost_basis
-  capital_gains
-  tax_lot
-
-  # ─── Regulatory ───
+  # Regulatory
   cnmv
   esma
   mifid
   "RTS 25"
+  irpf
 
-  # ─── Auth — domain-specific implementations ───
+  # Domain data format
+  ohlcv
+
+  # Specific tickers (domain examples)
+  AAPL
+  SPY
+  TSLA
+
+  # Auth — domain-specific implementations
   telegram
   yubikey
   webauthn
   biometric
-  2fa
   twofa
-  approval
-  approval_id
-  task_token
+  2fa
 
-  # ─── QITP module names (should never appear) ───
-  qitp_agents
-  qitp_simulation
-  qitp_risk_engine
-  qitp_mcp_market_data
-  qitp_mcp_ibkr
-  qitp_mcp_backtest
-  qitp_mcp_sentiment
-  qitp_mcp_technical
-  qitp_mcp_charting
-  qitp_mcp_2fa
-  qitp_mcp_ml_predict
+  # Domain-specific field names
+  trailing_stop
+  gap_pct
+  gap_momentum
+  watchlist
+  equity_curve
+  holding_days
+  volume_ratio
+  cost_basis
+  capital_gains
+  tax_lot
+  weekly_analysis
+  trading_day
+  market_calendar
+  short_sell
+  position_size
 
-  # ─── QITP agent/MCP names ───
+  # QITP agent/MCP names
   gap-detector
   sentiment-analyzer
-  strategy-evaluator
   portfolio-recommender
   technical-analyzer
   ml-predictor
@@ -195,30 +79,163 @@ TERMS=(
   ml-predict-mcp
   technical-mcp
 
-  # ─── Chart/rendering domain ───
+  # QITP module names
+  qitp_agents
+  qitp_simulation
+  qitp_risk_engine
+  qitp_mcp_market_data
+  qitp_mcp_ibkr
+  qitp_mcp_backtest
+  qitp_mcp_sentiment
+  qitp_mcp_technical
+  qitp_mcp_charting
+  qitp_mcp_2fa
+  qitp_mcp_ml_predict
+
+  # Chart/rendering domain
   recharts
   candlestick
-  chart
 
-  # ─── Broker-specific ───
-  interactive_brokers
-  ib_gateway
-  tws
+  # Domain strategy names
+  gap_momentum_up
+  gap_momentum_down
+  mean_reversion
+  breakout_continuation
+  exhaustion_reversal
+
+  # Domain-specific config
+  "qitp-artifacts"
+  "qitp-historical"
+  risk_state
+  risk_config
+  strategy_registry
+
+  # Ratios specific to trading
+  sharpe
+  sortino
+  calmar
+  slippage
+  profit_factor
+  win_rate
+  walk_forward
+  entry_price
+  exit_price
+  initial_capital
+
+  # Tax
+  tax
 )
 
-# ── Append CLI args ──────────────────────────────────────────────────
+# ── SOFT terms (context-dependent — only with --full) ──────────────────
+SOFT_TERMS=(
+  symbol
+  symbols
+  strategy
+  strategy_id
+  bar
+  bars
+  candle
+  risk
+  position
+  positions
+  trade
+  trades
+  signal
+  short
+  long
+  gap
+  momentum
+  reversion
+  breakout
+  continuation
+  exhaustion
+  sector
+  currency
+  exchange
+  paper
+  spread
+  margin
+  composite
+  neutral
+  quantity
+  buy
+  sell
+  side
+  fill
+  leverage
+  backtest
+  sentiment
+  sentiment_score
+  portfolio
+  broker
+  trading
+  market-data
+  market_data
+  ticker
+  bullish
+  bearish
+  order_type
+  order_id
+  order_details
+  limit_price
+  stop_price
+  place_order
+  circuit_breaker
+  breaker
+  threshold_pct
+  concentration
+  nav
+  pnl
+  drawdown
+  commission
+  approval
+  approval_id
+  task_token
+  chart
+  forex
+  cfd
+  etf
+  isin
+  dividend
+  earnings
+  eur
+  usd
+  rsi
+  macd
+  bollinger
+  atr
+  sma
+  ema
+  volume
+  monday
+)
+
+# ── Parse flags ────────────────────────────────────────────────────────
+FULL=false
+EXTRA_TERMS=()
 for arg in "$@"; do
-  TERMS+=("$arg")
+  if [[ "$arg" == "--full" ]]; then
+    FULL=true
+  else
+    EXTRA_TERMS+=("$arg")
+  fi
 done
 
-# ── Build grep pattern ──────────────────────────────────────────────
+# ── Build term list ────────────────────────────────────────────────────
+TERMS=("${HARD_TERMS[@]}")
+if $FULL; then
+  TERMS+=("${SOFT_TERMS[@]}")
+fi
+TERMS+=("${EXTRA_TERMS[@]}")
+
+# ── Build grep pattern ────────────────────────────────────────────────
 pattern=""
 for t in "${TERMS[@]}"; do
   [[ -n "$pattern" ]] && pattern+="\|"
   pattern+="$t"
 done
 
-# ── Excludes ─────────────────────────────────────────────────────────
+# ── Excludes ──────────────────────────────────────────────────────────
 EXCLUDES=(
   --exclude-dir=__pycache__
   --exclude-dir=.git
@@ -227,14 +244,22 @@ EXCLUDES=(
   --exclude-dir=node_modules
   --exclude-dir=dist
   --exclude-dir=.scannerwork
+  --exclude-dir=.pytest_cache
+  --exclude-dir=lambda/agents/dist
   --exclude="CLAUDE.md"
   --exclude="domain-scan.sh"
   --exclude="*.lock"
+  --exclude="sonar-project.properties"
+  --exclude="publish.yml"
 )
 
-# ── Run ──────────────────────────────────────────────────────────────
+# ── Run ───────────────────────────────────────────────────────────────
+MODE="HARD only"
+$FULL && MODE="HARD + SOFT (--full)"
+
 echo "═══ Domain Scan: ${REPO_ROOT} ═══"
-echo "Terms: ${TERMS[*]}"
+echo "Mode: ${MODE}"
+echo "Terms: ${#TERMS[@]} patterns"
 echo "────────────────────────────────────"
 
 hits=$(grep -rni "${pattern}" "${REPO_ROOT}/" \
@@ -256,6 +281,7 @@ if [[ -z "$hits" ]]; then
 fi
 
 count=$(echo "$hits" | wc -l)
+files=$(echo "$hits" | cut -d: -f1 | sort -u | wc -l)
 echo "$hits"
 echo "────────────────────────────────────"
-echo "Total: ${count} hits"
+echo "Total: ${count} hits across ${files} files"
