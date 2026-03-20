@@ -93,6 +93,7 @@ class SfnWorkflow(Construct):
                 parallel = sfn.Parallel(
                     self,
                     f"Parallel-{'-'.join(b['agent'] for b in step_def['parallel'])}",
+                    result_path="$.parallel_output",
                 )
                 for branch in branches:
                     parallel.branch(branch)
