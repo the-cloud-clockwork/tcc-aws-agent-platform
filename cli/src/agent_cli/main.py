@@ -3,6 +3,7 @@
 import typer
 
 from agent_cli.blueprint import blueprint_app
+from agent_cli.generate import generate_app
 from agent_cli.graph import graph_app
 from agent_cli.prompt import prompt_app
 
@@ -15,6 +16,7 @@ app = typer.Typer(
 app.add_typer(prompt_app, name="prompt", help="Prompt registry operations")
 app.add_typer(blueprint_app, name="blueprint", help="Blueprint linting and validation")
 app.add_typer(graph_app, name="graph", help="Agent graph rendering")
+app.add_typer(generate_app, name="generate", help="Generate runtime configs and Dockerfiles")
 
 
 @app.callback()
