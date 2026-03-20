@@ -42,13 +42,26 @@ aws-agent-platform/               ← THIS REPO
 | `cli/` | `agent-cli` | CLI tool (pip) | typer, rich, httpx, pyyaml, agent-core |
 | `infra/` | `agent-infra` | CDK stacks | aws-cdk-lib, constructs, pyyaml |
 
-## Domain Isolation
+## Domain Isolation — NON-NEGOTIABLE
 
-This repo is **domain-agnostic**. Hard rules:
+This repo is a **pure AWS-agnostic agent platform**. It is modeled after [Amazon Bedrock AgentCore samples](https://github.com/aws-samples/amazon-bedrock-agentcore-samples) — it provides infrastructure scaffolding that any agentic workflow can run on top of.
 
-- **Zero domain imports** — No module in this repo may import from any domain-specific package
-- **No domain-specific terms** — No domain terminology in source code
-- **Multi-tenant ready** — The platform onboards any workflow type
+### What this repo IS
+- An AWS Cloud Native agent runner — VPC, ECS, Lambda runtime, API Gateway, Step Functions, observability
+- A Strands Agents + Bedrock AgentCore integration layer — blueprint engine, gateway, memory, identity, Cedar policies
+- Generic platform services — artifacts store, prompt registry, CLI
+- CDK stacks for **platform-level** resources only (generic tables, S3 buckets, queues)
+
+### What this repo is NOT
+- Not a trading platform. Not a risk engine. Not a CNMV compliance tool.
+- Not a place for ANY domain-specific infrastructure (DynamoDB tables, Lambdas, EventBridge rules, SNS topics) that serve a specific business domain.
+
+### Hard Rules
+1. **Zero domain imports** — No module may import from `qitp_*` or any domain-specific package
+2. **Zero domain terms** — No trading, risk, CNMV, IBKR, sentiment, gap, or any QITP concept in source code, CDK configs, or resource names
+3. **Zero domain infrastructure** — CDK config tables must be generic platform tables. If a domain needs a DynamoDB table, Lambda, or EventBridge rule, the domain repo deploys it
+4. **Multi-tenant by design** — Another team with a completely different use case (e.g., content moderation, data pipeline) should be able to use this platform with zero trading artifacts in their account
+5. **Platform CDK configs** — Only generic resources: `artifacts`, `audit_log`, `prompt_registry`, `run_history`, `idempotency`. Domain-specific tables like `risk_state`, `watchlist`, `2fa_events` belong in the domain repo's own CDK
 
 ## Development
 
