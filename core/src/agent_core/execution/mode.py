@@ -9,14 +9,10 @@ from agent_core.schemas.execution_modes import ExecutionModes
 
 logger = logging.getLogger(__name__)
 
-# Built-in aliases that map common domain vocabulary to platform modes.
-# Domain repos may use aliases like "backtest", "paper", "live" — the
-# platform canonical modes are "simulation", "staging", "production".
-_BUILTIN_ALIASES: dict[str, str] = {
-    "backtest": "simulation",
-    "paper": "staging",
-    "live": "production",
-}
+# Default aliases — empty.  Domain repos register their own via the
+# ``aliases`` parameter of ``get_execution_mode()`` or by calling
+# ``register_aliases()`` at startup.
+_BUILTIN_ALIASES: dict[str, str] = {}
 
 
 class ExecutionMode(StrEnum):
@@ -38,8 +34,9 @@ def get_execution_mode(
                  Domain repos can pass their own vocabulary here.
                  These are checked *after* built-in aliases.
 
-    Built-in aliases (always active):
-        backtest -> simulation, paper -> staging, live -> production.
+    Built-in aliases are empty by default.  Domain repos can supply
+    their own vocabulary via the ``aliases`` parameter or by populating
+    ``_BUILTIN_ALIASES`` with ``register_aliases()`` at startup.
 
     If the resolved value is not a valid ExecutionMode, falls back to
     ``SIMULATION`` with a warning rather than crashing. The platform

@@ -27,7 +27,7 @@ class SessionState:
     Attributes:
         session_id: Unique session identifier (= SFN execution ID).
         agent_id: Current agent within the session.
-        execution_mode: backtest | paper | live.
+        execution_mode: simulation | staging | production.
         short_term: Ephemeral data for this SFN execution.
         memory_context: Prior context retrieved from AgentCore Memory.
         pending_updates: Memory updates to persist after agent completes.
@@ -100,7 +100,7 @@ class SessionManager:
         Args:
             session_id: Session ID (= SFN execution ID).
             agent_id: Agent identifier.
-            execution_mode: backtest | paper | live.
+            execution_mode: simulation | staging | production.
             memory_context: Prior context from AgentCore Memory.
 
         Returns:

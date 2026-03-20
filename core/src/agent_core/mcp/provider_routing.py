@@ -14,7 +14,7 @@ Usage::
         ExecutionMode.STAGING: PolygonProvider,
         ExecutionMode.PRODUCTION: PolygonProvider,
     }
-    provider = resolve_provider(PROVIDERS, aliases={"backtest": "simulation"})
+    provider = resolve_provider(PROVIDERS)
 """
 
 from __future__ import annotations

@@ -20,13 +20,13 @@ def _make_blueprint(
         version="1.0.0",
         name="Test Strategy",
         description="A test strategy",
-        asset_types=["equity"],
+        asset_types=["default"],
         scopes=["us_equity"],
         required_signals=["gap_pct"],
         entry_conditions=entry_conditions or ConditionGroup(logic="AND", conditions=[]),
         exit_conditions=exit_conditions or ConditionGroup(logic="AND", conditions=[]),
-        required_agents=["gap_detector"],
-        required_mcps=["market-data-mcp"],
+        required_agents=["detector"],
+        required_mcps=["data-mcp"],
     )
 
 

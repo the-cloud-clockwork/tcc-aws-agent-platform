@@ -7,15 +7,15 @@ from agent_core.blueprints.strategy import StrategyBlueprint
 class TestStrategyBlueprint:
     def test_parse_sample_yaml(self, sample_strategy_dict: dict) -> None:
         bp = StrategyBlueprint(**sample_strategy_dict)
-        assert bp.id == "gap_momentum_up"
+        assert bp.id == "multi_signal_entry"
         assert bp.version == "1.0.0"
-        assert bp.name == "Gap Momentum Up"
+        assert bp.name == "Multi Signal Entry"
 
     def test_entry_conditions(self, sample_strategy_dict: dict) -> None:
         bp = StrategyBlueprint(**sample_strategy_dict)
         assert bp.entry_conditions.logic == "AND"
         assert len(bp.entry_conditions.conditions) == 2
-        assert bp.entry_conditions.conditions[0].field == "gap_pct"
+        assert bp.entry_conditions.conditions[0].field == "score_a"
         assert bp.entry_conditions.conditions[0].op == "gte"
         assert bp.entry_conditions.conditions[0].value == 2.0
 
@@ -30,13 +30,13 @@ class TestStrategyBlueprint:
 
     def test_required_agents_and_mcps(self, sample_strategy_dict: dict) -> None:
         bp = StrategyBlueprint(**sample_strategy_dict)
-        assert "gap_detector" in bp.required_agents
+        assert "detector" in bp.required_agents
         assert "data-mcp" in bp.required_mcps
 
     def test_asset_types_and_scopes(self, sample_strategy_dict: dict) -> None:
         bp = StrategyBlueprint(**sample_strategy_dict)
-        assert bp.asset_types == ["stock", "etf"]
-        assert bp.scopes == ["US", "EU", "ES"]
+        assert bp.asset_types == ["default"]
+        assert bp.scopes == ["global"]
 
     def test_concurrent_positions(self, sample_strategy_dict: dict) -> None:
         bp = StrategyBlueprint(**sample_strategy_dict)

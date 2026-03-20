@@ -30,7 +30,7 @@ class TestGatewayClient:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            "output": {"target": "AAPL", "data": [100, 105, 98, 103, 1000000]},
+            "output": {"target": "item-A", "data": [100, 105, 98, 103, 1000000]},
         }
         mock_response.raise_for_status = MagicMock()
         mock_post.return_value = mock_response
@@ -41,10 +41,10 @@ class TestGatewayClient:
 
         result = client.invoke_tool(
             "data-mcp::get_data",
-            {"target": "AAPL", "date": "2026-03-15"},
+            {"target": "item-A", "date": "2026-03-15"},
         )
 
-        assert result["target"] == "AAPL"
+        assert result["target"] == "item-A"
 
     @patch("httpx.Client.post")
     def test_invoke_tool_policy_denied(self, mock_post):
@@ -64,7 +64,7 @@ class TestGatewayClient:
         with pytest.raises(GatewayPolicyDeniedError):
             client.invoke_tool(
                 "executor-mcp::execute_action",
-                {"target": "AAPL"},
+                {"target": "item-A"},
                 agent_id="test-agent",
             )
 

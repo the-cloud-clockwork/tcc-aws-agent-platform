@@ -3,7 +3,7 @@
 Provides cache_get/cache_set with lazy Redis init, graceful degradation
 when Redis is unavailable, and configurable key prefixes.
 
-Extracted from market-data-mcp — generalised for any MCP server.
+Generalised for any MCP server.
 """
 
 from __future__ import annotations

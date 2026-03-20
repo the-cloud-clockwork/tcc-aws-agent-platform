@@ -29,8 +29,8 @@ class TestLangfuseHook:
     def test_lifecycle_without_langfuse(self, caplog: pytest.LogCaptureFixture) -> None:
         """Verify hook tracks metrics even when Langfuse is not available."""
         hook = LangfuseHook(
-            agent_id="gap_detector",
-            prompt_id="gap_detector",
+            agent_id="test_detector",
+            prompt_id="test_detector",
             prompt_version="v1.2",
             execution_mode="simulation",
             target="ENTITY-1",
@@ -53,7 +53,7 @@ class TestLangfuseHook:
             hook.on_agent_end()
 
         summary = hook.summary
-        assert summary["agent_id"] == "gap_detector"
+        assert summary["agent_id"] == "test_detector"
         assert summary["generation_count"] == 2
         assert summary["total_input_tokens"] == 1800
         assert summary["total_output_tokens"] == 800
@@ -66,12 +66,12 @@ class TestLangfuseHook:
             prompt_version="v2.0",
             execution_mode="production",
             target="ENTITY-2",
-            strategy_id="gap_momentum_up",
+            strategy_id="multi_signal_entry",
         )
         tags = hook._tags()
         assert tags["agent_id"] == "analytics"
         assert tags["target"] == "ENTITY-2"
-        assert tags["strategy_id"] == "gap_momentum_up"
+        assert tags["strategy_id"] == "multi_signal_entry"
 
     def test_tags_without_optional_fields(self) -> None:
         hook = LangfuseHook(agent_id="test")

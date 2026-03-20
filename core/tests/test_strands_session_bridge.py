@@ -69,11 +69,11 @@ class TestSyncAgent:
         state = _make_session_state()
         bridge = StrandsSessionBridge(state)
         agent = SimpleNamespace(
-            name="gap_detector",
+            name="test_detector",
             messages=[{"role": "user", "content": "analyze"}],
         )
         bridge.sync_agent(agent)
-        assert bridge._agent_state["agent_name"] == "gap_detector"
+        assert bridge._agent_state["agent_name"] == "test_detector"
         assert len(bridge._agent_state["messages"]) == 1
 
 
@@ -125,11 +125,11 @@ class TestMultiAgent:
         bridge = StrandsSessionBridge(state)
         source = SimpleNamespace(
             name="swarm_orchestrator",
-            current_agent=SimpleNamespace(name="gap_detector"),
+            current_agent=SimpleNamespace(name="test_detector"),
         )
         bridge.sync_multi_agent(source)
         assert bridge._multi_agent_state["orchestrator_name"] == "swarm_orchestrator"
-        assert bridge._multi_agent_state["current_agent"] == "gap_detector"
+        assert bridge._multi_agent_state["current_agent"] == "test_detector"
 
     def test_initialize_multi_agent_noop(self):
         state = _make_session_state()

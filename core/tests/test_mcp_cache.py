@@ -26,22 +26,22 @@ def _reset_redis_client():
 
 class TestCacheKey:
     def test_deterministic(self):
-        k1 = _cache_key("ohlcv", symbol="AAPL", start="2025-01-06")
-        k2 = _cache_key("ohlcv", symbol="AAPL", start="2025-01-06")
+        k1 = _cache_key("data", symbol="item-A", start="2025-01-06")
+        k2 = _cache_key("data", symbol="item-A", start="2025-01-06")
         assert k1 == k2
 
     def test_different_params_different_key(self):
-        k1 = _cache_key("ohlcv", symbol="AAPL")
-        k2 = _cache_key("ohlcv", symbol="SPY")
+        k1 = _cache_key("data", symbol="item-A")
+        k2 = _cache_key("data", symbol="item-B")
         assert k1 != k2
 
     def test_prefix_included(self):
-        k = _cache_key("ohlcv", prefix="mktdata", symbol="AAPL")
-        assert k.startswith("mktdata:ohlcv:")
+        k = _cache_key("data", prefix="svc", symbol="item-A")
+        assert k.startswith("svc:data:")
 
     def test_no_prefix(self):
-        k = _cache_key("ohlcv", symbol="AAPL")
-        assert k.startswith("ohlcv:")
+        k = _cache_key("data", symbol="item-A")
+        assert k.startswith("data:")
         assert k.count(":") == 2  # namespace:hash (no leading prefix:)
 
     def test_key_length(self):
@@ -63,7 +63,7 @@ class TestCacheGetSet:
         mock_redis.get.return_value = json.dumps({"bars": [1, 2, 3]})
         _override_redis(mock_redis)
 
-        result = cache_get("ohlcv", prefix="mkt", symbol="AAPL")
+        result = cache_get("data", prefix="svc", symbol="item-A")
         assert result == {"bars": [1, 2, 3]}
 
     def test_cache_get_miss(self):
@@ -71,20 +71,20 @@ class TestCacheGetSet:
         mock_redis.get.return_value = None
         _override_redis(mock_redis)
 
-        assert cache_get("ohlcv", prefix="mkt", symbol="AAPL") is None
+        assert cache_get("data", prefix="svc", symbol="item-A") is None
 
     def test_cache_get_exception_returns_none(self):
         mock_redis = MagicMock()
         mock_redis.get.side_effect = ConnectionError("boom")
         _override_redis(mock_redis)
 
-        assert cache_get("ohlcv", symbol="AAPL") is None
+        assert cache_get("data", symbol="item-A") is None
 
     def test_cache_set_writes(self):
         mock_redis = MagicMock()
         _override_redis(mock_redis)
 
-        cache_set("ohlcv", {"bars": [1]}, ttl_seconds=60, prefix="mkt", symbol="AAPL")
+        cache_set("data", {"bars": [1]}, ttl_seconds=60, prefix="svc", symbol="item-A")
         mock_redis.setex.assert_called_once()
 
     def test_cache_set_exception_does_not_raise(self):
@@ -107,19 +107,19 @@ class TestWithFakeRedis:
     def test_roundtrip(self, fake_redis):
         _override_redis(fake_redis)
 
-        cache_set("ohlcv", {"bars": [1, 2]}, ttl_seconds=60, prefix="mkt", symbol="AAPL")
-        result = cache_get("ohlcv", prefix="mkt", symbol="AAPL")
+        cache_set("data", {"bars": [1, 2]}, ttl_seconds=60, prefix="svc", symbol="item-A")
+        result = cache_get("data", prefix="svc", symbol="item-A")
         assert result == {"bars": [1, 2]}
 
     def test_miss(self, fake_redis):
         _override_redis(fake_redis)
-        assert cache_get("ohlcv", prefix="mkt", symbol="MISSING") is None
+        assert cache_get("data", prefix="svc", symbol="MISSING") is None
 
     def test_different_prefixes_isolated(self, fake_redis):
         _override_redis(fake_redis)
 
-        cache_set("ohlcv", {"v": 1}, prefix="mkt", symbol="AAPL")
-        cache_set("ohlcv", {"v": 2}, prefix="other", symbol="AAPL")
+        cache_set("data", {"v": 1}, prefix="svc", symbol="item-A")
+        cache_set("data", {"v": 2}, prefix="other", symbol="item-A")
 
-        assert cache_get("ohlcv", prefix="mkt", symbol="AAPL") == {"v": 1}
-        assert cache_get("ohlcv", prefix="other", symbol="AAPL") == {"v": 2}
+        assert cache_get("data", prefix="svc", symbol="item-A") == {"v": 1}
+        assert cache_get("data", prefix="other", symbol="item-A") == {"v": 2}

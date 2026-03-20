@@ -12,7 +12,7 @@ class ExecutionModes(BaseModel):
     Domain repos can register custom aliases by setting ``field_aliases``
     before loading blueprints::
 
-        ExecutionModes.field_aliases = {"backtest": "simulation", ...}
+        ExecutionModes.field_aliases = {"custom_mode": "simulation", ...}
     """
 
     model_config = ConfigDict(frozen=True)

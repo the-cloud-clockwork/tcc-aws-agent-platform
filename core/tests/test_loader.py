@@ -26,25 +26,25 @@ class _DummyOutput(BaseModel):
 # Default registries used by session tests to satisfy the sample blueprint's
 # hooks and output_schema declarations.
 _DEFAULT_HOOK_REG: dict[str, type] = {"ObservabilityHook": MagicMock}
-_DEFAULT_SCHEMA_REG: dict[str, type[BaseModel]] = {"gap_detection_output_v1": _DummyOutput}
+_DEFAULT_SCHEMA_REG: dict[str, type[BaseModel]] = {"test_detection_output_v1": _DummyOutput}
 
 
 class TestBlueprintLoader:
     def test_load_agent(self, tmp_blueprints: Path) -> None:
         loader = BlueprintLoader(tmp_blueprints)
-        bp = loader.load_agent("gap_detector")
-        assert bp.id == "gap_detector"
+        bp = loader.load_agent("test_detector")
+        assert bp.id == "test_detector"
         assert bp.version == "1.2.0"
 
     def test_load_strategy(self, tmp_blueprints: Path) -> None:
         loader = BlueprintLoader(tmp_blueprints)
-        bp = loader.load_strategy("gap_momentum_up")
-        assert bp.id == "gap_momentum_up"
+        bp = loader.load_strategy("multi_signal_entry")
+        assert bp.id == "multi_signal_entry"
 
     def test_load_workflow(self, tmp_blueprints: Path) -> None:
         loader = BlueprintLoader(tmp_blueprints)
-        bp = loader.load_workflow("weekly_gap_analysis")
-        assert bp.id == "weekly_gap_analysis"
+        bp = loader.load_workflow("weekly_analysis")
+        assert bp.id == "weekly_analysis"
         assert len(bp.states) == 2
         assert bp.states[0].id == "ValidateSchedule"
 
@@ -54,16 +54,16 @@ class TestBlueprintLoader:
             loader.load_agent("nonexistent_agent")
 
     def test_load_agent_from_path(self, tmp_blueprints: Path) -> None:
-        path = tmp_blueprints / "agents" / "gap_detector.yaml"
+        path = tmp_blueprints / "agents" / "test_detector.yaml"
         loader = BlueprintLoader(tmp_blueprints)
         bp = loader.load_agent_from_path(path)
-        assert bp.id == "gap_detector"
+        assert bp.id == "test_detector"
 
     def test_load_strategy_from_path(self, tmp_blueprints: Path) -> None:
-        path = tmp_blueprints / "strategies" / "gap_momentum_up.yaml"
+        path = tmp_blueprints / "strategies" / "multi_signal_entry.yaml"
         loader = BlueprintLoader(tmp_blueprints)
         bp = loader.load_strategy_from_path(path)
-        assert bp.id == "gap_momentum_up"
+        assert bp.id == "multi_signal_entry"
 
 
 class TestBuildStrandsAgent:
@@ -77,7 +77,7 @@ class TestBuildStrandsAgent:
         mock_agent_cls.return_value = MagicMock()
 
         mcp_client = MagicMock()
-        loader.build_strands_agent("gap_detector", mcp_clients={"data-mcp": mcp_client})
+        loader.build_strands_agent("test_detector", mcp_clients={"data-mcp": mcp_client})
 
         # Verify Agent was called with resolved prompt text
         call_kwargs = mock_agent_cls.call_args
@@ -92,14 +92,14 @@ class TestBuildStrandsAgent:
         mcp_client = MagicMock()
 
         with pytest.raises(BlueprintLoadError):
-            loader.build_strands_agent("gap_detector", mcp_clients={"data-mcp": mcp_client})
+            loader.build_strands_agent("test_detector", mcp_clients={"data-mcp": mcp_client})
 
     @patch("agent_core.blueprints.loader.Agent")
     def test_build_strands_agent_mode_gating(
         self, mock_agent_cls, tmp_blueprints: Path, tmp_prompts: Path
     ) -> None:
         # Modify blueprint to disable production mode for this test
-        bp_path = tmp_blueprints / "agents" / "gap_detector.yaml"
+        bp_path = tmp_blueprints / "agents" / "test_detector.yaml"
         with open(bp_path) as f:
             data = yaml.safe_load(f)
         data["execution_modes"]["production"] = False
@@ -112,7 +112,7 @@ class TestBuildStrandsAgent:
 
         # simulation is enabled in the sample blueprint
         agent = loader.build_strands_agent(
-            "gap_detector",
+            "test_detector",
             mcp_clients={"data-mcp": mcp_client},
             mode=ExecutionMode.SIMULATION,
         )
@@ -121,7 +121,7 @@ class TestBuildStrandsAgent:
         # production is NOT enabled → should raise
         with pytest.raises(BlueprintLoadError):
             loader.build_strands_agent(
-                "gap_detector",
+                "test_detector",
                 mcp_clients={"data-mcp": mcp_client},
                 mode=ExecutionMode.PRODUCTION,
             )
@@ -149,7 +149,7 @@ class TestBuildAgentSession:
         loader = self._make_loader(tmp_blueprints, tmp_prompts, mock_mcp_factory)
         mock_agent_cls.return_value = MagicMock()
 
-        with loader.build_agent_session("gap_detector") as session:
+        with loader.build_agent_session("test_detector") as session:
             assert isinstance(session, AgentSession)
             # MCP clients should have __enter__ called
             for client in session._mcp_clients:
@@ -162,7 +162,7 @@ class TestBuildAgentSession:
         loader = self._make_loader(tmp_blueprints, tmp_prompts, mock_mcp_factory)
         mock_agent_cls.return_value = MagicMock()
 
-        session = loader.build_agent_session("gap_detector")
+        session = loader.build_agent_session("test_detector")
         with session:
             pass
         # After exit, all MCP clients should have __exit__ called
@@ -176,7 +176,7 @@ class TestBuildAgentSession:
         loader = self._make_loader(tmp_blueprints, tmp_prompts, mock_mcp_factory)
         mock_agent_cls.return_value = MagicMock()
 
-        with pytest.raises(RuntimeError), loader.build_agent_session("gap_detector") as session:
+        with pytest.raises(RuntimeError), loader.build_agent_session("test_detector") as session:
             raise RuntimeError("test error")
         # Even on error, MCP clients should be cleaned up
         for client in session._mcp_clients:
@@ -199,7 +199,7 @@ class TestBuildAgentSession:
         )
         mock_agent_cls.return_value = MagicMock()
 
-        with loader.build_agent_session("gap_detector"):
+        with loader.build_agent_session("test_detector"):
             pass
 
         # Verify hook class was instantiated
@@ -218,7 +218,7 @@ class TestBuildAgentSession:
         )
 
         with pytest.raises(BlueprintLoadError, match="Unknown hook"):
-            loader.build_agent_session("gap_detector")
+            loader.build_agent_session("test_detector")
 
     @patch("agent_core.blueprints.loader.Agent")
     def test_build_agent_session_output_schema(
@@ -229,8 +229,8 @@ class TestBuildAgentSession:
         mock_mcp_factory,
         sample_schema_registry,
     ) -> None:
-        # Modify the sample gap_detector blueprint to use a known test schema
-        bp_path = tmp_blueprints / "agents" / "gap_detector.yaml"
+        # Modify the sample test_detector blueprint to use a known test schema
+        bp_path = tmp_blueprints / "agents" / "test_detector.yaml"
         with open(bp_path) as f:
             data = yaml.safe_load(f)
         data["output_schema"] = "TestOutput"
@@ -247,7 +247,7 @@ class TestBuildAgentSession:
         )
         mock_agent_cls.return_value = MagicMock()
 
-        with loader.build_agent_session("gap_detector"):
+        with loader.build_agent_session("test_detector"):
             pass
 
         # Verify structured_output_model was passed to Agent
@@ -261,7 +261,7 @@ class TestBuildAgentSession:
         loader = BlueprintLoader(blueprints_dir=tmp_blueprints, prompt_dir=tmp_prompts)
 
         with pytest.raises(BlueprintLoadError, match="no mcp_factory"):
-            loader.build_agent_session("gap_detector")
+            loader.build_agent_session("test_detector")
 
     @patch("agent_core.blueprints.loader.Agent")
     def test_build_agent_session_tool_filter_passed(
@@ -271,7 +271,7 @@ class TestBuildAgentSession:
         loader = self._make_loader(tmp_blueprints, tmp_prompts, mock_mcp_factory)
         mock_agent_cls.return_value = MagicMock()
 
-        with loader.build_agent_session("gap_detector") as session:
+        with loader.build_agent_session("test_detector") as session:
             # Sample blueprint has two tool entries:
             #   data-mcp: [get_watchlist_gaps, get_data, get_volume_profile]
             #   artifacts-mcp: [create_artifact]
@@ -286,7 +286,7 @@ class TestBuildAgentSession:
     ) -> None:
         """Verify that multiple hooks are wrapped in CompositeCallbackHandler."""
         # Modify blueprint to have two hooks
-        bp_path = tmp_blueprints / "agents" / "gap_detector.yaml"
+        bp_path = tmp_blueprints / "agents" / "test_detector.yaml"
         with open(bp_path) as f:
             data = yaml.safe_load(f)
         data["hooks"] = ["HookA", "HookB"]
@@ -307,7 +307,7 @@ class TestBuildAgentSession:
         )
         mock_agent_cls.return_value = MagicMock()
 
-        with loader.build_agent_session("gap_detector"):
+        with loader.build_agent_session("test_detector"):
             pass
 
         call_kwargs = mock_agent_cls.call_args.kwargs

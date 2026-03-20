@@ -74,12 +74,12 @@ class TestXRayTracer:
         mock_recorder.begin_subsegment.return_value = mock_subseg
         mock_get_recorder.return_value = mock_recorder
 
-        tracer = XRayTracer(service_name="gap_detector")
+        tracer = XRayTracer(service_name="test_detector")
         with tracer.subsegment("fetch_data", target="ENTITY-1") as sub:
             assert sub is mock_subseg
 
         mock_recorder.begin_subsegment.assert_called_once_with("fetch_data")
-        mock_subseg.put_annotation.assert_any_call("service", "gap_detector")
+        mock_subseg.put_annotation.assert_any_call("service", "test_detector")
         mock_subseg.put_annotation.assert_any_call("target", "ENTITY-1")
         mock_recorder.end_subsegment.assert_called_once()
 

@@ -25,15 +25,15 @@ class TestInMemoryFallback:
 
     def test_store_episodic(self):
         fallback = _InMemoryFallback()
-        entry_id = fallback.store_episodic(content="AAPL gapped 5%")
+        entry_id = fallback.store_episodic(content="item-A scored 5%")
         assert entry_id is not None
 
     def test_search_episodic(self):
         fallback = _InMemoryFallback()
-        fallback.store_episodic(content="AAPL gapped 5% on Monday")
-        fallback.store_episodic(content="TSLA earnings beat")
+        fallback.store_episodic(content="item-A scored 5% on Monday")
+        fallback.store_episodic(content="item-B metrics exceeded")
 
-        results = fallback.search_episodic(query="AAPL gap")
+        results = fallback.search_episodic(query="item-A scored")
         assert len(results["entries"]) == 1
 
 
@@ -45,19 +45,19 @@ class TestMemoryManager:
         # Should use fallback since bedrock_agentcore not installed
         manager.update_session_memory(
             session_id="s123",
-            agent_id="gap-detector",
-            updates={"gap_count": 5},
+            agent_id="test-detector",
+            updates={"item_count": 5},
         )
         result = manager.get_session_memory("s123")
         assert result is not None
-        assert result.get("gap_count") == 5
+        assert result.get("item_count") == 5
 
     def test_semantic_search_fallback(self):
         manager = MemoryManager()
         manager.store_episodic(
             session_id="s123",
-            agent_id="gap-detector",
-            content="Found 3 gaps in AAPL, TSLA, NVDA",
+            agent_id="test-detector",
+            content="Found 3 items: item-A, item-B, item-C",
         )
-        results = manager.semantic_search(query="AAPL gaps")
+        results = manager.semantic_search(query="item-A results")
         assert "entries" in results
