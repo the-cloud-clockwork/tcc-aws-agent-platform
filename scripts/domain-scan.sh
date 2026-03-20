@@ -254,6 +254,8 @@ EXCLUDES=(
   --exclude="domain-scan.sh"
   --exclude="*.lock"
   --exclude="sonar-scan.yml"  # GitHub Actions uses: requires static org name
+  --exclude="CLAUDE.md"       # Project instructions legitimately list domain terms as "what NOT to import"
+  --exclude="README.md"       # Repo docs explain the platform's relationship to domain repos
 )
 
 # ── Run ───────────────────────────────────────────────────────────────
