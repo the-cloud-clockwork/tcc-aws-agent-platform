@@ -8,7 +8,7 @@ Usage::
 
     writer = AuditLogWriter(table_name="my_audit_log")
     writer.log(
-        event_type="ORDER_REQUESTED",
+        event_type="TASK_SUBMITTED",
         agent_id="execution_agent",
         execution_mode="production",
         payload={
@@ -85,7 +85,7 @@ class AuditLogWriter:
         Parameters
         ----------
         event_type:
-            Event type string (e.g. ``PIPELINE_STARTED``, ``ORDER_REQUESTED``).
+            Event type string (e.g. ``PIPELINE_STARTED``, ``TASK_SUBMITTED``).
         agent_id:
             Agent that generated the event.
         execution_mode:

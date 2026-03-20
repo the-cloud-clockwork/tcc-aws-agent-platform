@@ -6,6 +6,25 @@
 
 ---
 
+## Session Startup Protocol
+
+**Every new conversation, plan, or task MUST begin with this sequence — no exceptions:**
+
+1. **Read `VISION.md`** — Understand the 12 building blocks and what the platform is becoming
+2. **Read `resources/CONCEPTS.md`** — The AgentCore concepts that our 12 blocks must align to
+3. **Read `resources/TECHNICAL-GUIDE.md`** (relevant sections only) — Deep technical patterns for whichever blocks the current task touches
+4. **Read `PROGRESS.md`** — Current implementation status: checked = done, unchecked = needed
+5. **Think** — Map the current task to the relevant blocks, identify what exists vs what's missing
+6. **Plan** — Propose the approach, aligned to the vision and concepts, before writing any code
+
+**Reference implementation:** `/home/iamroot/dev/tccw-qitp/agents/` — A domain repo that consumes this platform. Built with the old pattern (Lambda-based, direct MCP connections) but is the source of truth for how the vision looks from the consumer side: YAML blueprints in `blueprints/agents/*.yaml`, prompt builders in `agent_configs.py`, MCP registry in `mcp_registry.py`, 5-line handler in `app.py`. When designing platform features, check how `tccw-qitp/agents` would consume them.
+
+This ensures every change adheres to the AgentCore architecture and moves checkboxes forward in PROGRESS.md.
+
+**After completing work:** Update `PROGRESS.md` — check off any boxes that were completed during the session.
+
+---
+
 ## What This Repo Is
 
 A monorepo providing the foundational runtime, tooling, and infrastructure for AI agent systems built on AWS Strands Agents SDK. It contains 5 independent modules that together form a complete agent platform:
@@ -200,8 +219,9 @@ Config: `ruff.toml` — Python 3.12, line-length 120, isort with known-first-par
 - **Never hardcode resource names** — Everything from `config/{env}.yaml`
 - **Never run tests locally** — CI only (pytest hangs on this machine)
 - **Commit directly to main** — Scratch phase, no branches, no PRs
-- **CDK Python only** — No Terraform, no CloudFormation YAML
+- **IaC: CDK (current) → Terraform (target)** — CDK stacks exist; Terraform modules are the migration target per VISION.md Block 11
 - **Tests are separate sessions** — Never interleave test runs with implementation work
+- **Always follow the Session Startup Protocol** — Read VISION → CONCEPTS → TECHNICAL-GUIDE → PROGRESS before any task
 
 ---
 

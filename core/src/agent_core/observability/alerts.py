@@ -9,13 +9,13 @@ Usage::
     publisher = AlertPublisher(topic_arn="arn:aws:sns:eu-west-1:123456789012:my-alerts")
 
     publisher.circuit_breaker_tripped(
-        rule="daily_loss_breaker",
+        rule="rate_limit_breaker",
         details="Service degraded. All operations halted for 24h.",
     )
 
     publisher.pipeline_failed(
         execution_id="arn:aws:states:...",
-        error="Detection agent timed out after 15min",
+        error="Processing agent timed out after 15min",
     )
 
     publisher.send_alert(
