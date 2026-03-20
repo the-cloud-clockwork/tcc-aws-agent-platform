@@ -46,8 +46,19 @@ class AgentResult:
     error: str | None = None
 
     def to_lambda_response(self) -> dict[str, Any]:
+        """Return response compatible with Step Functions ResultSelector.
+
+        The StrandsAgentTask construct expects top-level fields:
+          artifact_id, success, s3_key, agent
+        """
         if self.status == "error":
-            return {"statusCode": 500, "body": json.dumps({"error": self.error})}
+            return {
+                "success": False,
+                "artifact_id": "",
+                "s3_key": "",
+                "error": self.error,
+                "agent_id": self.agent_id,
+            }
         body = {**self.output}
         if self.claim_check:
             body = {
@@ -57,7 +68,13 @@ class AgentResult:
             }
         if self.memory_updates:
             body["_memory_updates"] = self.memory_updates
-        return {"statusCode": 200, "body": json.dumps(body)}
+        return {
+            "success": True,
+            "artifact_id": self.artifact_id or "",
+            "s3_key": body.get("s3_key", ""),
+            "agent_id": self.agent_id,
+            "output": body,
+        }
 
     def to_agentcore_response(self) -> dict[str, Any]:
         return {
@@ -109,8 +126,18 @@ def normalize_agentcore_payload(payload: dict[str, Any]) -> AgentPayload:
     )
 
 
-def normalize_payload(event_or_payload: dict[str, Any]) -> AgentPayload:
-    """Auto-detect and normalize either Lambda event or AgentCore payload."""
+def normalize_payload(event_or_payload: dict[str, Any] | list) -> AgentPayload:
+    """Auto-detect and normalize Lambda event, AgentCore payload, or SFN state."""
+    # Step Functions Parallel state wraps branch outputs in a list
+    if isinstance(event_or_payload, list):
+        # Merge list elements into a single dict
+        merged: dict[str, Any] = {}
+        for item in event_or_payload:
+            if isinstance(item, dict):
+                merged.update(item)
+        event_or_payload = merged
+    if not isinstance(event_or_payload, dict):
+        event_or_payload = {}
     if "payload" in event_or_payload and isinstance(event_or_payload["payload"], dict):
         return normalize_agentcore_payload(event_or_payload)
     if "session" in event_or_payload and isinstance(event_or_payload["session"], dict):

@@ -40,9 +40,17 @@ class AgentSession:
         return self.agent(prompt)
 
     def __enter__(self) -> AgentSession:
-        for client in self._mcp_clients:
-            self._exit_stack.enter_context(client)
+        # Strands MCPClient is lazily started on first tool call via the Agent.
+        # We do NOT enter the MCP clients here — the Agent manages their lifecycle.
+        # We only track them for cleanup in __exit__.
         return self
 
     def __exit__(self, *exc: Any) -> bool:
-        return bool(self._exit_stack.__exit__(*exc))
+        # Clean up any MCP clients that were started by the Agent
+        for client in self._mcp_clients:
+            if getattr(client, "_tool_provider_started", False):
+                try:
+                    client.__exit__(None, None, None)
+                except Exception:
+                    pass
+        return False
