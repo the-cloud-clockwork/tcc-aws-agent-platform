@@ -88,7 +88,7 @@ class TestResolverPinned:
         result = resolver_env.resolve("gap_detector@1.0.0", mode=Mode.PRODUCTION)
         assert result is not None
         assert result.version == "1.0.0"
-        assert "v1." in result.text
+        assert "v1." in result.content
 
     def test_resolve_v_format(self, resolver_env):
         result = resolver_env.resolve("gap_detector_v1.2.0", mode=Mode.PRODUCTION)

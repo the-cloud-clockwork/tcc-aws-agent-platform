@@ -33,7 +33,7 @@ jobs:
         id: codeartifact
         run: |
           TOKEN=$(aws codeartifact get-authorization-token \
-            --domain platform \
+            --domain tccw \
             --domain-owner 835618032093 \
             --query authorizationToken \
             --output text)
@@ -51,5 +51,5 @@ jobs:
         env:
           TWINE_USERNAME: aws
           TWINE_PASSWORD: ${{ steps.codeartifact.outputs.token }}
-          TWINE_REPOSITORY_URL: https://platform-835618032093.d.codeartifact.eu-west-1.amazonaws.com/pypi/platform-python/
+          TWINE_REPOSITORY_URL: https://tccw-835618032093.d.codeartifact.eu-west-1.amazonaws.com/pypi/tccw-python/
         run: twine upload dist/*

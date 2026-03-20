@@ -36,7 +36,7 @@ class PromptCreateRequest(BaseModel):
 
     prompt_id: str
     version: str
-    text: str
+    content: str
     description: str = ""
     tags: list[str] = Field(default_factory=list)
 
@@ -58,7 +58,7 @@ class PromptResolveResponse(BaseModel):
 
     prompt_id: str
     version: str
-    text: str
+    content: str
     status: PromptStatus
 
 
