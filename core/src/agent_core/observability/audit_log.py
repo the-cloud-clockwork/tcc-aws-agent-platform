@@ -13,8 +13,8 @@ Usage::
         execution_mode="production",
         payload={
             "target": "ENTITY-1",
-            "side": "BUY",
-            "qty": 10,
+            "action": "invoke",
+            "result_count": 10,
         },
     )
 

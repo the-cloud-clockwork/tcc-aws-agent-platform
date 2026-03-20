@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 
 class ExecutionModes(BaseModel):
-    """Declares which execution modes an agent or strategy supports.
+    """Declares which execution modes an agent or workflow supports.
 
     Domain repos can register custom aliases by setting ``field_aliases``
     before loading blueprints::

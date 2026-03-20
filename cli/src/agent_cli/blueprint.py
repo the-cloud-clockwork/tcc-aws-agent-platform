@@ -1,6 +1,6 @@
 """Blueprint sub-commands: lint, validate.
 
-Validates any blueprint YAML (agent or strategy) against agent-core models.
+Validates blueprint YAML (agent or workflow) against agent-core models.
 """
 
 from __future__ import annotations
@@ -17,11 +17,11 @@ console = Console()
 
 
 def _detect_blueprint_type(data: dict) -> str:
-    """Detect whether a YAML is an agent blueprint or strategy blueprint."""
+    """Detect whether a YAML is an agent or workflow blueprint."""
     if "multi_agent" in data or "agent_id" in data or "model" in data:
         return "agent"
-    if "entry_conditions" in data or "exit_conditions" in data or "strategy_id" in data:
-        return "strategy"
+    if "states" in data or "schedule" in data:
+        return "workflow"
     return "unknown"
 
 
@@ -42,28 +42,10 @@ def _validate_agent_blueprint(data: dict) -> tuple[bool, list[str]]:
         return False, [str(e)]
 
 
-def _validate_strategy_blueprint(data: dict) -> tuple[bool, list[str]]:
-    """Validate against StrategyBlueprint Pydantic model."""
-    try:
-        from agent_core.blueprints.strategy import StrategyBlueprint
-        StrategyBlueprint.model_validate(data)
-        return True, []
-    except ImportError:
-        errors = []
-        required = ["id", "name", "version", "entry_conditions", "exit_conditions"]
-        for field in required:
-            if field not in data:
-                errors.append(f"Missing required field: {field}")
-        return len(errors) == 0, errors
-    except Exception as e:
-        return False, [str(e)]
-
-
 def _validate_by_type(bp_type: str, data: dict) -> tuple[bool, list[str]]:
     """Dispatch validation to the correct handler."""
     validators = {
         "agent": _validate_agent_blueprint,
-        "strategy": _validate_strategy_blueprint,
     }
     validator = validators.get(bp_type)
     if validator:
@@ -103,8 +85,8 @@ def lint(
 ) -> None:
     """Lint and validate a blueprint YAML file.
 
-    Auto-detects whether it's an agent or strategy blueprint and validates
-    against the appropriate Pydantic schema.
+    Auto-detects the blueprint type and validates against the appropriate
+    Pydantic schema.
     """
     if not yaml_path.exists():
         console.print(f"[red]Error:[/red] File not found: {yaml_path}")

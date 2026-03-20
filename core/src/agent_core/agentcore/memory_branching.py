@@ -1,8 +1,8 @@
-"""Memory branching for strategy exploration.
+"""Memory branching for exploratory evaluation.
 
 Allows agents to create "what-if" branches of their memory state,
-explore alternative strategies, and merge or discard branches.
-Useful for the Strategy Evaluation agent comparing multiple approaches.
+explore alternative approaches, and merge or discard branches.
+Useful for evaluation agents comparing multiple options.
 
 Maps to AgentCore Memory's session branching capability.
 """
@@ -34,7 +34,7 @@ class MemoryBranch(BaseModel):
 
 
 class MemoryBranchManager:
-    """Manages memory branches for strategy exploration.
+    """Manages memory branches for exploratory evaluation.
 
     In POC (Phase 1): branches stored in-memory dict.
     In Production (Phase 2): branches stored in AgentCore Memory with
@@ -42,9 +42,9 @@ class MemoryBranchManager:
 
     Usage:
         mgr = MemoryBranchManager(session_id="sfn-exec-123")
-        branch = mgr.create_branch("aggressive_strategy", base_state={...})
+        branch = mgr.create_branch("approach_a", base_state={...})
         mgr.update_branch(branch.branch_id, new_state={...})
-        best = mgr.compare_branches(["branch-a", "branch-b"], metric="sharpe_ratio")
+        best = mgr.compare_branches(["branch-a", "branch-b"], metric="score")
         mgr.merge_branch(best.branch_id)  # Promote to main
     """
 
@@ -67,7 +67,7 @@ class MemoryBranchManager:
         """Create a new memory branch.
 
         Args:
-            name: Human-readable branch name (e.g., "conservative_strategy").
+            name: Human-readable branch name (e.g., "approach_a").
             base_state: Initial state (deep-copied). Defaults to main state.
             parent_branch_id: Branch to fork from (None = fork from main).
             description: What this branch explores.

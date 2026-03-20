@@ -55,7 +55,6 @@ class CompositeObservabilityHook:
     prompt_version: str = "unknown"
     execution_mode: str = "simulation"
     target: str = ""
-    strategy_id: str = ""
     audit_table: str | None = None
 
     _langfuse: LangfuseHook = field(init=False, repr=False)
@@ -71,7 +70,6 @@ class CompositeObservabilityHook:
             prompt_version=self.prompt_version,
             execution_mode=self.execution_mode,
             target=self.target,
-            strategy_id=self.strategy_id,
         )
         self._audit = AuditLogWriter(table_name=self.audit_table)
         self._logger = StructuredLogger(
@@ -132,7 +130,6 @@ class CompositeObservabilityHook:
         self._logger.info(
             "Agent starting",
             target=self.target,
-            strategy_id=self.strategy_id,
         )
         self._langfuse.on_agent_start(**kwargs)
 
@@ -143,7 +140,6 @@ class CompositeObservabilityHook:
                 execution_mode=self.execution_mode,
                 payload={
                     "target": self.target,
-                    "strategy_id": self.strategy_id,
                     "prompt_version": self.prompt_version,
                 },
             )
@@ -197,7 +193,6 @@ class CompositeObservabilityHook:
                 execution_mode=self.execution_mode,
                 payload={
                     "target": self.target,
-                    "strategy_id": self.strategy_id,
                     "tool_calls": self._tool_calls,
                     "tool_errors": self._tool_errors,
                     **summary,
@@ -239,7 +234,6 @@ def create_observability_hooks(
     prompt_version: str = "unknown",
     execution_mode: str = "simulation",
     target: str = "",
-    strategy_id: str = "",
     audit_table: str | None = None,
 ) -> CompositeObservabilityHook:
     """Factory function that creates an observability HookProvider.
@@ -259,8 +253,6 @@ def create_observability_hooks(
         ``simulation``, ``staging``, or ``production``.
     target:
         Target entity (optional).
-    strategy_id:
-        Strategy identifier (optional).
     audit_table:
         DynamoDB audit table name override.
 
@@ -274,6 +266,5 @@ def create_observability_hooks(
         prompt_version=prompt_version,
         execution_mode=execution_mode,
         target=target,
-        strategy_id=strategy_id,
         audit_table=audit_table,
     )

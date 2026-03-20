@@ -12,7 +12,6 @@ from pydantic import BaseModel
 
 from agent_core.blueprints.agent import AgentBlueprint
 from agent_core.blueprints.session import AgentSession
-from agent_core.blueprints.strategy import StrategyBlueprint
 from agent_core.blueprints.workflow import WorkflowBlueprint
 from agent_core.execution.mode import ExecutionMode, get_execution_mode, validate_agent_mode
 from agent_core.prompt.client import PromptRegistryClient
@@ -127,16 +126,6 @@ class BlueprintLoader:
         except Exception as exc:
             raise BlueprintLoadError(f"Validation failed for agent '{agent_id}': {exc}") from exc
 
-    def load_strategy(self, strategy_id: str) -> StrategyBlueprint:
-        """Load a strategy blueprint YAML and return a validated Pydantic model."""
-        path = self._find_yaml("strategies", strategy_id)
-        data = self._read_yaml(path)
-        try:
-            return StrategyBlueprint(**data)
-        except Exception as exc:
-            raise BlueprintLoadError(
-                f"Validation failed for strategy '{strategy_id}': {exc}"
-            ) from exc
 
     def load_workflow(self, workflow_id: str) -> WorkflowBlueprint:
         """Load a workflow blueprint YAML and return a validated Pydantic model."""
@@ -157,13 +146,6 @@ class BlueprintLoader:
         except Exception as exc:
             raise BlueprintLoadError(f"Validation failed for {path}: {exc}") from exc
 
-    def load_strategy_from_path(self, path: str | Path) -> StrategyBlueprint:
-        """Load a strategy blueprint from an explicit file path."""
-        data = self._read_yaml(Path(path))
-        try:
-            return StrategyBlueprint(**data)
-        except Exception as exc:
-            raise BlueprintLoadError(f"Validation failed for {path}: {exc}") from exc
 
     # ------------------------------------------------------------------
     # Strands Agent builder -- helpers
