@@ -64,6 +64,9 @@ tables:
   run_history:
     partition_key: run_date
     sort_key: execution_id
+  idempotency:
+    partition_key: idempotency_key
+    ttl_attribute: expires_at
 
 buckets:
   - artifacts

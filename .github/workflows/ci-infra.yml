@@ -38,4 +38,7 @@ jobs:
         run: pytest -v
 
       - name: CDK synth (validate templates)
-        run: cdk synth -c env=dev --no-lookups 2>/dev/null || echo "CDK synth requires AWS context — skipped in CI"
+        run: cdk synth -c env=dev --no-lookups
+        env:
+          CDK_DEFAULT_ACCOUNT: "000000000000"
+          CDK_DEFAULT_REGION: "eu-west-1"

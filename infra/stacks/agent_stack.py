@@ -81,7 +81,7 @@ class AgentStack(Stack):
             fn = self._create_agent_function(
                 agent_name, handler, memory, prefix, env_name, config,
                 bedrock_region, vpc, agent_sg,
-                data_stack, sd_namespace,
+                data_stack, security_stack, sd_namespace,
             )
             fn.role.add_managed_policy(agent_policy)
             self.functions[agent_name] = fn
@@ -234,7 +234,8 @@ class AgentStack(Stack):
         prefix: str, env_name: str, config: dict,
         bedrock_region: str,
         vpc: ec2.IVpc, agent_sg: ec2.ISecurityGroup,
-        data_stack: DataStack, sd_namespace: str,
+        data_stack: DataStack, security_stack: SecurityStack,
+        sd_namespace: str,
     ) -> lambda_.Function:
         log_retention = (
             logs.RetentionDays.TWO_WEEKS if env_name == "dev"
@@ -259,6 +260,17 @@ class AgentStack(Stack):
             "ARTIFACTS_BUCKET": self._resolve_bucket_name(data_stack, "artifacts"),
             "ARTIFACT_QUEUE_URL": data_stack.artifact_queue.queue_url,
             "SERVICE_DISCOVERY_NAMESPACE": sd_namespace,
+            # P27.1 — Idempotency table for check-before-write pattern
+            "IDEMPOTENCY_TABLE": self._resolve_table_name(data_stack, "idempotency"),
+            # P27.4 — Missing Lambda env vars
+            "AUDIT_TABLE": self._resolve_table_name(data_stack, "audit_log"),
+            "RUN_HISTORY_TABLE": self._resolve_table_name(data_stack, "run_history"),
+            "PROMPT_REGISTRY_TABLE": self._resolve_table_name(data_stack, "prompt_registry"),
+            "PROMPT_REGISTRY_BUCKET": self._resolve_bucket_name(data_stack, "prompt-registry"),
+            "HISTORICAL_DATA_BUCKET": self._resolve_bucket_name(data_stack, "historical-data"),
+            # P27.2 — KMS key ARN env vars for runtime alias resolution
+            "KMS_KEY_ARN_PLATFORM_ARTIFACTS": security_stack.platform_artifacts_key.key_arn,
+            "KMS_KEY_ARN_QITP_DOMAIN_ARTIFACTS": security_stack.domain_artifacts_key.key_arn,
         }
         # Add MCP URI env vars
         env.update(self._build_mcp_env_vars(sd_namespace))

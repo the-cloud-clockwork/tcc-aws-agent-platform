@@ -47,29 +47,21 @@ class McpServiceConstruct(Construct):
         container_port: int = 8000,
         cpu: int = 256,
         memory_limit_mib: int = 512,
+        extra_env: dict[str, str] | None = None,
     ) -> None:
         super().__init__(scope, construct_id)
 
         self.mcp_name = mcp_name
         self.container_port = container_port
         prefix = resource_prefix
-        removal = RemovalPolicy.DESTROY if env_name == "dev" else RemovalPolicy.RETAIN
 
         # -- ECR Repository ------------------------------------------------
+        # Reference existing ECR repo (created by build_mcps.sh or manually).
+        # CDK does not manage the repo lifecycle — images are pushed externally.
 
-        self.repository = ecr.Repository(
-            self,
-            "Repo",
-            repository_name=f"{prefix}-{env_name}-mcp-{mcp_name}",
-            removal_policy=removal,
-            empty_on_delete=(env_name == "dev"),
-            image_scan_on_push=True,
-            lifecycle_rules=[
-                ecr.LifecycleRule(
-                    max_image_count=10,
-                    description="Keep last 10 images",
-                )
-            ],
+        repo_name = f"{prefix}-{env_name}-mcp-{mcp_name}"
+        self.repository = ecr.Repository.from_repository_name(
+            self, "Repo", repository_name=repo_name,
         )
 
         # -- Log Group -----------------------------------------------------
@@ -108,6 +100,10 @@ class McpServiceConstruct(Construct):
                 "ENV_NAME": env_name,
                 "MCP_NAME": mcp_name,
                 "PORT": str(container_port),
+                "MCP_TRANSPORT": "http",
+                "MCP_PORT": str(container_port),
+                "MCP_HOST": "0.0.0.0",
+                **(extra_env or {}),
             },
             health_check=ecs.HealthCheck(
                 command=["CMD-SHELL", f"curl -f http://localhost:{container_port}/health || exit 1"],

@@ -3,9 +3,9 @@ name: CI — agent-core
 on:
   push:
     branches: [main]
-    paths: ['core/**', '.github/workflows/ci-core.yml']
+    paths: ['core/**', 'cli/**', '.github/workflows/ci-core.yml']
   pull_request:
-    paths: ['core/**', '.github/workflows/ci-core.yml']
+    paths: ['core/**', 'cli/**', '.github/workflows/ci-core.yml']
 
 jobs:
   test:

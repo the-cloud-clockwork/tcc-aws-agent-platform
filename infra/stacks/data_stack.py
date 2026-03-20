@@ -79,6 +79,15 @@ class DataStack(Stack):
                 table_name=f"{prefix}_{env_name}_{table_key}",
                 **kwargs_table,
             )
+
+            # Enable TTL if configured
+            ttl_attr = table_def.get("ttl_attribute")
+            if ttl_attr:
+                table.node.default_child.add_property_override(
+                    "TimeToLiveSpecification",
+                    {"AttributeName": ttl_attr, "Enabled": True},
+                )
+
             self.tables[table_key] = table
 
         # -- S3 Buckets (config-driven) ------------------------------------

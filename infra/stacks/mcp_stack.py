@@ -14,6 +14,9 @@ from aws_cdk import (
 from aws_cdk import (
     aws_ssm as ssm,
 )
+from aws_cdk import (
+    aws_iam as iam,
+)
 from constructs import Construct
 from constructs_.auto_scaling import FargateAutoScaling
 from constructs_.mcp_service import McpServiceConstruct
@@ -83,11 +86,20 @@ class McpStack(Stack):
         self.services: dict[str, ecs.FargateService] = {}
         self.mcp_endpoints: dict[str, str] = {}
 
+        # Per-MCP environment variables resolved from data_stack
+        execution_mode = config.get("execution_mode", "simulation")
+        region = config.get("region", "eu-west-1")
+        mcp_extra_env = self._build_mcp_env_vars(data_stack, execution_mode, region)
+
         for mcp_cfg in mcp_configs:
             mcp_name = mcp_cfg["name"]
             mcp_port = mcp_cfg.get("port", 8000)
             mcp_cpu = mcp_cfg.get("cpu", default_cpu)
             mcp_memory = mcp_cfg.get("memory", default_memory)
+
+            # Merge common + per-MCP env vars
+            extra_env = dict(mcp_extra_env.get("_common", {}))
+            extra_env.update(mcp_extra_env.get(mcp_name, {}))
 
             mcp = McpServiceConstruct(
                 self,
@@ -102,9 +114,13 @@ class McpStack(Stack):
                 container_port=mcp_port,
                 cpu=mcp_cpu,
                 memory_limit_mib=mcp_memory,
+                extra_env=extra_env,
             )
             self.services[mcp_name] = mcp.service
             self.mcp_endpoints[mcp_name] = f"http://{mcp_name}.{sd_namespace}:{mcp_port}"
+
+            # Grant IAM to MCP task roles from data_stack
+            self._grant_mcp_iam(mcp, mcp_name, data_stack)
 
             # Add auto-scaling if max_tasks > 1
             scaling_config = config.get("scaling", {}).get("fargate", {})
@@ -134,3 +150,66 @@ class McpStack(Stack):
                 parameter_name=f"{ssm_root}/mcps/{mcp_name}/endpoint",
                 string_value=f"{mcp_name}.{sd_namespace}:{mcp_port}",
             )
+
+    @staticmethod
+    def _build_mcp_env_vars(data_stack, execution_mode: str, region: str) -> dict[str, dict[str, str]]:
+        """Build per-MCP environment variable maps. Keys: '_common' + MCP names."""
+        env_map: dict[str, dict[str, str]] = {"_common": {}}
+
+        common = env_map["_common"]
+        common["EXECUTION_MODE"] = execution_mode
+        common["AWS_DEFAULT_REGION"] = region
+
+        if data_stack is None:
+            return env_map
+
+        # Helper to safely resolve bucket/table names
+        def bucket_name(key: str) -> str:
+            b = data_stack.buckets.get(key)
+            return b.bucket_name if b else ""
+
+        def table_name(key: str) -> str:
+            t = data_stack.tables.get(key)
+            return t.table_name if t else ""
+
+        env_map["market-data"] = {
+            "S3_MARKET_DATA_BUCKET": bucket_name("historical-data"),
+            "WATCHLIST_S3_KEY": "watchlist/watchlist.json",
+        }
+        env_map["backtest"] = {
+            "QITP_OHLCV_BUCKET": bucket_name("historical-data"),
+            "QITP_STRATEGY_BUCKET": bucket_name("artifacts"),
+        }
+        env_map["artifacts"] = {
+            "ARTIFACTS_BUCKET": bucket_name("artifacts"),
+            "ARTIFACTS_TABLE": table_name("artifacts"),
+        }
+
+        return env_map
+
+    @staticmethod
+    def _grant_mcp_iam(mcp: McpServiceConstruct, mcp_name: str, data_stack) -> None:
+        """Grant IAM permissions to MCP task roles based on their data needs."""
+        if data_stack is None:
+            return
+
+        task_role = mcp.task_definition.task_role
+
+        if mcp_name == "artifacts":
+            bucket = data_stack.buckets.get("artifacts")
+            if bucket:
+                bucket.grant_read_write(task_role)
+            table = data_stack.tables.get("artifacts")
+            if table:
+                table.grant_read_write_data(task_role)
+
+        elif mcp_name == "market-data":
+            bucket = data_stack.buckets.get("historical-data")
+            if bucket:
+                bucket.grant_read(task_role)
+
+        elif mcp_name == "backtest":
+            for key in ("historical-data", "artifacts"):
+                bucket = data_stack.buckets.get(key)
+                if bucket:
+                    bucket.grant_read(task_role)
