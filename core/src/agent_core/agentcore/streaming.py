@@ -3,8 +3,8 @@
 Provides server-sent events (SSE) and WebSocket adapters for
 streaming agent progress to the UI layer. Used by:
 - Coordinator (streaming reasoning)
-- Watchlist Screener (progress updates as universes are scanned)
-- Tax Reporter (progress as lots are processed)
+- Long-running agents (progress updates as items are processed)
+- Report generators (progress as records are processed)
 
 In POC: SSE via Lambda response streaming.
 In Production: AgentCore Runtime native streaming.

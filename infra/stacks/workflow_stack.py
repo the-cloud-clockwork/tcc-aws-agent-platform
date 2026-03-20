@@ -14,8 +14,8 @@ from stacks.data_stack import DataStack
 
 
 # Simplified workflow matching the SfnWorkflow construct format.
-# The full qitp blueprint (choice states, fail states, wait states)
-# requires a construct upgrade — tracked for Phase 2.
+# Choice states, fail states, and wait states require a construct
+# upgrade — tracked for Phase 2.
 WEEKLY_ANALYSIS_YAML = """\
 name: weekly-analysis
 steps:

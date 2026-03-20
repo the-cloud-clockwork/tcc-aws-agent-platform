@@ -8,7 +8,7 @@ REGION="${AWS_REGION:-eu-west-1}"
 ENV_NAME="${ENV_NAME:-dev}"
 PREFIX="${RESOURCE_PREFIX:-platform}"
 ECR_BASE="$ACCOUNT.dkr.ecr.$REGION.amazonaws.com"
-QITP_ROOT="$HOME/dev/tccw-qitp"
+DOMAIN_ROOT="${DOMAIN_ROOT:-$HOME/dev/tccw-qitp}"
 PLATFORM_ROOT="$HOME/dev/tccw-aws-agent-platform"
 
 echo "==> Logging into ECR..."
@@ -17,14 +17,14 @@ aws ecr get-login-password --region "$REGION" | \
 
 # MCP name → source path mapping
 declare -A MCPS=(
-  ["market-data"]="$QITP_ROOT/mcps/market-data"
-  ["sentiment"]="$QITP_ROOT/mcps/sentiment"
-  ["backtest"]="$QITP_ROOT/mcps/backtest"
-  ["ibkr"]="$QITP_ROOT/mcps/ibkr"
-  ["charting"]="$QITP_ROOT/mcps/charting"
-  ["twofa"]="$QITP_ROOT/mcps/twofa"
-  ["ml-predict"]="$QITP_ROOT/mcps/ml-predict"
-  ["technical"]="$QITP_ROOT/mcps/technical"
+  ["market-data"]="$DOMAIN_ROOT/mcps/market-data"
+  ["sentiment"]="$DOMAIN_ROOT/mcps/sentiment"
+  ["backtest"]="$DOMAIN_ROOT/mcps/backtest"
+  ["ibkr"]="$DOMAIN_ROOT/mcps/ibkr"
+  ["charting"]="$DOMAIN_ROOT/mcps/charting"
+  ["twofa"]="$DOMAIN_ROOT/mcps/twofa"
+  ["ml-predict"]="$DOMAIN_ROOT/mcps/ml-predict"
+  ["technical"]="$DOMAIN_ROOT/mcps/technical"
   ["artifacts"]="$PLATFORM_ROOT/artifacts"
 )
 
@@ -60,7 +60,7 @@ for name in "${!MCPS[@]}"; do
   # Build for linux/amd64 (Fargate)
   # backtest needs monorepo root as build context (depends on simulation/)
   if [ "$name" = "backtest" ]; then
-    build_ctx="$QITP_ROOT"
+    build_ctx="$DOMAIN_ROOT"
     build_args="-f $path/Dockerfile"
   else
     build_ctx="$path"

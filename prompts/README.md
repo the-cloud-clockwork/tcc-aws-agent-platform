@@ -76,7 +76,7 @@ class PromptVersion(BaseModel):
     version: str          # semver, e.g. "1.2.0"
     description: str
     status: PromptStatus
-    s3_key: str           # e.g. "gap_detector/1.2.0.txt"
+    s3_key: str           # e.g. "my_agent/1.2.0.txt"
     created_at: str       # ISO 8601 UTC
     updated_at: str       # ISO 8601 UTC
     tags: list[str]
@@ -115,10 +115,10 @@ The resolver supports three formats for pinning a prompt version:
 
 | Format | Example | Resolves to |
 |---|---|---|
-| Plain name | `gap_detector` | Latest `stable` version |
-| Underscore-v | `gap_detector_v1.2` | Version `1.2.0` (zero-padded automatically) |
-| Underscore-v full semver | `gap_detector_v1.2.0` | Version `1.2.0` exact |
-| At-sign | `gap_detector@2.0.0` | Version `2.0.0` exact |
+| Plain name | `my_agent` | Latest `stable` version |
+| Underscore-v | `my_agent_v1.2` | Version `1.2.0` (zero-padded automatically) |
+| Underscore-v full semver | `my_agent_v1.2.0` | Version `1.2.0` exact |
+| At-sign | `my_agent@2.0.0` | Version `2.0.0` exact |
 
 ## Configuration
 
@@ -148,7 +148,7 @@ def resolve_prompt(prompt_id: str, mode: str = "production") -> str:
     return data["text"]
 
 # In your Strands agent
-system_prompt = resolve_prompt("gap_detector")
+system_prompt = resolve_prompt("my_agent")
 agent = Agent(system_prompt=system_prompt, tools=[...])
 ```
 
@@ -156,7 +156,7 @@ agent = Agent(system_prompt=system_prompt, tools=[...])
 
 ```python
 # Pin to a specific version (e.g. in a workflow that must be deterministic)
-url = f"{API_BASE}/prompts/gap_detector?version=1.2.0&mode=production"
+url = f"{API_BASE}/prompts/my_agent?version=1.2.0&mode=production"
 ```
 
 ### Creating a New Prompt Version
@@ -165,7 +165,7 @@ url = f"{API_BASE}/prompts/gap_detector?version=1.2.0&mode=production"
 import json, urllib.request
 
 payload = json.dumps({
-    "prompt_id": "gap_detector",
+    "prompt_id": "my_agent",
     "version": "1.3.0",
     "text": "You are an expert gap detector...",
     "description": "Improved gap scoring logic",
@@ -180,7 +180,7 @@ req = urllib.request.Request(
 )
 with urllib.request.urlopen(req) as resp:
     print(json.loads(resp.read()))
-# {"message": "Prompt version created", "prompt_id": "gap_detector", "version": "1.3.0", "status": "draft"}
+# {"message": "Prompt version created", "prompt_id": "my_agent", "version": "1.3.0", "status": "draft"}
 ```
 
 ### Promoting to Stable
@@ -188,7 +188,7 @@ with urllib.request.urlopen(req) as resp:
 ```python
 payload = json.dumps({"version": "1.3.0"}).encode()
 req = urllib.request.Request(
-    f"{API_BASE}/prompts/gap_detector/promote",
+    f"{API_BASE}/prompts/my_agent/promote",
     data=payload,
     headers={"Content-Type": "application/json"},
     method="POST",
@@ -201,7 +201,7 @@ req = urllib.request.Request(
 ```python
 payload = json.dumps({"version": "1.2.0"}).encode()
 req = urllib.request.Request(
-    f"{API_BASE}/prompts/gap_detector/rollback",
+    f"{API_BASE}/prompts/my_agent/rollback",
     data=payload,
     headers={"Content-Type": "application/json"},
     method="POST",
@@ -212,7 +212,7 @@ req = urllib.request.Request(
 ### Diffing Two Versions
 
 ```python
-url = f"{API_BASE}/prompts/gap_detector/diff?v1=1.2.0&v2=1.3.0"
+url = f"{API_BASE}/prompts/my_agent/diff?v1=1.2.0&v2=1.3.0"
 # Returns unified diff of the two prompt texts
 ```
 

@@ -12,8 +12,8 @@ Usage::
     from agent_core.hooks.observability_hooks import create_observability_hooks
 
     hook = create_observability_hooks(
-        agent_id="gap_detector",
-        prompt_id="gap_detector",
+        agent_id="my_agent",
+        prompt_id="my_agent",
         prompt_version="v1.2",
         execution_mode="simulation",
     )

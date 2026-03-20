@@ -6,11 +6,11 @@ CloudWatch Logs Insights, Grafana, and Langfuse can query fields uniformly.
 Usage::
 
     logger = StructuredLogger(
-        agent_id="gap_detector",
+        agent_id="my_agent",
         execution_mode="simulation",
-        prompt_version="gap_detector_v1.2",
+        prompt_version="my_agent_v1.2",
     )
-    logger.info("Gap analysis started", target="ENTITY-1", gap_pct=2.3)
+    logger.info("Analysis started", target="ENTITY-1")
     logger.error("MCP timeout", tool="data-mcp", elapsed_ms=30000)
 """
 from __future__ import annotations
@@ -71,7 +71,7 @@ class StructuredLogger:
     execution_mode:
         One of ``simulation``, ``staging``, ``production``.
     prompt_version:
-        Prompt reference string (e.g. ``gap_detector_v1.2``).
+        Prompt reference string (e.g. ``my_agent_v1.2``).
     trace_id:
         Distributed trace ID (X-Ray or custom). Auto-generated if not set.
     execution_id:

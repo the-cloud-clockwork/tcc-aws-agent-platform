@@ -107,14 +107,14 @@ class AgentBlueprint(BaseModel):
     model: ModelConfig
     prompt_ref: str = Field(
         ...,
-        description="Reference key for the Prompt Registry (e.g. 'gap_detector_v1.2').",
+        description="Reference key for the Prompt Registry (e.g. 'my_agent_v1.2').",
     )
     tools: list[ToolConfig] = Field(default_factory=list)
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     execution_modes: ExecutionModes = Field(default_factory=ExecutionModes)
     output_schema: str | None = Field(
         default=None,
-        description="Name of the output schema (e.g. 'gap_detection_output_v1').",
+        description="Name of the output schema (e.g. 'data_analysis_output_v1').",
     )
     hooks: list[str] = Field(default_factory=list)
     multi_agent: MultiAgentConfig | None = None

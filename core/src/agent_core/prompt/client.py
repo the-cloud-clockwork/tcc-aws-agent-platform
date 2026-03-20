@@ -53,8 +53,8 @@ class PromptRegistryClient:
     def get(self, prompt_ref: str) -> str:
         """Resolve *prompt_ref* to prompt text.
 
-        Supports pinned versions (``gap_detector_v1.2``) and latest-stable
-        references (``gap_detector``).
+        Supports pinned versions (``my_agent_v1.2``) and latest-stable
+        references (``my_agent``).
 
         Returns
         -------

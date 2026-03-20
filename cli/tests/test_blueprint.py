@@ -33,7 +33,7 @@ version: "1.0.0"
 entry_conditions:
   logic: AND
   conditions:
-    - type: gap_up
+    - type: threshold_up
 exit_conditions:
   logic: AND
   conditions:

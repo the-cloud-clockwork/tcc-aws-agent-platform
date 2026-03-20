@@ -5,16 +5,16 @@ and subsegments for agent reasoning steps, MCP calls, and pipeline stages.
 
 Usage::
 
-    tracer = XRayTracer(service_name="gap_detector")
+    tracer = XRayTracer(service_name="my_agent")
 
     with tracer.subsegment("fetch_data", target="ENTITY-1") as sub:
         data = mcp_client.call("get_data", target="ENTITY-1")
         sub.put_annotation("rows", len(data))
 
     # Or as a decorator
-    @tracer.capture("compute_gap")
-    def compute_gap(open_price, close_price):
-        return (open_price - close_price) / close_price
+    @tracer.capture("process_data")
+    def process_data(input_value, threshold):
+        return input_value / threshold
 
 Environment variables:
 - ``AWS_XRAY_DAEMON_ADDRESS`` -- X-Ray daemon address (set by Lambda runtime)
@@ -93,7 +93,7 @@ class XRayTracer:
     Parameters
     ----------
     service_name:
-        Name of the service for annotations (e.g. ``gap_detector``).
+        Name of the service for annotations (e.g. ``my_agent``).
     """
 
     def __init__(self, service_name: str = "agent-core") -> None:

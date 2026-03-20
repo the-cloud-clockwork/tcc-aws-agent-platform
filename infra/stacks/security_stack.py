@@ -105,7 +105,7 @@ class SecurityStack(Stack):
         self.domain_artifacts_key = kms.Key(
             self,
             "DomainArtifactsKey",
-            alias=f"alias/{config.get('kms', {}).get('domain_artifacts_key_alias', 'qitp-domain-artifacts')}",
+            alias=f"alias/{config.get('kms', {}).get('domain_artifacts_key_alias', 'domain-artifacts')}",
             description="Encrypts domain-tier artifacts (financial data, recommendations)",
             enable_key_rotation=True,
             removal_policy=removal,

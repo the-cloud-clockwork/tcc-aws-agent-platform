@@ -10,7 +10,7 @@ from agent_core.schemas.execution_modes import ExecutionModes
 logger = logging.getLogger(__name__)
 
 # Built-in aliases that map common domain vocabulary to platform modes.
-# Domain repos (e.g. QITP) use "backtest", "paper", "live" but the
+# Domain repos may use aliases like "backtest", "paper", "live" — the
 # platform canonical modes are "simulation", "staging", "production".
 _BUILTIN_ALIASES: dict[str, str] = {
     "backtest": "simulation",

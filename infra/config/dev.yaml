@@ -23,6 +23,7 @@ scaling:
     target_cpu_percent: 70
   lambda:
     provisioned_concurrency: 0  # No provisioned concurrency in dev
+    provisioned_agents: ["portfolio-recommender"]
 
 dynamodb:
   billing_mode: PAY_PER_REQUEST  # On-demand for dev (unpredictable usage)
@@ -157,7 +158,7 @@ observability:
 
 kms:
   platform_artifacts_key_alias: platform-artifacts
-  domain_artifacts_key_alias: qitp-domain-artifacts
+  domain_artifacts_key_alias: domain-artifacts
 
 cloudfront:
   enabled: false  # Enable when ready to deploy
@@ -170,7 +171,7 @@ api:
   throttle_burst: 200
   cors_origins:
     - "http://localhost:3000"
-    - "https://dashboard.qitp.dev"
+    - "https://dashboard.platform.dev"
 
 tags:
   Environment: dev

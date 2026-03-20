@@ -26,7 +26,7 @@ from agent_core.runtime.session import SessionManager, SessionState
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _create_idempotency_table(table_name: str = "qitp_idempotency") -> None:
+def _create_idempotency_table(table_name: str = "test_idempotency") -> None:
     """Create the idempotency DynamoDB table for moto."""
     dynamodb = boto3.resource("dynamodb", region_name="eu-west-1")
     dynamodb.create_table(
@@ -67,7 +67,7 @@ class TestIdempotencyStoreIntegration:
     @mock_aws
     def test_store_and_retrieve_roundtrip(self):
         _create_idempotency_table()
-        store = IdempotencyStore(table_name="qitp_idempotency")
+        store = IdempotencyStore(table_name="test_idempotency")
 
         key = generate_idempotency_key("test-agent", "analyze", {"symbol": "AAPL"})
         result = {"status": "ok", "gaps": 3}
@@ -87,7 +87,7 @@ class TestIdempotencyStoreIntegration:
     @mock_aws
     def test_duplicate_store_returns_cached(self):
         _create_idempotency_table()
-        store = IdempotencyStore(table_name="qitp_idempotency")
+        store = IdempotencyStore(table_name="test_idempotency")
 
         key = generate_idempotency_key("test-agent", "detect", {"date": "2026-03-15"})
 
@@ -102,13 +102,13 @@ class TestIdempotencyStoreIntegration:
     @mock_aws
     def test_ttl_attribute_set(self):
         _create_idempotency_table()
-        store = IdempotencyStore(table_name="qitp_idempotency")
+        store = IdempotencyStore(table_name="test_idempotency")
 
         key = "test-key-ttl"
         store.store(key, {"data": "test"}, ttl_hours=24)
 
         # Verify TTL attribute exists in raw DynamoDB item
-        table = boto3.resource("dynamodb", region_name="eu-west-1").Table("qitp_idempotency")
+        table = boto3.resource("dynamodb", region_name="eu-west-1").Table("test_idempotency")
         item = table.get_item(Key={"idempotency_key": key}).get("Item", {})
         assert "ttl" in item
 

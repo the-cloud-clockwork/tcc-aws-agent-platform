@@ -28,9 +28,9 @@ def parse_prompt_ref(ref: str) -> ParsedRef:
     Parse a prompt reference into prompt_id and optional version.
 
     Supported formats:
-        gap_detector            -> (prompt_id="gap_detector", version=None)
-        gap_detector_v1.2       -> (prompt_id="gap_detector", version="1.2")
-        gap_detector_v1.2.0     -> (prompt_id="gap_detector", version="1.2.0")
+        my_agent            -> (prompt_id="my_agent", version=None)
+        my_agent_v1.2       -> (prompt_id="my_agent", version="1.2")
+        my_agent_v1.2.0     -> (prompt_id="my_agent", version="1.2.0")
         summarizer@2.0.0 -> (prompt_id="summarizer", version="2.0.0")
     """
     # Format: name@version
