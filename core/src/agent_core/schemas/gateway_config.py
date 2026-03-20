@@ -17,17 +17,13 @@ class GatewayAuthType(str, Enum):
 class GatewayConfig(BaseModel):
     """Gateway configuration for an agent blueprint.
 
-    When ``enabled`` is True, the agent connects to a single Gateway URL
-    and receives all its tools via one MCPClient connection.  When False
-    (default), the agent uses direct MCP connections via ``mcp_factory``.
+    All tool access goes through the AgentCore Gateway.  The Gateway
+    auto-generates MCP interfaces from Lambda functions, REST APIs,
+    OpenAPI specs, and MCP servers.  No direct MCP connections.
     """
 
     model_config = ConfigDict(frozen=True)
 
-    enabled: bool = Field(
-        default=False,
-        description="Enable Gateway tool routing instead of direct MCP connections.",
-    )
     url: str | None = Field(
         default=None,
         description=(
