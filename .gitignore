@@ -41,6 +41,7 @@ cdk.out/
 
 # Lambda packaging artifacts
 infra/lambda/agents/*.zip
+infra/lambda/agents/dist/
 
 # Node (for tooling only)
 node_modules/
