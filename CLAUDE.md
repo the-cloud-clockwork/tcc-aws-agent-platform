@@ -6,22 +6,25 @@
 
 ---
 
-## Session Startup Protocol
+## Session Protocol
 
-**Every new conversation, plan, or task MUST begin with this sequence — no exceptions:**
+**Every task follows this exact sequence:**
 
-1. **Read `VISION.md`** — Understand the 12 building blocks and what the platform is becoming
-2. **Read `resources/CONCEPTS.md`** — The AgentCore concepts that our 12 blocks must align to
-3. **Read `resources/TECHNICAL-GUIDE.md`** (relevant sections only) — Deep technical patterns for whichever blocks the current task touches
-4. **Read `PROGRESS.md`** — Current implementation status: checked = done, unchecked = needed
-5. **Think** — Map the current task to the relevant blocks, identify what exists vs what's missing
-6. **Plan** — Propose the approach, aligned to the vision and concepts, before writing any code
+### Before writing code
 
-**Reference implementation:** `/home/iamroot/dev/tccw-qitp/agents/` — A domain repo that consumes this platform. Built with the old pattern (Lambda-based, direct MCP connections) but is the source of truth for how the vision looks from the consumer side: YAML blueprints in `blueprints/agents/*.yaml`, prompt builders in `agent_configs.py`, MCP registry in `mcp_registry.py`, 5-line handler in `app.py`. When designing platform features, check how `tccw-qitp/agents` would consume them.
+1. **Receive task** — The user submits a block or checkbox from `PROGRESS.md`
+2. **Analyze** — Understand what the task requires, which blocks it touches
+3. **Read `VISION.md`** — The 12 building blocks and what the platform is becoming
+4. **Read `resources/CONCEPTS.md`** — AgentCore concepts that our blocks must align to
+5. **Read `resources/TECHNICAL-GUIDE.md`** (relevant sections) — Deep technical patterns for the blocks this task touches
+6. **Read `PROGRESS.md`** — Current status: checked = done, unchecked = needed
+7. **Think and plan** — Map the task to blocks, identify what exists vs what's missing, propose the approach
+8. **Check reference implementation** — `/home/iamroot/dev/tccw-qitp/agents/` shows how a domain repo consumes this platform (YAML blueprints in `blueprints/agents/*.yaml`, prompt builders in `agent_configs.py`, MCP registry in `mcp_registry.py`, 5-line handler in `app.py`). When designing platform features, check how this consumer would use them.
 
-This ensures every change adheres to the AgentCore architecture and moves checkboxes forward in PROGRESS.md.
+### After completing work
 
-**After completing work:** Update `PROGRESS.md` — check off any boxes that were completed during the session.
+9. **Update `PROGRESS.md`** — Check off any boxes completed during the session
+10. **Vision alignment check** — Ask yourself: does the delivered work align with `VISION.md`? If not, fix it before committing.
 
 ---
 
@@ -203,13 +206,31 @@ Config: `ruff.toml` — Python 3.12, line-length 120, isort with known-first-par
 ## Key Architectural Principles
 
 1. **Zero domain contamination** — `domain-scan.sh` HARD terms must return zero
-2. **Configuration-driven** — All resource names from YAML config, not hardcoded
-3. **Claim-check pattern** — Large outputs in S3, only keys through Step Functions
-4. **Idempotency everywhere** — DynamoDB-backed idempotency keys on all writes
-5. **Execution mode routing** — `EXECUTION_MODE` env var drives all behavior
-6. **Published packages** — `agent-core` and `prompt-registry` on CodeArtifact for domain consumption
-7. **Multi-tenant ready** — Memory branching + tenant isolation in agent-core
-8. **Observability first** — Langfuse, X-Ray, CloudWatch, structured logging, audit log
+2. **Zero backward compatibility** — See dedicated section below
+3. **Configuration-driven** — All resource names from YAML config, not hardcoded
+4. **Claim-check pattern** — Large outputs in S3, only keys through Step Functions
+5. **Idempotency everywhere** — DynamoDB-backed idempotency keys on all writes
+6. **Execution mode routing** — `EXECUTION_MODE` env var drives all behavior
+7. **Published packages** — `agent-core` and `prompt-registry` on CodeArtifact for domain consumption
+8. **Multi-tenant ready** — Memory branching + tenant isolation in agent-core
+9. **Observability first** — Langfuse, X-Ray, CloudWatch, structured logging, audit log
+
+---
+
+## Zero Backward Compatibility
+
+**Nothing is in production. This is development phase. Build for the vision, not for the past.**
+
+The reference implementation (`/home/iamroot/dev/tccw-qitp/agents/`) shows where the consumer model is heading — it already uses YAML blueprints, prompt builders, and MCP registries. But its current patterns (Lambda hosting, direct MCP connections, `mcp_factory`) are the **old** way. The platform must implement the **new** way as defined in VISION.md and CONCEPTS.md. The consumer repos will catch up.
+
+**Rules:**
+- **No `enabled` toggles** — Don't add `gateway.enabled`, `memory.enabled`, or any feature flag that preserves an old code path alongside the new one. Implement the vision path. Delete the old path.
+- **No fallback implementations** — `bedrock_agentcore` and `strands` are hard dependencies. No `try/except ImportError` with standalone alternatives. If the SDK is missing, fail loudly.
+- **No dual code paths** — When replacing a pattern (e.g., direct MCP → Gateway, Lambda hosting → AgentCore Runtime), remove the old path entirely. Don't keep it as a "just in case."
+- **No compatibility shims** — Don't wrap old interfaces to make them work with new code. Rewrite the consumer contract cleanly.
+- **Replace, don't extend** — When a module is rewritten (e.g., `GatewayClient` from httpx to MCPClient), replace the entire file. Don't layer the new pattern on top of the old one.
+
+**Why:** Every backward-compat toggle, fallback, or dual path doubles the code, doubles the bugs, and slows down reaching the vision. The consumer repos (`tccw-qitp/agents/`) will be updated to match when the platform stabilizes. Build the target state now.
 
 ---
 
