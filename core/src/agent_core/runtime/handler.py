@@ -93,10 +93,39 @@ class GenericHandler:
                     execution_mode=get_execution_mode().value,
                 )
 
+            # Load blueprint to get artifact config
+            artifact_tier = "platform"
+            artifact_kms = None
+            try:
+                blueprint = self._loader.load_agent(agent_id)
+                artifact_tier = blueprint.artifacts.tier
+                artifact_kms = blueprint.artifacts.kms_key_alias
+            except Exception as bp_err:
+                logger.warning("Could not load blueprint for artifact config: %s", bp_err)
+
+            # Resolve KMS alias to ARN if available
+            if artifact_kms:
+                env_key = f"KMS_KEY_ARN_{artifact_kms.upper().replace('-', '_')}"
+                artifact_kms = os.environ.get(env_key, artifact_kms)
+
+            # Extract date from payload params
+            artifact_date = (
+                params.get("analysis_date")
+                or params.get("date")
+                or params.get("pipeline_date")
+            )
+
             with self._loader.build_agent_session(agent_id) as session:
                 result = session.run(user_prompt)
 
-            output = marshal_output(result, agent_id, session_id)
+            output = marshal_output(
+                result,
+                agent_id,
+                session_id,
+                tier=artifact_tier,
+                kms_key_alias=artifact_kms,
+                date=artifact_date,
+            )
 
             # Persist session on success
             if self._session_manager is not None and session_state is not None:
@@ -108,9 +137,11 @@ class GenericHandler:
 
             return AgentResult(
                 status="success", agent_id=agent_id, session_id=session_id,
-                output=output,
+                output=output.get("output", output),
                 claim_check=output.get("claim_check", False),
-                artifact_id=output.get("artifact_id"),
+                artifact_id=output.get("artifact_id", ""),
+                s3_key=output.get("s3_key", ""),
+                tier=output.get("tier", artifact_tier),
             ).to_lambda_response()
 
         except Exception as exc:

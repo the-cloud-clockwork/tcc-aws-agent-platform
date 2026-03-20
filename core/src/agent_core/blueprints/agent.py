@@ -76,6 +76,16 @@ class MultiAgentConfig(BaseModel):
         return self
 
 
+class ArtifactConfig(BaseModel):
+    """Configuration for mandatory artifact storage."""
+
+    model_config = ConfigDict(frozen=True)
+
+    tier: Literal["platform", "domain"] = "platform"
+    kms_key_alias: str | None = None
+    type: str = "report"
+
+
 class ThinkingConfig(BaseModel):
     """Extended thinking configuration for agents that need deeper reasoning."""
 
@@ -110,6 +120,7 @@ class AgentBlueprint(BaseModel):
     multi_agent: MultiAgentConfig | None = None
     tags: list[str] = Field(default_factory=list)
     thinking: ThinkingConfig | None = None
+    artifacts: ArtifactConfig = Field(default_factory=ArtifactConfig)
 
 
 AgentBlueprint.model_rebuild()

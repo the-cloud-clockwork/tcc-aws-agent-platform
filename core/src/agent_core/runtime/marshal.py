@@ -1,10 +1,11 @@
-"""Output marshalling with S3 claim-check for Step Functions 256KB limit."""
+"""Output marshalling with mandatory S3 artifact storage."""
 from __future__ import annotations
 
 import json
 import logging
 import os
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -18,20 +19,29 @@ def marshal_output(
     execution_id: str,
     max_bytes: int = MAX_OUTPUT_BYTES,
     s3_bucket: str | None = None,
+    tier: str = "platform",
+    kms_key_alias: str | None = None,
+    date: str | None = None,
 ) -> dict[str, Any]:
-    """Convert agent result to dict, with S3 claim-check on overflow.
+    """Convert agent result to dict and always upload to S3.
+
+    Every agent execution produces a JSON artifact in S3 — unconditionally.
+    The old size gate (only upload if > 256KB) is removed.
 
     Args:
         result: Agent output (Pydantic model, dict, or str).
         agent_id: Agent identifier for S3 key prefix.
         execution_id: Execution/session ID for S3 key.
-        max_bytes: Overflow threshold (default 256KB).
-        s3_bucket: S3 bucket for claim-check. Falls back to ARTIFACTS_BUCKET env var.
+        max_bytes: Kept for backward compatibility (no longer controls upload).
+        s3_bucket: S3 bucket for storage. Falls back to ARTIFACTS_BUCKET env var.
+        tier: Storage tier — "platform" or "domain".
+        kms_key_alias: KMS key alias for server-side encryption (optional).
+        date: Analysis date (YYYY-MM-DD). Defaults to today.
 
     Returns:
-        JSON-serializable dict. If overflowed, contains claim_check reference.
+        JSON-serializable dict with artifact_id, s3_key, bucket, tier, and output.
     """
-    # MultiAgentResult from Swarm or Graph — both have .to_dict() + .status
+    # Serialize result to dict
     if hasattr(result, "to_dict") and hasattr(result, "status"):
         output = result.to_dict()
     elif hasattr(result, "model_dump"):
@@ -46,40 +56,68 @@ def marshal_output(
 
     serialized = json.dumps(output, default=str)
 
-    if len(serialized.encode("utf-8")) <= max_bytes:
-        return output
+    # Resolve date and execution_id
+    if not date:
+        date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if not execution_id:
+        execution_id = f"exec-{uuid.uuid4().hex[:8]}"
 
-    # Overflow — upload to S3
+    # Always upload to S3
     bucket = s3_bucket or os.environ.get("ARTIFACTS_BUCKET")
     if not bucket:
-        logger.warning("Output exceeds %d bytes but no S3 bucket configured — truncating", max_bytes)
+        logger.warning("No ARTIFACTS_BUCKET configured — artifact not stored")
         return {
-            "claim_check": True,
-            "artifact_id": None,
-            "_overflow_warning": "No ARTIFACTS_BUCKET configured. Output truncated.",
+            "artifact_id": "",
+            "s3_key": "",
+            "bucket": "",
+            "tier": tier,
+            "agent_id": agent_id,
+            "success": False,
+            "error": "no_bucket",
+            "output": output,
         }
 
-    s3_key = f"claim-check/{agent_id}/{execution_id}/{uuid.uuid4().hex}.json"
+    artifact_id = str(uuid.uuid4())
+    s3_key = f"{tier}/{date}/{execution_id}/{agent_id}.json"
+
     try:
         import boto3
-        s3 = boto3.client("s3")
-        s3.put_object(
-            Bucket=bucket,
-            Key=s3_key,
-            Body=serialized.encode("utf-8"),
-            ContentType="application/json",
-        )
-        logger.info("Claim-check uploaded: s3://%s/%s (%d bytes)", bucket, s3_key, len(serialized))
-        return {
-            "claim_check": True,
-            "artifact_id": s3_key,
-            "bucket": bucket,
-            "message": "Output exceeded 256KB. Full result stored as artifact.",
+
+        put_kwargs: dict[str, Any] = {
+            "Bucket": bucket,
+            "Key": s3_key,
+            "Body": serialized.encode("utf-8"),
+            "ContentType": "application/json",
         }
-    except Exception:
-        logger.exception("Failed to upload claim-check to S3")
+        if kms_key_alias:
+            put_kwargs["ServerSideEncryption"] = "aws:kms"
+            put_kwargs["SSEKMSKeyId"] = kms_key_alias
+
+        s3 = boto3.client("s3")
+        s3.put_object(**put_kwargs)
+        logger.info(
+            "Artifact stored: s3://%s/%s (%d bytes, tier=%s)",
+            bucket, s3_key, len(serialized), tier,
+        )
         return {
+            "artifact_id": artifact_id,
+            "s3_key": s3_key,
+            "bucket": bucket,
+            "tier": tier,
+            "agent_id": agent_id,
+            "success": True,
             "claim_check": True,
-            "artifact_id": None,
-            "_overflow_warning": "S3 upload failed. Output truncated.",
+            "output": output,
+        }
+    except Exception as exc:
+        logger.exception("Failed to upload artifact to S3")
+        return {
+            "artifact_id": "",
+            "s3_key": "",
+            "bucket": bucket,
+            "tier": tier,
+            "agent_id": agent_id,
+            "success": False,
+            "error": str(exc),
+            "output": output,
         }
