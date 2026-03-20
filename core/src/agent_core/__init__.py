@@ -36,6 +36,8 @@ from agent_core.runtime.session import SessionManager, SessionState
 from agent_core.runtime.strands_session_bridge import StrandsSessionBridge
 from agent_core.tools.mcp_factory import create_mcp_client
 
+from agent_core.gateway import GatewayClient, ToolDiscovery
+
 from agent_core.mcp import BaseMCPServer, VersionedS3Store, cache_get, cache_set, resolve_provider
 __all__ = [
     "AgentBlueprint",
@@ -69,6 +71,8 @@ __all__ = [
     "WorkflowBlueprint",
     "WorkflowExecutor",
     "XRayTracer",
+    "GatewayClient",
+    "ToolDiscovery",
     "create_mcp_client",
     "create_observability_hooks",
     "generate_agentcore_config",

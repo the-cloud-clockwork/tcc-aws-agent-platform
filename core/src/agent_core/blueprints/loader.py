@@ -68,12 +68,14 @@ class BlueprintLoader:
         mcp_factory: Callable[..., Any] | None = None,
         hook_registry: dict[str, type] | None = None,
         schema_registry: dict[str, type[BaseModel]] | None = None,
+        gateway_client: Any = None,
     ) -> None:
         self.blueprints_dir = Path(blueprints_dir)
         self._prompt_dir = Path(prompt_dir) if prompt_dir else None
         self._mcp_factory = mcp_factory
         self._hook_registry = hook_registry
         self._schema_registry = schema_registry
+        self._gateway_client = gateway_client
 
         if prompt_client is not None:
             self.prompt_client = prompt_client
@@ -340,7 +342,14 @@ class BlueprintLoader:
     # ------------------------------------------------------------------
 
     def _create_mcp_clients(self, blueprint: AgentBlueprint) -> list[Any]:
-        """Create MCP clients for a blueprint via factory."""
+        """Create MCP clients for a blueprint.
+
+        If gateway is enabled in the blueprint, returns a single GatewayClient
+        as the tool provider.  Otherwise, creates individual MCPClient instances
+        via the mcp_factory (existing behavior).
+        """
+        if blueprint.gateway.enabled:
+            return self._create_gateway_tools(blueprint)
         if self._mcp_factory is None:
             raise BlueprintLoadError(
                 f"Cannot build agent session for '{blueprint.id}': no mcp_factory configured. "
@@ -362,6 +371,16 @@ class BlueprintLoader:
                     f"Failed to create MCP client for '{tool_cfg.mcp}': {exc}"
                 ) from exc
         return clients
+
+    def _create_gateway_tools(self, blueprint: AgentBlueprint) -> list[Any]:
+        """Create a single GatewayClient from blueprint gateway config."""
+        from agent_core.gateway.client import GatewayClient
+
+        if self._gateway_client is not None:
+            return [self._gateway_client.as_tool_provider()]
+
+        client = GatewayClient.from_config(blueprint.gateway)
+        return [client.as_tool_provider()]
 
     def _build_agent_kwargs(
         self,

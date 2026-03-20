@@ -36,16 +36,16 @@
 - [x] `gateway/client.py` — `GatewayClient` with `invoke_tool()`, `list_tools()`, `search_tools()`, `health_check()`
 - [x] `gateway/target_registry.py` — `TargetRegistry` with `register_target()`, `synchronize_all()`, `load_targets_from_file()`
 - [x] `gateway/tool_discovery.py` — `ToolDiscovery` with `find_tools()`, `find_tools_for_task()`
-- [ ] Replace custom HTTP `GatewayClient` with Strands `MCPClient` → Gateway URL pattern
-- [ ] Agent should consume Gateway as single MCP endpoint, not invoke tools via custom HTTP
-- [ ] Support `streamablehttp_client` with auth header injection (user JWT passthrough)
-- [ ] Support all 5 target types: Lambda, OpenAPI, MCP Server, Smithy, API Gateway
-- [ ] Wire `gateway_url` from platform infrastructure outputs (SSM/Terraform)
-- [ ] Support inbound auth on Gateway: `AWS_IAM` and `CUSTOM_JWT`
-- [ ] Support outbound auth: `GATEWAY_IAM_ROLE` and OAuth2 credential provider
-- [ ] Register domain MCP servers as Gateway targets (not direct ECS connections)
-- [ ] Add `gateway-targets.yaml` format for domain repos to declare their targets
-- [ ] Export `GatewayClient`, `ToolDiscovery` from `gateway/__init__.py` (currently empty)
+- [x] Replace custom HTTP `GatewayClient` with Strands `MCPClient` → Gateway URL pattern
+- [x] Agent should consume Gateway as single MCP endpoint, not invoke tools via custom HTTP
+- [x] Support `streamablehttp_client` with auth header injection (user JWT passthrough)
+- [x] Support all 5 target types: Lambda, OpenAPI, MCP Server, Smithy, API Gateway
+- [x] Wire `gateway_url` from platform infrastructure outputs (SSM/Terraform)
+- [x] Support inbound auth on Gateway: `AWS_IAM` and `CUSTOM_JWT`
+- [x] Support outbound auth: `GATEWAY_IAM_ROLE` and OAuth2 credential provider
+- [x] Register domain MCP servers as Gateway targets (not direct ECS connections)
+- [x] Add `gateway-targets.yaml` format for domain repos to declare their targets
+- [x] Export `GatewayClient`, `ToolDiscovery` from `gateway/__init__.py` (currently empty)
 
 ---
 
