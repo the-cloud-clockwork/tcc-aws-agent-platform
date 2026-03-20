@@ -31,7 +31,7 @@ def create_mcp_client(
             agent = Agent(tools=[client])
 
     Args:
-        name: MCP server name (e.g., "market-data-mcp").
+        name: MCP server name (e.g., "my-mcp").
         url: Base URL of the MCP server (e.g., "http://localhost:8002").
         tool_filter: Optional list of tool names to expose. If provided,
             only these tools will be available from this MCP client.

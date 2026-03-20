@@ -28,8 +28,8 @@ class TestMultiAgentConfigBackwardCompat:
 
 class TestGraphNodeEdgeConfig:
     def test_node_config(self):
-        node = GraphNodeConfig(agent_ref="gap_detector", node_id="detect")
-        assert node.agent_ref == "gap_detector"
+        node = GraphNodeConfig(agent_ref="test_detector", node_id="detect")
+        assert node.agent_ref == "test_detector"
         assert node.node_id == "detect"
 
     def test_edge_config_unconditional(self):

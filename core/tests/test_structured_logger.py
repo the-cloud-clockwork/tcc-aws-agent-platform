@@ -17,16 +17,16 @@ class TestLogSchema:
             message="test message",
             trace_id="trace-123",
             execution_id="exec-456",
-            agent_id="gap_detector",
+            agent_id="test_detector",
             prompt_version="v1.2",
             execution_mode="simulation",
-            extra={"target": "AAPL"},
+            extra={"target": "item-A"},
         )
         d = schema.to_dict()
         assert d["timestamp"] == "2025-01-01T00:00:00"
         assert d["level"] == "INFO"
-        assert d["agent_id"] == "gap_detector"
-        assert d["extra"]["target"] == "AAPL"
+        assert d["agent_id"] == "test_detector"
+        assert d["extra"]["target"] == "item-A"
 
     def test_to_json(self) -> None:
         schema = LogSchema(

@@ -48,7 +48,7 @@ def _create_session_table(table_name: str = "run_history") -> None:
     )
 
 
-def _create_artifacts_bucket(bucket_name: str = "qitp-artifacts") -> None:
+def _create_artifacts_bucket(bucket_name: str = "test-artifacts") -> None:
     """Create the S3 artifacts bucket for moto."""
     s3 = boto3.client("s3", region_name="eu-west-1")
     s3.create_bucket(
@@ -69,8 +69,8 @@ class TestIdempotencyStoreIntegration:
         _create_idempotency_table()
         store = IdempotencyStore(table_name="test_idempotency")
 
-        key = generate_idempotency_key("test-agent", "analyze", {"symbol": "AAPL"})
-        result = {"status": "ok", "gaps": 3}
+        key = generate_idempotency_key("test-agent", "analyze", {"item": "item-A"})
+        result = {"status": "ok", "count": 3}
 
         # First check — no existing entry
         assert store.check(key) is None
@@ -82,7 +82,7 @@ class TestIdempotencyStoreIntegration:
         cached = store.check(key)
         assert cached is not None
         assert cached["status"] == "ok"
-        assert cached["gaps"] == 3
+        assert cached["count"] == 3
 
     @mock_aws
     def test_duplicate_store_returns_cached(self):
@@ -129,7 +129,7 @@ class TestSessionManagerIntegration:
 
             session = manager.create_session(
                 session_id="sfn-exec-001",
-                agent_id="gap_detector",
+                agent_id="test_agent",
                 execution_mode="simulation",
             )
 
@@ -137,7 +137,7 @@ class TestSessionManagerIntegration:
             assert session.session_id == "sfn-exec-001"
 
             # Store some data
-            session.store("analysis_result", {"gaps": ["AAPL", "TSLA"]})
+            session.store("analysis_result", {"items": ["item-A", "item-B"]})
 
             # Persist
             manager.persist_session(session)
@@ -155,12 +155,12 @@ class TestSessionManagerIntegration:
 
             session = manager.create_session(
                 session_id="sfn-exec-002",
-                agent_id="sentiment_analyzer",
+                agent_id="test_analyzer",
                 execution_mode="simulation",
             )
 
-            session.store("sentiment", {"AAPL": 0.8, "TSLA": 0.3})
-            assert session.retrieve("sentiment")["AAPL"] == 0.8
+            session.store("scores", {"item-A": 0.8, "item-B": 0.3})
+            assert session.retrieve("scores")["item-A"] == 0.8
             assert session.retrieve("missing_key") is None
 
 
@@ -233,23 +233,23 @@ class TestMarshalOutputIntegration:
 class TestStrategyEvaluatorIntegration:
     """Tests StrategyEvaluator against realistic strategy data."""
 
-    def test_evaluate_gap_momentum_strategy(self):
+    def test_evaluate_multi_condition_strategy(self):
         from agent_core.blueprints.strategy import Condition, ConditionGroup, StrategyBlueprint
         from agent_core.blueprints.strategy_evaluator import StrategyEvaluator
 
         bp = StrategyBlueprint(
-            id="gap_momentum_up",
+            id="multi_signal_entry",
             version="1.0.0",
-            name="Gap Momentum Up",
-            description="Long on upward gaps with volume confirmation",
-            asset_types=["stock"],
-            scopes=["US"],
-            required_signals=["gap_pct", "sentiment_score", "volume_ratio"],
+            name="Multi Signal Entry",
+            description="Enter when multiple signals confirm threshold",
+            asset_types=["default"],
+            scopes=["global"],
+            required_signals=["score_a", "score_b", "volume_ratio"],
             entry_conditions=ConditionGroup(
                 logic="AND",
                 conditions=[
-                    Condition(field="gap_pct", op="gte", value=2.0),
-                    Condition(field="sentiment_score", op="gte", value=0.6),
+                    Condition(field="score_a", op="gte", value=2.0),
+                    Condition(field="score_b", op="gte", value=0.6),
                     Condition(field="volume_ratio", op="gt", value=1.5),
                 ],
             ),
@@ -260,16 +260,16 @@ class TestStrategyEvaluatorIntegration:
                     Condition(field="holding_days", op="gte", value=5),
                 ],
             ),
-            required_agents=["gap_detector"],
-            required_mcps=["market-data-mcp"],
+            required_agents=["detector"],
+            required_mcps=["data-mcp"],
         )
 
         evaluator = StrategyEvaluator()
 
-        # Bullish signals — entry should match
+        # Strong signals — entry should match
         signals = {
-            "gap_pct": 3.2,
-            "sentiment_score": 0.75,
+            "score_a": 3.2,
+            "score_b": 0.75,
             "volume_ratio": 2.1,
             "trailing_stop": True,
             "holding_days": 2,
@@ -281,8 +281,8 @@ class TestStrategyEvaluatorIntegration:
 
         # Weak signals — entry should not match
         weak_signals = {
-            "gap_pct": 0.5,
-            "sentiment_score": 0.4,
+            "score_a": 0.5,
+            "score_b": 0.4,
             "volume_ratio": 0.8,
         }
         result = evaluator.evaluate(bp, weak_signals)

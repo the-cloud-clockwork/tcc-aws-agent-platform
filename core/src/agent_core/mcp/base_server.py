@@ -7,10 +7,10 @@ Usage:
     from agent_core.mcp.base_server import BaseMCPServer
     from mcp.types import Tool
 
-    mcp = BaseMCPServer("market-data-mcp", default_port=8002)
+    mcp = BaseMCPServer("my-mcp", default_port=8080)
 
-    @mcp.tool(Tool(name="get_ohlcv", description="...", inputSchema={...}))
-    async def get_ohlcv(arguments: dict) -> dict:
+    @mcp.tool(Tool(name="get_data", description="...", inputSchema={...}))
+    async def get_data(arguments: dict) -> dict:
         return {"bars": [...]}
 
     if __name__ == "__main__":
@@ -80,8 +80,8 @@ class BaseMCPServer:
 
         Example::
 
-            @mcp.tool(Tool(name="get_ohlcv", description="...", inputSchema={...}))
-            async def get_ohlcv(arguments: dict) -> dict:
+            @mcp.tool(Tool(name="get_data", description="...", inputSchema={...}))
+            async def get_data(arguments: dict) -> dict:
                 ...
         """
 
@@ -177,7 +177,7 @@ class BaseMCPServer:
         asyncio.run(server.serve())
 
     def _run_sse(self) -> None:
-        """Run MCP server over SSE transport (legacy, for backtest compat)."""
+        """Run MCP server over SSE transport (legacy SSE transport)."""
         import uvicorn
         from mcp.server.sse import SseServerTransport
         from starlette.applications import Starlette

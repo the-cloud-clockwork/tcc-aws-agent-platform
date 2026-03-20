@@ -8,10 +8,10 @@ from agent_core.schemas.model_config import ModelConfig
 class TestAgentBlueprint:
     def test_parse_sample_yaml(self, sample_agent_dict: dict) -> None:
         bp = AgentBlueprint(**sample_agent_dict)
-        assert bp.id == "gap_detector"
+        assert bp.id == "test_detector"
         assert bp.version == "1.2.0"
-        assert bp.name == "Gap Detection Agent"
-        assert bp.prompt_ref == "gap_detector_v1.2"
+        assert bp.name == "Test Detection Agent"
+        assert bp.prompt_ref == "test_detector_v1.2"
 
     def test_model_config(self, sample_agent_dict: dict) -> None:
         bp = AgentBlueprint(**sample_agent_dict)
@@ -56,7 +56,7 @@ class TestAgentBlueprint:
 
     def test_output_schema(self, sample_agent_dict: dict) -> None:
         bp = AgentBlueprint(**sample_agent_dict)
-        assert bp.output_schema == "gap_detection_output_v1"
+        assert bp.output_schema == "test_detection_output_v1"
 
     def test_minimal_agent(self) -> None:
         """An agent with only required fields should work."""

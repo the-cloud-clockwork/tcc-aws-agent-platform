@@ -19,12 +19,12 @@ class TestPromptRegistryClient:
         respx.get("http://test-registry/prompts/gap_detector_v1.2").mock(
             return_value=httpx.Response(
                 200,
-                json={"text": "You are a gap detection agent."},
+                json={"text": "You are a test detection agent."},
             )
         )
         client = PromptRegistryClient(registry_url="http://test-registry")
-        result = client.get("gap_detector_v1.2")
-        assert result == "You are a gap detection agent."
+        result = client.get("test_detector_v1.2")
+        assert result == "You are a test detection agent."
 
     @respx.mock
     def test_fetch_remote_prompt_text_key(self) -> None:
@@ -44,8 +44,8 @@ class TestPromptRegistryClient:
             local_dir=tmp_prompts,
             timeout=0.5,
         )
-        result = client.get("gap_detector_v1.2")
-        assert "gap detection agent" in result
+        result = client.get("test_detector_v1.2")
+        assert "test detection agent" in result
 
     def test_local_latest(self, tmp_prompts: Path) -> None:
         client = PromptRegistryClient(
@@ -53,7 +53,7 @@ class TestPromptRegistryClient:
             local_dir=tmp_prompts,
             timeout=0.5,
         )
-        result = client.get("gap_detector")
+        result = client.get("test_detector")
         assert "(latest)" in result
 
     def test_no_local_dir_raises(self) -> None:
@@ -82,5 +82,5 @@ class TestPromptRegistryClient:
             registry_url="http://test-registry",
             local_dir=tmp_prompts,
         )
-        result = client.get("gap_detector_v1.2")
-        assert "gap detection agent" in result
+        result = client.get("test_detector_v1.2")
+        assert "test detection agent" in result

@@ -17,9 +17,9 @@ from agent_core.agentcore.streaming import StreamBuffer, StreamEventType, format
 class TestMemoryBranching:
     def test_create_branch(self):
         mgr = MemoryBranchManager(session_id="test-session")
-        branch = mgr.create_branch("strategy_a", base_state={"symbols": ["AAPL"]})
-        assert branch.name == "strategy_a"
-        assert branch.state == {"symbols": ["AAPL"]}
+        branch = mgr.create_branch("branch_a", base_state={"items": ["item-A"]})
+        assert branch.name == "branch_a"
+        assert branch.state == {"items": ["item-A"]}
         assert branch.status == "active"
 
     def test_update_branch(self):
@@ -72,7 +72,7 @@ class TestMemoryBranching:
 class TestStreaming:
     @pytest.mark.asyncio
     async def test_push_and_get(self):
-        buffer = StreamBuffer(session_id="s1", agent_id="gap-detector")
+        buffer = StreamBuffer(session_id="s1", agent_id="test-detector")
         await buffer.push(StreamEventType.PROGRESS, {"step": 1, "total": 5})
         await buffer.push(StreamEventType.COMPLETE, {"result": "done"})
 

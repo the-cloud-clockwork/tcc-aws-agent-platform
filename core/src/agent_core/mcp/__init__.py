@@ -4,7 +4,7 @@ Domain MCP servers may import from this subpackage for shared
 infrastructure: base server class, caching, provider routing,
 and versioned S3 artifact storage.
 
-This subpackage is domain-agnostic — no qitp_* imports allowed.
+This subpackage is domain-agnostic — no domain-specific imports allowed.
 """
 
 from agent_core.mcp.base_server import BaseMCPServer

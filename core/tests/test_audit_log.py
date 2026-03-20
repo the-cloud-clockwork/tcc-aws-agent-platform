@@ -56,15 +56,15 @@ class TestAuditLogWriter:
     def test_write_event(self, writer: AuditLogWriter, mock_table: MockTable) -> None:
         item = writer.log(
             event_type="PIPELINE_STARTED",
-            agent_id="gap_detector",
+            agent_id="test_detector",
             execution_mode="simulation",
-            payload={"target": "AAPL"},
+            payload={"target": "item-A"},
         )
         assert len(mock_table.items) == 1
         assert item["event_type"] == "PIPELINE_STARTED"
-        assert item["agent_id"] == "gap_detector"
+        assert item["agent_id"] == "test_detector"
         assert item["execution_mode"] == "simulation"
-        assert item["payload"]["target"] == "AAPL"
+        assert item["payload"]["target"] == "item-A"
         assert "event_id" in item
         assert "timestamp_ms" in item
         assert "ttl" in item
@@ -84,7 +84,7 @@ class TestAuditLogWriter:
         item = writer.log(
             event_type="ORDER_REQUESTED",
             idempotency_key="idem-123",
-            payload={"target": "AAPL"},
+            payload={"target": "item-A"},
         )
         assert item["event_id"] == "idem-123"
 

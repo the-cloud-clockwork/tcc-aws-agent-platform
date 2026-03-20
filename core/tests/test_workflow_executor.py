@@ -165,7 +165,7 @@ class TestWorkflowExecutor:
         def handler(state_id, lambda_ref, input_data):
             return {"score": 0.85}
 
-        result = WorkflowExecutor(task_handler=handler).execute(bp, {"symbol": "AAPL"})
+        result = WorkflowExecutor(task_handler=handler).execute(bp, {"target": "item-A"})
         assert result.status == "succeeded"
         assert result.outputs["analyze"] == {"score": 0.85}
 

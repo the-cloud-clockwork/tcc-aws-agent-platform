@@ -35,8 +35,8 @@ class TestCompositeObservabilityHook:
         mock_table = MockAuditTable()
 
         hook = CompositeObservabilityHook(
-            agent_id="gap_detector",
-            prompt_id="gap_detector",
+            agent_id="test_detector",
+            prompt_id="test_detector",
             prompt_version="v1.2",
             execution_mode="simulation",
             target="ENTITY-1",
@@ -135,14 +135,14 @@ class TestCreateObservabilityHooks:
 
     def test_factory_params_propagated(self) -> None:
         hook = create_observability_hooks(
-            agent_id="gap_detector",
-            prompt_id="gap_detector",
+            agent_id="test_detector",
+            prompt_id="test_detector",
             prompt_version="v1.2",
             execution_mode="production",
             target="ENTITY-2",
-            strategy_id="gap_momentum_up",
+            strategy_id="multi_signal_entry",
         )
-        assert hook.agent_id == "gap_detector"
+        assert hook.agent_id == "test_detector"
         assert hook.execution_mode == "production"
         assert hook.target == "ENTITY-2"
-        assert hook.strategy_id == "gap_momentum_up"
+        assert hook.strategy_id == "multi_signal_entry"

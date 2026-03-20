@@ -43,19 +43,19 @@ class TestResolveProvider:
         provider = resolve_provider(REGISTRY)
         assert isinstance(provider, FakeLiveProvider)
 
-    def test_alias_backtest(self, monkeypatch):
-        monkeypatch.setenv("EXECUTION_MODE", "backtest")
-        provider = resolve_provider(REGISTRY)
+    def test_alias_to_simulation(self, monkeypatch):
+        monkeypatch.setenv("EXECUTION_MODE", "dev")
+        provider = resolve_provider(REGISTRY, aliases={"dev": "simulation"})
         assert isinstance(provider, FakeSimProvider)
 
-    def test_alias_paper(self, monkeypatch):
-        monkeypatch.setenv("EXECUTION_MODE", "paper")
-        provider = resolve_provider(REGISTRY)
+    def test_alias_to_staging(self, monkeypatch):
+        monkeypatch.setenv("EXECUTION_MODE", "preview")
+        provider = resolve_provider(REGISTRY, aliases={"preview": "staging"})
         assert isinstance(provider, FakeStagingProvider)
 
-    def test_alias_live(self, monkeypatch):
-        monkeypatch.setenv("EXECUTION_MODE", "live")
-        provider = resolve_provider(REGISTRY)
+    def test_alias_to_production(self, monkeypatch):
+        monkeypatch.setenv("EXECUTION_MODE", "release")
+        provider = resolve_provider(REGISTRY, aliases={"release": "production"})
         assert isinstance(provider, FakeLiveProvider)
 
     def test_custom_alias(self, monkeypatch):

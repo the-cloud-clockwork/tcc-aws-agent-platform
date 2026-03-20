@@ -16,10 +16,10 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 SAMPLE_AGENT_YAML = textwrap.dedent("""\
-    id: gap_detector
+    id: test_detector
     version: "1.2.0"
-    name: Gap Detection Agent
-    description: Scans watchlist for significant Friday/Monday price gaps
+    name: Test Detection Agent
+    description: Scans data sources for significant anomalies
     model:
       provider: bedrock
       model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
@@ -27,7 +27,7 @@ SAMPLE_AGENT_YAML = textwrap.dedent("""\
       max_tokens: 4096
       cache_prompt: default
       cache_tools: default
-    prompt_ref: gap_detector_v1.2
+    prompt_ref: test_detector_v1.2
     tools:
       - mcp: data-mcp
         tools: [get_watchlist_gaps, get_data, get_volume_profile]
@@ -41,26 +41,26 @@ SAMPLE_AGENT_YAML = textwrap.dedent("""\
       simulation: true
       staging: true
       production: true
-    output_schema: gap_detection_output_v1
+    output_schema: test_detection_output_v1
     hooks:
       - ObservabilityHook
 """)
 
 SAMPLE_STRATEGY_YAML = textwrap.dedent("""\
-    id: gap_momentum_up
+    id: multi_signal_entry
     version: "1.0.0"
-    name: Gap Momentum Up
+    name: Multi Signal Entry
     description: Process data with analytics confirmation
-    asset_types: [stock, etf]
-    scopes: [US, EU, ES]
+    asset_types: [default]
+    scopes: [global]
     required_signals: [data, analytics]
     entry_conditions:
       logic: AND
       conditions:
-        - field: gap_pct
+        - field: score_a
           op: gte
           value: 2.0
-        - field: sentiment_score
+        - field: score_b
           op: gte
           value: 0.60
     exit_conditions:
@@ -71,14 +71,14 @@ SAMPLE_STRATEGY_YAML = textwrap.dedent("""\
           op: gte
           value: 5
     max_concurrent_positions: 3
-    required_agents: [gap_detector, sentiment_analyzer, portfolio_recommender]
+    required_agents: [detector, analyzer, recommender]
     required_mcps: [data-mcp, analytics-mcp, executor-mcp]
 """)
 
 SAMPLE_WORKFLOW_YAML = textwrap.dedent("""\
-    id: weekly_gap_analysis
+    id: weekly_analysis
     version: "1.0.0"
-    name: Weekly Gap Analysis Pipeline
+    name: Weekly Analysis Pipeline
     trigger:
       type: schedule
       schedule: "cron(30 8 ? * MON *)"
@@ -98,7 +98,7 @@ SAMPLE_WORKFLOW_YAML = textwrap.dedent("""\
               op: eq
               value: false
             next: NoOpComplete
-        default: FetchWatchlistGaps
+        default: FetchData
 """)
 
 
@@ -110,23 +110,23 @@ def tmp_blueprints(tmp_path: Path) -> Path:
 
         tmp_path/
         ├── agents/
-        │   └── gap_detector.yaml
+        │   └── test_detector.yaml
         ├── strategies/
-        │   └── gap_momentum_up.yaml
+        │   └── multi_signal_entry.yaml
         └── workflows/
-            └── weekly_gap_analysis.yaml
+            └── weekly_analysis.yaml
     """
     agents_dir = tmp_path / "agents"
     agents_dir.mkdir()
-    (agents_dir / "gap_detector.yaml").write_text(SAMPLE_AGENT_YAML)
+    (agents_dir / "test_detector.yaml").write_text(SAMPLE_AGENT_YAML)
 
     strategies_dir = tmp_path / "strategies"
     strategies_dir.mkdir()
-    (strategies_dir / "gap_momentum_up.yaml").write_text(SAMPLE_STRATEGY_YAML)
+    (strategies_dir / "multi_signal_entry.yaml").write_text(SAMPLE_STRATEGY_YAML)
 
     workflows_dir = tmp_path / "workflows"
     workflows_dir.mkdir()
-    (workflows_dir / "weekly_gap_analysis.yaml").write_text(SAMPLE_WORKFLOW_YAML)
+    (workflows_dir / "weekly_analysis.yaml").write_text(SAMPLE_WORKFLOW_YAML)
 
     return tmp_path
 
@@ -148,11 +148,11 @@ def tmp_prompts(tmp_path: Path) -> Path:
     """Create a temp directory with local prompt files."""
     prompts_dir = tmp_path / "prompts"
     prompts_dir.mkdir()
-    (prompts_dir / "gap_detector_v1.2.txt").write_text(
-        "You are a gap detection agent. Analyse price gaps."
+    (prompts_dir / "test_detector_v1.2.txt").write_text(
+        "You are a test detection agent. Analyse data anomalies."
     )
-    (prompts_dir / "gap_detector.txt").write_text(
-        "You are a gap detection agent (latest). Analyse price gaps."
+    (prompts_dir / "test_detector.txt").write_text(
+        "You are a test detection agent (latest). Analyse data anomalies."
     )
     return prompts_dir
 
@@ -182,7 +182,7 @@ SAMPLE_SWARM_AGENT_YAML = textwrap.dedent("""\
       model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
       temperature: 0.2
       max_tokens: 4096
-    prompt_ref: gap_detector_v1.2
+    prompt_ref: test_detector_v1.2
     tools:
       - mcp: data-mcp
         tools: [get_data]
@@ -207,7 +207,7 @@ SAMPLE_GRAPH_AGENT_YAML = textwrap.dedent("""\
       model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
       temperature: 0.2
       max_tokens: 4096
-    prompt_ref: gap_detector_v1.2
+    prompt_ref: test_detector_v1.2
     tools:
       - mcp: data-mcp
         tools: [get_data]
@@ -232,7 +232,7 @@ SAMPLE_SINGLE_AGENT_YAML = textwrap.dedent("""\
       model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
       temperature: 0.2
       max_tokens: 4096
-    prompt_ref: gap_detector_v1.2
+    prompt_ref: test_detector_v1.2
     tools:
       - mcp: data-mcp
         tools: [get_data]
@@ -288,7 +288,7 @@ SAMPLE_NODE_A_YAML = textwrap.dedent("""\
       model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
       temperature: 0.2
       max_tokens: 4096
-    prompt_ref: gap_detector_v1.2
+    prompt_ref: test_detector_v1.2
     tools:
       - mcp: data-mcp
         tools: [get_data]
@@ -308,7 +308,7 @@ SAMPLE_NODE_B_YAML = textwrap.dedent("""\
       model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
       temperature: 0.2
       max_tokens: 4096
-    prompt_ref: gap_detector_v1.2
+    prompt_ref: test_detector_v1.2
     tools:
       - mcp: data-mcp
         tools: [get_data]
@@ -328,7 +328,7 @@ SAMPLE_MULTI_NODE_GRAPH_YAML = textwrap.dedent("""\
       model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
       temperature: 0.2
       max_tokens: 4096
-    prompt_ref: gap_detector_v1.2
+    prompt_ref: test_detector_v1.2
     tools:
       - mcp: data-mcp
         tools: [get_data]
@@ -362,7 +362,7 @@ SAMPLE_MULTI_NODE_SWARM_YAML = textwrap.dedent("""\
       model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
       temperature: 0.2
       max_tokens: 4096
-    prompt_ref: gap_detector_v1.2
+    prompt_ref: test_detector_v1.2
     tools:
       - mcp: data-mcp
         tools: [get_data]
