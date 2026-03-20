@@ -104,39 +104,39 @@ agents:
 
 mcps:
   - name: artifacts
-    port: 8004
+    port: 8080
     cpu: 256
     memory: 512
   - name: market-data
-    port: 8002
+    port: 8080
     cpu: 256
     memory: 512
   - name: sentiment
-    port: 8003
+    port: 8080
     cpu: 256
     memory: 512
   - name: technical
-    port: 8009
+    port: 8080
     cpu: 256
     memory: 512
   - name: backtest
-    port: 8005
+    port: 8080
     cpu: 256
     memory: 512
   - name: charting
-    port: 8006
+    port: 8080
     cpu: 256
     memory: 512
   - name: ibkr
-    port: 8001
+    port: 8080
     cpu: 256
     memory: 512
   - name: twofa
-    port: 8007
+    port: 8080
     cpu: 256
     memory: 512
   - name: ml-predict
-    port: 8008
+    port: 8080
     cpu: 256
     memory: 512
 
@@ -151,6 +151,23 @@ observability:
     - PipelineCompleted
     - PipelineFailed
     - AgentLatencyMs
+
+kms:
+  platform_artifacts_key_alias: platform-artifacts
+  domain_artifacts_key_alias: qitp-domain-artifacts
+
+cloudfront:
+  enabled: false  # Enable when ready to deploy
+  key_pair_id: ""
+  private_key_secret_arn: ""
+
+api:
+  stage: dev
+  throttle_rate: 100
+  throttle_burst: 200
+  cors_origins:
+    - "http://localhost:3000"
+    - "https://dashboard.qitp.dev"
 
 tags:
   Environment: dev
