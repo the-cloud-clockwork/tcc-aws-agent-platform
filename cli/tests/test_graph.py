@@ -21,8 +21,8 @@ model:
 multi_agent:
   pattern: graph
   nodes:
-    - id: gap_analysis
-      agent_ref: gap-detector
+    - id: data_analysis
+      agent_ref: my-agent
       type: agent
     - id: technical_analysis
       agent_ref: technical-analyzer
@@ -38,12 +38,12 @@ multi_agent:
       agent_ref: strategy-evaluator
       type: agent
   edges:
-    - from: gap_analysis
+    - from: data_analysis
       to: technical_analysis
-      label: gap_detected
-    - from: gap_analysis
+      label: threshold_detected
+    - from: data_analysis
       to: analytics_check
-      label: gap_detected
+      label: threshold_detected
     - from: technical_analysis
       to: quality_gate
       condition: "signals_ready"
@@ -75,7 +75,7 @@ class TestGraphRender:
 
         content = output_file.read_text()
         assert "Strategy Evaluator" in content
-        assert "gap_analysis" in content
+        assert "data_analysis" in content
         assert "## Nodes" in content
         assert "## Edges" in content
         assert "## Circuit Breakers" in content

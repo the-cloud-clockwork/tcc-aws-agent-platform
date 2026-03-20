@@ -30,7 +30,7 @@ Validate agent and strategy blueprint YAML files against `agent-core` Pydantic s
 
 ```bash
 # Lint a single blueprint (agent or strategy — auto-detected)
-agentcli blueprint lint blueprints/agents/gap_detection.yaml
+agentcli blueprint lint blueprints/agents/data_analysis.yaml
 
 # validate is an alias for lint
 agentcli blueprint validate blueprints/strategies/gap_momentum.yaml
@@ -51,25 +51,25 @@ Manage prompt templates in the Prompt Registry. All commands communicate with th
 
 ```bash
 # Upload a prompt template
-agentcli prompt push prompts/gap_detection_system.txt --id gap_detection_system --version 1.0.0
+agentcli prompt push prompts/data_analysis_system.txt --id data_analysis_system --version 1.0.0
 
 # Fetch and display a prompt (latest stable version)
-agentcli prompt get gap_detection_system
+agentcli prompt get data_analysis_system
 
 # Fetch a specific version
-agentcli prompt get gap_detection_system --version 1.0.0
+agentcli prompt get data_analysis_system --version 1.0.0
 
 # List all versions of a prompt with status and content hash
-agentcli prompt list gap_detection_system
+agentcli prompt list data_analysis_system
 
 # Show unified diff between two versions
-agentcli prompt diff gap_detection_system 1.0.0 2.0.0
+agentcli prompt diff data_analysis_system 1.0.0 2.0.0
 
 # Promote a version to stable status
-agentcli prompt promote gap_detection_system 1.0.0
+agentcli prompt promote data_analysis_system 1.0.0
 
 # Rollback to a previous version (marks it stable, demotes current)
-agentcli prompt rollback gap_detection_system 0.9.0
+agentcli prompt rollback data_analysis_system 0.9.0
 ```
 
 The registry URL defaults to `http://localhost:8000` and is overridden by the `AGENT_REGISTRY_URL` environment variable.
@@ -159,10 +159,10 @@ The blueprint commands delegate schema validation to `agent-core` (`AgentBluepri
 ### Agent Blueprint (minimum required fields)
 
 ```yaml
-id: gap-detection-agent
+id: data-analysis-agent
 name: Gap Detection Agent
 version: "1.0.0"
-prompt_ref: gap_detection_system_v1
+prompt_ref: data_analysis_system_v1
 model:
   provider: anthropic
   model_id: claude-sonnet-4-20250514
@@ -212,7 +212,7 @@ multi_agent:
   pattern: graph
   nodes:
     - id: gap_analysis
-      agent_ref: gap-detector
+      agent_ref: my-agent
       type: agent
     - id: quality_gate
       type: gate

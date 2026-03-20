@@ -68,7 +68,7 @@ def api_env(monkeypatch):
 class TestCreatePrompt:
     def test_create_success(self, api_env):
         event = _api_event("POST", "/prompts", body={
-            "prompt_id": "gap_detector",
+            "prompt_id": "my_agent",
             "version": "1.0.0",
             "content": "You are a gap detector.",
             "description": "Initial version",
@@ -77,12 +77,12 @@ class TestCreatePrompt:
         resp = handler(event)
         assert resp["statusCode"] == 201
         body = json.loads(resp["body"])
-        assert body["prompt_id"] == "gap_detector"
+        assert body["prompt_id"] == "my_agent"
         assert body["status"] == "draft"
 
     def test_create_duplicate_fails(self, api_env):
         event = _api_event("POST", "/prompts", body={
-            "prompt_id": "gap_detector",
+            "prompt_id": "my_agent",
             "version": "1.0.0",
             "content": "text",
         })
@@ -100,18 +100,18 @@ class TestGetPrompt:
     def test_get_latest_stable(self, api_env):
         # Create and promote
         handler(_api_event("POST", "/prompts", body={
-            "prompt_id": "gap_detector", "version": "1.0.0",
+            "prompt_id": "my_agent", "version": "1.0.0",
             "content": "Version one.",
         }))
         handler(_api_event(
-            "POST", "/prompts/gap_detector/promote",
+            "POST", "/prompts/my_agent/promote",
             body={"version": "1.0.0"},
-            path_params={"prompt_id": "gap_detector"},
+            path_params={"prompt_id": "my_agent"},
         ))
 
         resp = handler(_api_event(
-            "GET", "/prompts/gap_detector",
-            path_params={"prompt_id": "gap_detector"},
+            "GET", "/prompts/my_agent",
+            path_params={"prompt_id": "my_agent"},
         ))
         assert resp["statusCode"] == 200
         body = json.loads(resp["body"])
@@ -120,25 +120,25 @@ class TestGetPrompt:
 
     def test_get_specific_version(self, api_env):
         handler(_api_event("POST", "/prompts", body={
-            "prompt_id": "gap_detector", "version": "1.0.0",
+            "prompt_id": "my_agent", "version": "1.0.0",
             "content": "V1.",
         }))
         handler(_api_event("POST", "/prompts", body={
-            "prompt_id": "gap_detector", "version": "2.0.0",
+            "prompt_id": "my_agent", "version": "2.0.0",
             "content": "V2.",
         }))
         # Promote 1.0.0
         handler(_api_event(
-            "POST", "/prompts/gap_detector/promote",
+            "POST", "/prompts/my_agent/promote",
             body={"version": "1.0.0"},
-            path_params={"prompt_id": "gap_detector"},
+            path_params={"prompt_id": "my_agent"},
         ))
 
         # Get specific draft in simulation mode
         resp = handler(_api_event(
-            "GET", "/prompts/gap_detector",
+            "GET", "/prompts/my_agent",
             query={"version": "2.0.0", "mode": "simulation"},
-            path_params={"prompt_id": "gap_detector"},
+            path_params={"prompt_id": "my_agent"},
         ))
         assert resp["statusCode"] == 200
         body = json.loads(resp["body"])
@@ -157,13 +157,13 @@ class TestListVersions:
     def test_list_versions(self, api_env):
         for ver in ["1.0.0", "1.2.0", "2.0.0"]:
             handler(_api_event("POST", "/prompts", body={
-                "prompt_id": "gap_detector", "version": ver,
+                "prompt_id": "my_agent", "version": ver,
                 "content": f"Version {ver}.",
             }))
 
         resp = handler(_api_event(
-            "GET", "/prompts/gap_detector/versions",
-            path_params={"prompt_id": "gap_detector"},
+            "GET", "/prompts/my_agent/versions",
+            path_params={"prompt_id": "my_agent"},
         ))
         assert resp["statusCode"] == 200
         body = json.loads(resp["body"])
@@ -173,13 +173,13 @@ class TestListVersions:
 class TestPromote:
     def test_promote_success(self, api_env):
         handler(_api_event("POST", "/prompts", body={
-            "prompt_id": "gap_detector", "version": "1.0.0", "content": "V1.",
+            "prompt_id": "my_agent", "version": "1.0.0", "content": "V1.",
         }))
 
         resp = handler(_api_event(
-            "POST", "/prompts/gap_detector/promote",
+            "POST", "/prompts/my_agent/promote",
             body={"version": "1.0.0"},
-            path_params={"prompt_id": "gap_detector"},
+            path_params={"prompt_id": "my_agent"},
         ))
         assert resp["statusCode"] == 200
         body = json.loads(resp["body"])
@@ -187,9 +187,9 @@ class TestPromote:
 
     def test_promote_nonexistent(self, api_env):
         resp = handler(_api_event(
-            "POST", "/prompts/gap_detector/promote",
+            "POST", "/prompts/my_agent/promote",
             body={"version": "99.0.0"},
-            path_params={"prompt_id": "gap_detector"},
+            path_params={"prompt_id": "my_agent"},
         ))
         assert resp["statusCode"] == 404
 
@@ -197,28 +197,28 @@ class TestPromote:
 class TestRollback:
     def test_rollback_success(self, api_env):
         handler(_api_event("POST", "/prompts", body={
-            "prompt_id": "gap_detector", "version": "1.0.0", "content": "V1.",
+            "prompt_id": "my_agent", "version": "1.0.0", "content": "V1.",
         }))
         handler(_api_event("POST", "/prompts", body={
-            "prompt_id": "gap_detector", "version": "2.0.0", "content": "V2.",
+            "prompt_id": "my_agent", "version": "2.0.0", "content": "V2.",
         }))
         # Promote 1.0.0 then 2.0.0
         handler(_api_event(
-            "POST", "/prompts/gap_detector/promote",
+            "POST", "/prompts/my_agent/promote",
             body={"version": "1.0.0"},
-            path_params={"prompt_id": "gap_detector"},
+            path_params={"prompt_id": "my_agent"},
         ))
         handler(_api_event(
-            "POST", "/prompts/gap_detector/promote",
+            "POST", "/prompts/my_agent/promote",
             body={"version": "2.0.0"},
-            path_params={"prompt_id": "gap_detector"},
+            path_params={"prompt_id": "my_agent"},
         ))
 
         # Rollback to 1.0.0
         resp = handler(_api_event(
-            "POST", "/prompts/gap_detector/rollback",
+            "POST", "/prompts/my_agent/rollback",
             body={"version": "1.0.0"},
-            path_params={"prompt_id": "gap_detector"},
+            path_params={"prompt_id": "my_agent"},
         ))
         assert resp["statusCode"] == 200
         body = json.loads(resp["body"])
@@ -229,18 +229,18 @@ class TestRollback:
 class TestDiff:
     def test_diff_two_versions(self, api_env):
         handler(_api_event("POST", "/prompts", body={
-            "prompt_id": "gap_detector", "version": "1.0.0",
+            "prompt_id": "my_agent", "version": "1.0.0",
             "content": "Line 1\nLine 2\nLine 3\n",
         }))
         handler(_api_event("POST", "/prompts", body={
-            "prompt_id": "gap_detector", "version": "1.2.0",
+            "prompt_id": "my_agent", "version": "1.2.0",
             "content": "Line 1\nLine 2 modified\nLine 3\nLine 4\n",
         }))
 
         resp = handler(_api_event(
-            "GET", "/prompts/gap_detector/diff",
+            "GET", "/prompts/my_agent/diff",
             query={"v1": "1.0.0", "v2": "1.2.0"},
-            path_params={"prompt_id": "gap_detector"},
+            path_params={"prompt_id": "my_agent"},
         ))
         assert resp["statusCode"] == 200
         body = json.loads(resp["body"])
@@ -250,9 +250,9 @@ class TestDiff:
 
     def test_diff_missing_params(self, api_env):
         resp = handler(_api_event(
-            "GET", "/prompts/gap_detector/diff",
+            "GET", "/prompts/my_agent/diff",
             query={"v1": "1.0.0"},
-            path_params={"prompt_id": "gap_detector"},
+            path_params={"prompt_id": "my_agent"},
         ))
         assert resp["statusCode"] == 400
 

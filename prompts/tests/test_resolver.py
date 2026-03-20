@@ -17,18 +17,18 @@ BUCKET_NAME = "prompt-registry"
 
 class TestParsePromptRef:
     def test_plain_name(self):
-        result = parse_prompt_ref("gap_detector")
-        assert result.prompt_id == "gap_detector"
+        result = parse_prompt_ref("my_agent")
+        assert result.prompt_id == "my_agent"
         assert result.version is None
 
     def test_underscore_v_format(self):
-        result = parse_prompt_ref("gap_detector_v1.2")
-        assert result.prompt_id == "gap_detector"
+        result = parse_prompt_ref("my_agent_v1.2")
+        assert result.prompt_id == "my_agent"
         assert result.version == "1.2"
 
     def test_underscore_v_format_full_semver(self):
-        result = parse_prompt_ref("gap_detector_v1.2.0")
-        assert result.prompt_id == "gap_detector"
+        result = parse_prompt_ref("my_agent_v1.2.0")
+        assert result.prompt_id == "my_agent"
         assert result.version == "1.2.0"
 
     def test_at_format(self):
@@ -72,12 +72,12 @@ def resolver_env():
             ("1.2.0", "stable", "You are gap detector v1.2."),
             ("2.0.0", "draft", "You are gap detector v2 (draft)."),
         ]:
-            storage.put("gap_detector", ver, text)
+            storage.put("my_agent", ver, text)
             registry.put_version(PromptVersion(
-                prompt_id="gap_detector",
+                prompt_id="my_agent",
                 version=ver,
                 status=PromptStatus(status),
-                s3_key=f"gap_detector/{ver}.txt",
+                s3_key=f"my_agent/{ver}.txt",
             ))
 
         yield resolver
@@ -85,39 +85,39 @@ def resolver_env():
 
 class TestResolverPinned:
     def test_resolve_at_format(self, resolver_env):
-        result = resolver_env.resolve("gap_detector@1.0.0", mode=Mode.PRODUCTION)
+        result = resolver_env.resolve("my_agent@1.0.0", mode=Mode.PRODUCTION)
         assert result is not None
         assert result.version == "1.0.0"
         assert "v1." in result.content
 
     def test_resolve_v_format(self, resolver_env):
-        result = resolver_env.resolve("gap_detector_v1.2.0", mode=Mode.PRODUCTION)
+        result = resolver_env.resolve("my_agent_v1.2.0", mode=Mode.PRODUCTION)
         assert result is not None
         assert result.version == "1.2.0"
 
     def test_resolve_short_version_pads(self, resolver_env):
-        """gap_detector_v1.2 should resolve to 1.2.0."""
-        result = resolver_env.resolve("gap_detector_v1.2", mode=Mode.PRODUCTION)
+        """my_agent_v1.2 should resolve to 1.2.0."""
+        result = resolver_env.resolve("my_agent_v1.2", mode=Mode.PRODUCTION)
         assert result is not None
         assert result.version == "1.2.0"
 
     def test_draft_blocked_in_production_mode(self, resolver_env):
-        result = resolver_env.resolve("gap_detector@2.0.0", mode=Mode.PRODUCTION)
+        result = resolver_env.resolve("my_agent@2.0.0", mode=Mode.PRODUCTION)
         assert result is None
 
     def test_draft_allowed_in_simulation_mode(self, resolver_env):
-        result = resolver_env.resolve("gap_detector@2.0.0", mode=Mode.SIMULATION)
+        result = resolver_env.resolve("my_agent@2.0.0", mode=Mode.SIMULATION)
         assert result is not None
         assert result.status == PromptStatus.DRAFT
 
     def test_draft_allowed_in_dev_mode(self, resolver_env):
-        result = resolver_env.resolve("gap_detector@2.0.0", mode=Mode.DEV)
+        result = resolver_env.resolve("my_agent@2.0.0", mode=Mode.DEV)
         assert result is not None
 
 
 class TestResolverLatest:
     def test_resolve_latest_stable(self, resolver_env):
-        result = resolver_env.resolve("gap_detector", mode=Mode.PRODUCTION)
+        result = resolver_env.resolve("my_agent", mode=Mode.PRODUCTION)
         assert result is not None
         assert result.version == "1.2.0"
         assert result.status == PromptStatus.STABLE

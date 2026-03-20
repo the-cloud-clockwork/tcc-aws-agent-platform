@@ -7,8 +7,8 @@ Also computes token cost via CostTracker.
 Usage::
 
     hook = LangfuseHook(
-        agent_id="gap_detector",
-        prompt_id="gap_detector",
+        agent_id="my_agent",
+        prompt_id="my_agent",
         prompt_version="v1.2",
         execution_mode="simulation",
     )

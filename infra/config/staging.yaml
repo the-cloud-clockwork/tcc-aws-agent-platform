@@ -110,3 +110,16 @@ tags:
   Environment: staging
   Project: agent-infra
   CostCenter: platform-staging
+
+kms:
+  platform_artifacts_key_alias: platform-artifacts
+  domain_artifacts_key_alias: domain-artifacts
+
+api:
+  stage: staging
+  throttle_rate: 500
+  throttle_burst: 100
+  cors_origins: []
+
+cloudfront:
+  enabled: false

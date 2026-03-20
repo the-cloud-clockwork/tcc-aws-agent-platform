@@ -21,8 +21,8 @@ description: A test strategy
 entry_conditions:
   logic: AND
   conditions:
-    - type: gap_up
-      field: gap_pct
+    - type: threshold_up
+      field: score_pct
       op: ">="
       value: 2.0
 exit_conditions:

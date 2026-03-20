@@ -48,10 +48,11 @@ class McpStack(Stack):
         # Build MCP config list from config or context
         mcp_configs = config.get("mcps", [])
         if not mcp_configs:
-            mcp_configs = [
-                {"name": "artifacts", "port": 8004},
-                {"name": "market-data", "port": 8002},
-            ]
+            import logging
+            logging.getLogger(__name__).warning(
+                "No MCPs defined in config — returning empty list. "
+                "Define mcps in your environment config YAML."
+            )
 
         # Allow context override of MCP names
         context_mcps = self.node.try_get_context("mcps")
@@ -177,8 +178,8 @@ class McpStack(Stack):
             "WATCHLIST_S3_KEY": "watchlist/watchlist.json",
         }
         env_map["backtest"] = {
-            "QITP_OHLCV_BUCKET": bucket_name("historical-data"),
-            "QITP_STRATEGY_BUCKET": bucket_name("artifacts"),
+            "OHLCV_BUCKET": bucket_name("historical-data"),
+            "STRATEGY_BUCKET": bucket_name("artifacts"),
         }
         env_map["artifacts"] = {
             "ARTIFACTS_BUCKET": bucket_name("artifacts"),
@@ -213,3 +214,8 @@ class McpStack(Stack):
                 bucket = data_stack.buckets.get(key)
                 if bucket:
                     bucket.grant_read(task_role)
+
+        elif mcp_name == "ml-predict":
+            bucket = data_stack.buckets.get("artifacts")
+            if bucket:
+                bucket.grant_read(task_role)

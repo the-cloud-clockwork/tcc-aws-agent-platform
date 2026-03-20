@@ -15,7 +15,7 @@ class AgentSession:
 
     Usage::
 
-        with loader.build_agent_session("gap-detector") as session:
+        with loader.build_agent_session("my-agent") as session:
             result = session.run("Analyze gaps for AAPL on 2026-03-15")
     """
 

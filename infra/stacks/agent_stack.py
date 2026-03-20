@@ -96,7 +96,8 @@ class AgentStack(Stack):
             )
 
             provisioned = config.get("scaling", {}).get("lambda", {}).get("provisioned_concurrency", 0)
-            if provisioned > 0 and agent_name in ("portfolio-recommender",):
+            provisioned_agents = config.get("scaling", {}).get("lambda", {}).get("provisioned_agents", [])
+            if provisioned > 0 and agent_name in provisioned_agents:
                 LambdaProvisionedConcurrency(
                     self, f"PC-{agent_name}", function=fn,
                     provisioned_concurrent_executions=provisioned,
@@ -156,11 +157,12 @@ class AgentStack(Stack):
             return [{"name": n} for n in context_agents]
         if agent_configs:
             return agent_configs
-        return [
-            {"name": "gap-detector"},
-            {"name": "sentiment-analyzer"},
-            {"name": "strategy-evaluator"},
-        ]
+        import logging
+        logging.getLogger(__name__).warning(
+            "No agents defined in config — returning empty list. "
+            "Define agents in your environment config YAML."
+        )
+        return []
 
 
     def _create_agent_policy(
@@ -177,7 +179,7 @@ class AgentStack(Stack):
                 ),
                 iam.PolicyStatement(
                     sid="DynamoDBAccess",
-                    actions=["dynamodb:*"],
+                    actions=["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem"],
                     resources=[t.table_arn for t in data_stack.tables.values()]
                     + [f"{t.table_arn}/index/*" for t in data_stack.tables.values()],
                 ),
@@ -270,7 +272,7 @@ class AgentStack(Stack):
             "HISTORICAL_DATA_BUCKET": self._resolve_bucket_name(data_stack, "historical-data"),
             # P27.2 — KMS key ARN env vars for runtime alias resolution
             "KMS_KEY_ARN_PLATFORM_ARTIFACTS": security_stack.platform_artifacts_key.key_arn,
-            "KMS_KEY_ARN_QITP_DOMAIN_ARTIFACTS": security_stack.domain_artifacts_key.key_arn,
+            "KMS_KEY_ARN_DOMAIN_ARTIFACTS": security_stack.domain_artifacts_key.key_arn,
         }
         # Add MCP URI env vars
         env.update(self._build_mcp_env_vars(sd_namespace))

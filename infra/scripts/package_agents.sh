@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INFRA_DIR="$(dirname "$SCRIPT_DIR")"
 DIST_DIR="$INFRA_DIR/lambda/agents/dist"
 PLATFORM_ROOT="$(dirname "$INFRA_DIR")"
-QITP_ROOT="$HOME/dev/tccw-qitp"
+DOMAIN_ROOT="${DOMAIN_ROOT:-$HOME/dev/tccw-qitp}"
 
 echo "==> Cleaning previous build..."
 rm -rf "$DIST_DIR"
@@ -30,7 +30,7 @@ pip install \
   --python-version 3.12 \
   --only-binary=:all: \
   --no-deps \
-  "$QITP_ROOT/agents"
+  "$DOMAIN_ROOT/agents"
 
 echo "==> Installing runtime dependencies (including strands-agents)..."
 pip install \
@@ -41,13 +41,13 @@ pip install \
   strands-agents pydantic boto3 pyyaml
 
 echo "==> Copying blueprints..."
-if [ -d "$QITP_ROOT/agents/blueprints" ]; then
-  cp -r "$QITP_ROOT/agents/blueprints" "$DIST_DIR/"
+if [ -d "$DOMAIN_ROOT/agents/blueprints" ]; then
+  cp -r "$DOMAIN_ROOT/agents/blueprints" "$DIST_DIR/"
 fi
 
 echo "==> Copying prompts..."
-if [ -d "$QITP_ROOT/agents/prompts" ]; then
-  cp -r "$QITP_ROOT/agents/prompts" "$DIST_DIR/"
+if [ -d "$DOMAIN_ROOT/agents/prompts" ]; then
+  cp -r "$DOMAIN_ROOT/agents/prompts" "$DIST_DIR/"
 fi
 
 echo "==> Cleaning up bytecode..."

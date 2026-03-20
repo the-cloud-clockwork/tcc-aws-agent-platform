@@ -118,3 +118,16 @@ tags:
   Environment: production
   Project: agent-infra
   CostCenter: platform-production
+
+kms:
+  platform_artifacts_key_alias: platform-artifacts
+  domain_artifacts_key_alias: domain-artifacts
+
+api:
+  stage: production
+  throttle_rate: 500
+  throttle_burst: 100
+  cors_origins: []
+
+cloudfront:
+  enabled: false

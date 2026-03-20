@@ -18,10 +18,10 @@ Usage::
         error="Gap Detection Agent timed out after 15min",
     )
 
-    publisher.weekly_pnl_summary(
-        total_pnl_eur=1234.56,
-        win_rate=0.65,
-        positions_closed=8,
+    publisher.send_alert(
+        alert_type="threshold_breach",
+        message="Agent exceeded latency threshold",
+        severity="warning",
     )
 
 Environment variables:

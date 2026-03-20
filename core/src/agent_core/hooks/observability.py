@@ -21,7 +21,7 @@ class ObservabilityHook:
 
     Usage with Strands (callback-based)::
 
-        hook = ObservabilityHook(agent_id="gap_detector")
+        hook = ObservabilityHook(agent_id="my_agent")
         agent = Agent(..., callbacks=[hook])
 
     This hook implements the Strands callback protocol by exposing
