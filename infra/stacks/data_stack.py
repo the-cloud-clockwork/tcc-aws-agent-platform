@@ -221,14 +221,22 @@ class DataStack(Stack):
                 retention_period=Duration.days(14),
             )
 
-            # Lambda function
+            # Lambda function — code packaged from QITP risk module
+            import os as _os
+
+            cnmv_code_path = "lambda/risk/dist"
+            if not _os.path.isdir(
+                _os.path.join(_os.path.dirname(__file__), "..", cnmv_code_path)
+            ):
+                cnmv_code_path = "lambda/risk/example"
+
             self.cnmv_sync_lambda = lambda_.Function(
                 self,
                 "CNMVBanSync",
                 function_name=f"{prefix}-{env_name}-cnmv-ban-sync",
                 runtime=lambda_.Runtime.PYTHON_3_12,
                 handler="qitp_risk_engine.cnmv_sync.handler",
-                code=lambda_.Code.from_asset("placeholder-cnmv-sync"),
+                code=lambda_.Code.from_asset(cnmv_code_path),
                 memory_size=512,
                 timeout=Duration.seconds(60),
                 dead_letter_queue=cnmv_dlq,
