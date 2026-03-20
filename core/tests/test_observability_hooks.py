@@ -91,20 +91,50 @@ class TestCompositeObservabilityHook:
         hook.on_agent_start()
         hook.on_agent_end()
 
+    def test_register_hooks_protocol(self) -> None:
+        """CompositeObservabilityHook implements HookProvider protocol."""
+        hook = CompositeObservabilityHook(agent_id="test")
+
+        # Mock a HookRegistry
+        registry = MagicMock()
+        hook.register_hooks(registry)
+
+        # Should have registered 4 callbacks
+        assert registry.add_callback.call_count == 4
+
+    def test_callable_dispatch(self) -> None:
+        """__call__ dispatches to correct method based on event_type."""
+        hook = CompositeObservabilityHook(agent_id="test")
+        hook._audit._client = MockAuditTable()
+
+        # Dispatch via __call__
+        hook(event_type="agent_start")
+        hook(event_type="tool_end", tool_name="my_tool")
+        hook(event_type="tool_end", tool_name="bad", error="fail")
+        hook(event_type="agent_end")
+
+        assert hook._tool_calls == 2
+        assert hook._tool_errors == 1
+
+    def test_callable_unknown_event(self) -> None:
+        """__call__ with unknown event_type does not raise."""
+        hook = CompositeObservabilityHook(agent_id="test")
+        # Should not raise
+        hook(event_type="unknown_event")
+
 
 class TestCreateObservabilityHooks:
-    def test_returns_list(self) -> None:
-        hooks = create_observability_hooks(
+    def test_returns_hook_provider(self) -> None:
+        hook = create_observability_hooks(
             agent_id="test",
             prompt_id="test",
             prompt_version="v1.0",
         )
-        assert isinstance(hooks, list)
-        assert len(hooks) == 1
-        assert isinstance(hooks[0], CompositeObservabilityHook)
+        assert isinstance(hook, CompositeObservabilityHook)
+        assert hasattr(hook, "register_hooks")
 
     def test_factory_params_propagated(self) -> None:
-        hooks = create_observability_hooks(
+        hook = create_observability_hooks(
             agent_id="gap_detector",
             prompt_id="gap_detector",
             prompt_version="v1.2",
@@ -112,7 +142,6 @@ class TestCreateObservabilityHooks:
             target="ENTITY-2",
             strategy_id="gap_momentum_up",
         )
-        hook = hooks[0]
         assert hook.agent_id == "gap_detector"
         assert hook.execution_mode == "production"
         assert hook.target == "ENTITY-2"

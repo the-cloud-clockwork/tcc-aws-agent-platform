@@ -1,10 +1,22 @@
 """ExecutionMode enum and helpers."""
 from __future__ import annotations
 
+import logging
 import os
 from enum import StrEnum
 
 from agent_core.schemas.execution_modes import ExecutionModes
+
+logger = logging.getLogger(__name__)
+
+# Built-in aliases that map common domain vocabulary to platform modes.
+# Domain repos (e.g. QITP) use "backtest", "paper", "live" but the
+# platform canonical modes are "simulation", "staging", "production".
+_BUILTIN_ALIASES: dict[str, str] = {
+    "backtest": "simulation",
+    "paper": "staging",
+    "live": "production",
+}
 
 
 class ExecutionMode(StrEnum):
@@ -24,13 +36,29 @@ def get_execution_mode(
     Args:
         aliases: Optional mapping of custom names to platform mode values.
                  Domain repos can pass their own vocabulary here.
+                 These are checked *after* built-in aliases.
 
-    Raises ValueError for unrecognised modes.
+    Built-in aliases (always active):
+        backtest -> simulation, paper -> staging, live -> production.
+
+    If the resolved value is not a valid ExecutionMode, falls back to
+    ``SIMULATION`` with a warning rather than crashing. The platform
+    must not crash on unknown modes.
     """
     raw = os.environ.get("EXECUTION_MODE", "simulation").strip().lower()
+
+    # Apply built-in aliases first, then caller-supplied aliases.
+    raw = _BUILTIN_ALIASES.get(raw, raw)
     if aliases:
         raw = aliases.get(raw, raw)
-    return ExecutionMode(raw)
+
+    try:
+        return ExecutionMode(raw)
+    except ValueError:
+        logger.warning(
+            "Unknown EXECUTION_MODE '%s' — falling back to simulation", raw
+        )
+        return ExecutionMode.SIMULATION
 
 
 def validate_agent_mode(

@@ -397,10 +397,8 @@ class BlueprintLoader:
         }
         kwargs.update(self._build_model_config(blueprint.model, blueprint.thinking))
 
-        # TODO: Adapt ObservabilityHook to Strands HookProvider protocol
-        # For now, skip hooks to get pipeline running
         if hooks:
-            logger.info("Skipping %d hooks (pending HookProvider migration)", len(hooks))
+            kwargs["hooks"] = hooks
         if structured_output_model is not None:
             kwargs["structured_output_model"] = structured_output_model
 
