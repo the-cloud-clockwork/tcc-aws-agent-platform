@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agent_core.schemas.execution_modes import ExecutionModes
+from agent_core.schemas.gateway_config import GatewayConfig
 from agent_core.schemas.model_config import ModelConfig
 from agent_core.schemas.runtime_config import RuntimeConfig
 from agent_core.schemas.tool_config import ToolConfig
@@ -110,6 +111,7 @@ class AgentBlueprint(BaseModel):
         description="Reference key for the Prompt Registry (e.g. 'my_agent_v1.2').",
     )
     tools: list[ToolConfig] = Field(default_factory=list)
+    gateway: GatewayConfig = Field(default_factory=GatewayConfig)
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     execution_modes: ExecutionModes = Field(default_factory=ExecutionModes)
     output_schema: str | None = Field(
