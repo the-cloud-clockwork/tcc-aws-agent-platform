@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -48,9 +47,9 @@ class BlueprintLoader:
         Optional local prompt directory. If *prompt_client* is ``None`` and
         *prompt_dir* is provided, a :class:`PromptRegistryClient` is created
         with this directory as its local fallback.
-    mcp_factory:
-        Optional callable ``(mcp_name) -> mcp_client`` used by
-        :meth:`build_agent_session` to create MCP clients automatically.
+    gateway_client:
+        Optional pre-built :class:`GatewayClient` instance.  When provided,
+        all agents share this client instead of creating their own.
     hook_registry:
         Mapping of hook name to hook class, used by
         :meth:`build_agent_session` to instantiate hooks declared in blueprints.
@@ -65,14 +64,12 @@ class BlueprintLoader:
         prompt_client: PromptRegistryClient | None = None,
         *,
         prompt_dir: str | Path | None = None,
-        mcp_factory: Callable[..., Any] | None = None,
         hook_registry: dict[str, type] | None = None,
         schema_registry: dict[str, type[BaseModel]] | None = None,
         gateway_client: Any = None,
     ) -> None:
         self.blueprints_dir = Path(blueprints_dir)
         self._prompt_dir = Path(prompt_dir) if prompt_dir else None
-        self._mcp_factory = mcp_factory
         self._hook_registry = hook_registry
         self._schema_registry = schema_registry
         self._gateway_client = gateway_client
@@ -342,38 +339,11 @@ class BlueprintLoader:
     # ------------------------------------------------------------------
 
     def _create_mcp_clients(self, blueprint: AgentBlueprint) -> list[Any]:
-        """Create MCP clients for a blueprint.
+        """Create a GatewayClient as the sole tool provider.
 
-        If gateway is enabled in the blueprint, returns a single GatewayClient
-        as the tool provider.  Otherwise, creates individual MCPClient instances
-        via the mcp_factory (existing behavior).
+        All tool access goes through the AgentCore Gateway.  The Gateway
+        auto-generates MCP interfaces from registered targets.
         """
-        if blueprint.gateway.enabled:
-            return self._create_gateway_tools(blueprint)
-        if self._mcp_factory is None:
-            raise BlueprintLoadError(
-                f"Cannot build agent session for '{blueprint.id}': no mcp_factory configured. "
-                "Pass mcp_factory to BlueprintLoader or use build_strands_agent() with explicit mcp_clients."
-            )
-        clients: list[Any] = []
-        for tool_cfg in blueprint.tools:
-            try:
-                client = self._mcp_factory(
-                    tool_cfg.mcp,
-                    tool_filter=tool_cfg.tools if tool_cfg.tools else None,
-                )
-                clients.append(client)
-            except TypeError:
-                client = self._mcp_factory(tool_cfg.mcp)
-                clients.append(client)
-            except Exception as exc:
-                raise BlueprintLoadError(
-                    f"Failed to create MCP client for '{tool_cfg.mcp}': {exc}"
-                ) from exc
-        return clients
-
-    def _create_gateway_tools(self, blueprint: AgentBlueprint) -> list[Any]:
-        """Create a single GatewayClient from blueprint gateway config."""
         from agent_core.gateway.client import GatewayClient
 
         if self._gateway_client is not None:
@@ -416,8 +386,8 @@ class BlueprintLoader:
     ) -> AgentSession:
         """Build an :class:`AgentSession` with full lifecycle management.
 
-        Unlike :meth:`build_strands_agent`, this method uses the configured
-        ``mcp_factory`` to create MCP clients automatically and wraps them in
+        Unlike :meth:`build_strands_agent`, this method creates a
+        ``GatewayClient`` automatically from the blueprint and wraps it in
         an :class:`AgentSession` context manager that ensures proper cleanup.
 
         Parameters
