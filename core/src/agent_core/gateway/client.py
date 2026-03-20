@@ -37,7 +37,7 @@ class GatewayClient:
         client = GatewayClient(gateway_url="https://gateway.agentcore.example.com")
         result = client.invoke_tool("data-mcp::get_data", {"target": "ENTITY-1"})
         tools = client.list_tools()
-        tools = client.search_tools("price data for stocks")
+        tools = client.search_tools("retrieve metrics for analysis")
     """
 
     def __init__(

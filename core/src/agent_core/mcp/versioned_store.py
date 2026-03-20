@@ -121,7 +121,7 @@ class VersionedS3Store:
         """Store files to S3 under ``{artifact_id}/{version}/``.
 
         Args:
-            artifact_id: Artifact identifier (e.g. "gap_direction_xgb").
+            artifact_id: Artifact identifier (e.g. "classifier_model_v2").
             version: Version string (e.g. "v2").
             files: Mapping of filename → bytes content.
             set_latest: If True, update the ``latest`` pointer.

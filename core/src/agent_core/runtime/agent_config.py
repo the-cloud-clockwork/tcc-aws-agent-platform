@@ -12,7 +12,7 @@ class AgentConfig:
 
     Attributes:
         agent_id: Blueprint agent ID.
-        operation_name: Idempotency key operation (e.g., "detect_gaps").
+        operation_name: Idempotency key operation (e.g., "process_data").
         required_fields: Event fields validated before agent runs.
         build_prompt: Callable (params, idempotency_key) -> user prompt string.
         defaults: Default parameter values merged into event params.

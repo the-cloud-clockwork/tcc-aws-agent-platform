@@ -46,7 +46,7 @@ class ToolDiscovery:
 
     Usage:
         discovery = ToolDiscovery(gateway_client)
-        tools = discovery.find_tools("get historical price data for stocks")
+        tools = discovery.find_tools("retrieve time-series metrics for an entity")
         tools = discovery.find_tools_for_task("analyze data for ENTITY-1")
     """
 

@@ -136,7 +136,7 @@ class MemoryBranchManager:
 
         Args:
             branch_ids: Branch IDs to compare.
-            metric: Metric key to compare (e.g., "sharpe_ratio", "max_drawdown").
+            metric: Metric key to compare (e.g., "score", "accuracy").
             higher_is_better: If True, highest metric wins.
 
         Returns:
