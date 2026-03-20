@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import uuid
 from typing import Any
 
@@ -23,6 +24,9 @@ async def create_artifact(
     agent_id: str | None = None,
     execution_id: str | None = None,
     idempotency_key: str | None = None,
+    tier: str = "platform",
+    kms_key_alias: str | None = None,
+    pipeline_date: str = "",
     storage: ArtifactStorage | None = None,
     catalog: ArtifactCatalog | None = None,
 ) -> dict[str, Any]:
@@ -82,13 +86,24 @@ async def create_artifact(
         execution_id=execution_id,
         metadata=metadata,
         idempotency_key=idempotency_key,
+        tier=tier,
+        kms_key_alias=kms_key_alias,
+        pipeline_date=pipeline_date,
     )
 
     try:
         # 2. Upload content to S3
         body = encode_content(artifact_type, content)
         ct = content_type_for_type(artifact_type)
-        _storage.put_object(s3_key, body, ct)
+        extra_args = {}
+        if kms_key_alias:
+            kms_key_id = os.environ.get(
+                f"KMS_KEY_ARN_{kms_key_alias.upper().replace('-', '_')}",
+                kms_key_alias,
+            )
+            extra_args["ServerSideEncryption"] = "aws:kms"
+            extra_args["SSEKMSKeyId"] = kms_key_id
+        _storage.put_object(s3_key, body, ct, extra_args=extra_args)
 
         # 3. Update status to ready
         _catalog.update_status(artifact_id, "ready")

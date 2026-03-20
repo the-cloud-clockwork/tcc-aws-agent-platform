@@ -11,6 +11,8 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
+from mcp_artifacts.catalog import ArtifactCatalog
+from mcp_artifacts.storage import ArtifactStorage
 from mcp_artifacts.tools.create import create_artifact
 from mcp_artifacts.tools.get import get_artifact
 from mcp_artifacts.tools.list_artifacts import list_artifacts
@@ -30,15 +32,15 @@ TOOLS = [
         name="create_artifact",
         description=(
             "Store an artifact (chart, report, simulation result, recommendation, image, "
-            "data export) to S3 and register it in the artifact catalog. Returns the "
-            "artifact_id and S3 key immediately."
+            "data export, pipeline run) to S3 and register it in the artifact catalog. "
+            "Returns the artifact_id and S3 key immediately."
         ),
         inputSchema={
             "type": "object",
             "properties": {
                 "type": {
                     "type": "string",
-                    "enum": ["chart", "report", "simulation_result", "recommendation", "image", "data_export"],
+                    "enum": ["chart", "report", "simulation_result", "recommendation", "image", "data_export", "pipeline_run"],
                     "description": "Artifact type",
                 },
                 "content": {
@@ -57,6 +59,20 @@ TOOLS = [
                 "execution_id": {
                     "type": "string",
                     "description": "Execution or run identifier",
+                },
+                "tier": {
+                    "type": "string",
+                    "enum": ["platform", "domain"],
+                    "description": "Artifact tier (default: platform)",
+                    "default": "platform",
+                },
+                "kms_key_alias": {
+                    "type": "string",
+                    "description": "KMS key alias for server-side encryption",
+                },
+                "pipeline_date": {
+                    "type": "string",
+                    "description": "Analysis date (YYYY-MM-DD)",
                 },
             },
             "required": ["type", "content"],
@@ -110,7 +126,7 @@ TOOLS = [
             "properties": {
                 "type": {
                     "type": "string",
-                    "enum": ["chart", "report", "simulation_result", "recommendation", "image", "data_export"],
+                    "enum": ["chart", "report", "simulation_result", "recommendation", "image", "data_export", "pipeline_run"],
                     "description": "Filter by artifact type",
                 },
                 "agent_id": {
@@ -126,6 +142,100 @@ TOOLS = [
                     "description": "Max results (default 50)",
                     "default": 50,
                 },
+                "execution_id": {
+                    "type": "string",
+                    "description": "Filter by execution/run ID",
+                },
+            },
+        },
+    ),
+    Tool(
+        name="get_pipeline_run",
+        description=(
+            "Retrieve a pipeline run manifest by execution_id or date. "
+            "Returns the manifest JSON content inline."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "execution_id": {
+                    "type": "string",
+                    "description": "Step Functions execution ID",
+                },
+                "date": {
+                    "type": "string",
+                    "description": "Analysis date (YYYY-MM-DD)",
+                },
+            },
+        },
+    ),
+    Tool(
+        name="get_latest_run",
+        description=(
+            "Get the most recent pipeline run manifest. "
+            "Returns the manifest JSON content inline."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {},
+        },
+    ),
+    Tool(
+        name="get_agent_result",
+        description=(
+            "Retrieve a specific agent's result artifact from a pipeline run. "
+            "Returns the artifact JSON content inline with a signed URL."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "execution_id": {
+                    "type": "string",
+                    "description": "Step Functions execution ID",
+                },
+                "agent_id": {
+                    "type": "string",
+                    "description": "Agent identifier",
+                },
+            },
+            "required": ["execution_id", "agent_id"],
+        },
+    ),
+    Tool(
+        name="search_artifacts",
+        description=(
+            "Search artifacts with date range, agent, type, and tier filters. "
+            "Returns metadata and signed URLs (no S3 content)."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "date_from": {
+                    "type": "string",
+                    "description": "Start date (YYYY-MM-DD)",
+                },
+                "date_to": {
+                    "type": "string",
+                    "description": "End date (YYYY-MM-DD)",
+                },
+                "agent_id": {
+                    "type": "string",
+                    "description": "Filter by agent ID",
+                },
+                "type": {
+                    "type": "string",
+                    "description": "Filter by artifact type",
+                },
+                "tier": {
+                    "type": "string",
+                    "enum": ["platform", "domain"],
+                    "description": "Filter by tier",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results (default 20)",
+                    "default": 20,
+                },
             },
         },
     ),
@@ -138,6 +248,173 @@ async def handle_list_tools() -> list[Tool]:
     return TOOLS
 
 
+
+
+async def _get_pipeline_run(
+    execution_id: str = "",
+    date: str = "",
+) -> dict:
+    """Retrieve a pipeline run manifest by execution_id or date."""
+    catalog = ArtifactCatalog()
+    storage = ArtifactStorage()
+
+    if not execution_id and not date:
+        return {"error": "At least one of execution_id or date is required"}
+
+    if execution_id:
+        entries = catalog.list_entries(
+            artifact_type="pipeline_run",
+            execution_id=execution_id,
+            limit=1,
+        )
+    else:
+        entries = catalog.list_entries(
+            artifact_type="pipeline_run",
+            date=date,
+            limit=1,
+        )
+
+    if not entries:
+        return {"error": "Pipeline run not found"}
+
+    entry = entries[0]
+    try:
+        content = storage.get_object_bytes(entry["s3_key"]).decode("utf-8")
+        import json as _json
+        manifest = _json.loads(content)
+    except Exception as e:
+        manifest = {"error": f"Failed to fetch manifest: {e}"}
+
+    return {
+        "artifact_id": entry["artifact_id"],
+        "execution_id": entry.get("execution_id", ""),
+        "pipeline_date": entry.get("pipeline_date", ""),
+        "created_at": entry.get("created_at", ""),
+        "manifest": manifest,
+    }
+
+
+async def _get_latest_run() -> dict:
+    """Get the most recent pipeline run manifest."""
+    catalog = ArtifactCatalog()
+    storage = ArtifactStorage()
+
+    entries = catalog.list_entries(
+        artifact_type="pipeline_run",
+        limit=1,
+    )
+
+    if not entries:
+        return {"error": "No pipeline runs found"}
+
+    entry = entries[0]
+    try:
+        content = storage.get_object_bytes(entry["s3_key"]).decode("utf-8")
+        import json as _json
+        manifest = _json.loads(content)
+    except Exception as e:
+        manifest = {"error": f"Failed to fetch manifest: {e}"}
+
+    return {
+        "artifact_id": entry["artifact_id"],
+        "execution_id": entry.get("execution_id", ""),
+        "pipeline_date": entry.get("pipeline_date", ""),
+        "created_at": entry.get("created_at", ""),
+        "manifest": manifest,
+    }
+
+
+async def _get_agent_result(
+    execution_id: str,
+    agent_id: str,
+) -> dict:
+    """Retrieve a specific agent's result artifact from a pipeline run."""
+    catalog = ArtifactCatalog()
+    storage = ArtifactStorage()
+
+    entries = catalog.list_entries(
+        execution_id=execution_id,
+        agent_id=agent_id,
+        limit=1,
+    )
+
+    if not entries:
+        return {"error": f"No artifact found for agent {agent_id} in execution {execution_id}"}
+
+    entry = entries[0]
+    signed_url = storage.get_best_url(entry["s3_key"])
+
+    result: dict = {
+        "artifact_id": entry["artifact_id"],
+        "agent_id": entry.get("agent_id", ""),
+        "execution_id": entry.get("execution_id", ""),
+        "type": entry.get("type", ""),
+        "status": entry.get("status", ""),
+        "created_at": entry.get("created_at", ""),
+        "signed_url": signed_url,
+        "metadata": entry.get("metadata", {}),
+    }
+
+    # Inline JSON content for JSON-type artifacts
+    if entry.get("status") == "ready" and entry.get("type") in ("simulation_result", "recommendation", "pipeline_run", "data_export", "report"):
+        try:
+            raw = storage.get_object_bytes(entry["s3_key"]).decode("utf-8")
+            import json as _json
+            result["content"] = _json.loads(raw)
+        except Exception:
+            pass  # content not included, signed_url available
+
+    return result
+
+
+async def _search_artifacts(
+    date_from: str = "",
+    date_to: str = "",
+    agent_id: str = "",
+    type: str = "",
+    tier: str = "",
+    limit: int = 20,
+) -> dict:
+    """Search artifacts with filters. Returns metadata + signed URLs."""
+    catalog = ArtifactCatalog()
+    storage = ArtifactStorage()
+
+    # Use the most specific query path available
+    entries = catalog.list_entries(
+        artifact_type=type or None,
+        agent_id=agent_id or None,
+        date=date_from or None,
+        limit=limit,
+    )
+
+    # Apply additional filters that list_entries doesn't natively support
+    filtered = []
+    for entry in entries:
+        if tier and entry.get("tier", "platform") != tier:
+            continue
+        if date_to and entry.get("created_at", "") > date_to + "T99":
+            continue
+        filtered.append(entry)
+
+    results = []
+    for entry in filtered[:limit]:
+        signed_url = storage.get_best_url(entry["s3_key"]) if entry.get("status") == "ready" else None
+        results.append({
+            "artifact_id": entry["artifact_id"],
+            "type": entry.get("type", ""),
+            "agent_id": entry.get("agent_id", ""),
+            "execution_id": entry.get("execution_id", ""),
+            "tier": entry.get("tier", "platform"),
+            "pipeline_date": entry.get("pipeline_date", ""),
+            "status": entry.get("status", ""),
+            "created_at": entry.get("created_at", ""),
+            "signed_url": signed_url,
+            "metadata": entry.get("metadata", {}),
+        })
+
+    return {"count": len(results), "artifacts": results}
+
+
 @app.call_tool()
 async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
     """Dispatch tool calls to the appropriate handler."""
@@ -146,6 +423,10 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
         "get_artifact": get_artifact,
         "poll_artifact": poll_artifact,
         "list_artifacts": list_artifacts,
+        "get_pipeline_run": _get_pipeline_run,
+        "get_latest_run": _get_latest_run,
+        "get_agent_result": _get_agent_result,
+        "search_artifacts": _search_artifacts,
     }
 
     handler = handlers.get(name)

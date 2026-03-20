@@ -37,7 +37,7 @@ async def get_artifact(
 
     signed_url = None
     if entry["status"] == "ready":
-        signed_url = _storage.generate_signed_url(entry["s3_key"])
+        signed_url = _storage.get_best_url(entry["s3_key"])
 
     artifact_type = ArtifactType(entry["type"]) if "type" in entry else None
     meta = entry.get("metadata", {})

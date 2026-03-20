@@ -19,6 +19,7 @@ class ArtifactType(str, Enum):
     RECOMMENDATION = "recommendation"
     IMAGE = "image"
     DATA_EXPORT = "data_export"
+    PIPELINE_RUN = "pipeline_run"
 
 
 # Map artifact type to file extension and content-type
@@ -29,6 +30,7 @@ ARTIFACT_TYPE_MAP: dict[ArtifactType, tuple[str, str]] = {
     ArtifactType.RECOMMENDATION: (".json", "application/json"),
     ArtifactType.IMAGE: (".png", "image/png"),
     ArtifactType.DATA_EXPORT: (".csv", "text/csv"),
+    ArtifactType.PIPELINE_RUN: (".json", "application/json"),
 }
 
 
@@ -45,6 +47,9 @@ class ArtifactMeta(BaseModel):
     created_at: datetime
     expires_at: datetime | None = None
     metadata: dict = Field(default_factory=dict)
+    tier: str = "platform"
+    kms_key_alias: str | None = None
+    pipeline_date: str = ""
 
 
 class CreateResult(BaseModel):
