@@ -39,6 +39,9 @@ htmlcov/
 # CDK
 cdk.out/
 
+# Lambda packaging artifacts
+infra/lambda/agents/*.zip
+
 # Node (for tooling only)
 node_modules/
 
