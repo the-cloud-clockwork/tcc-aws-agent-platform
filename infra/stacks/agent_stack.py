@@ -29,15 +29,11 @@ from stacks.security_stack import SecurityStack
 # MCP URI environment variable mapping
 # Key: env var name, Value: (mcp_name, default_port)
 MCP_ENV_VARS = {
-    "MARKET_DATA_MCP_URI": ("market-data", 8080),
-    "SENTIMENT_MCP_URI": ("sentiment", 8080),
-    "ARTIFACTS_MCP_URI": ("artifacts", 8080),
-    "BACKTEST_MCP_URI": ("backtest", 8080),
-    "CHARTING_MCP_URI": ("charting", 8080),
-    "IBKR_MCP_URI": ("ibkr", 8080),
-    "TWO_FA_MCP_URI": ("twofa", 8080),
-    "ML_PREDICT_MCP_URI": ("ml-predict", 8080),
-    "TECHNICAL_MCP_URI": ("technical", 8080),
+    # MCP URI environment variable mapping
+    # Key: env var name, Value: (service-discovery name, default port)
+    # Domain-specific MCPs are configured via environment config YAML overlay.
+    # Example:
+    #   "EXAMPLE_MCP_URI": ("example-svc", 8080),
 }
 
 

@@ -21,7 +21,7 @@ EXECUTION CONTROL →  External Executor
 ## Features
 
 - **4 MCP tools** — create, get, poll, and list artifacts
-- **6 artifact types** — chart (JSX), report (Markdown), simulation_result (JSON), recommendation (JSON), image (PNG), data_export (CSV)
+- **6 artifact types** — chart (JSX), report (Markdown), analysis_result (JSON), recommendation (JSON), image (PNG), data_export (CSV)
 - **Dual storage** — S3 for content, DynamoDB for metadata and catalog
 - **Pre-signed URLs** — 1-hour GET URLs generated on retrieval, never stored
 - **Idempotency** — `idempotency_key` parameter on `create_artifact` prevents duplicate writes on agent retries
@@ -42,9 +42,9 @@ EXECUTION CONTROL →  External Executor
 
 | Type | Extension | Content-Type | Content Format |
 |---|---|---|---|
-| `chart` | `.jsx` | `text/jsx` | React/Recharts JSX component |
+| `chart` | `.jsx` | `text/jsx` | React JSX visualization component |
 | `report` | `.md` | `text/markdown` | Markdown analysis report |
-| `simulation_result` | `.json` | `application/json` | Simulation results with performance curve, Sharpe ratio, drawdown |
+| `analysis_result` | `.json` | `application/json` | Analysis results with performance metrics |
 | `recommendation` | `.json` | `application/json` | Recommender output (action, target, confidence, rationale) |
 | `image` | `.png` | `image/png` | Base64-encoded PNG (decoded to raw bytes before S3 upload) |
 | `data_export` | `.csv` | `text/csv` | Time-series, allocation, or summary data |
@@ -183,11 +183,11 @@ This server is the output bus for every agent:
 
 | Consumer | How it uses artifacts-mcp |
 |---|---|
-| Gap Detection Agent | Stores `ranked_gaps` JSON as `simulation_result` |
+| Data Analysis Agent | Stores analysis output JSON as `analysis_result` |
 | Analytics Agent | Stores `analytics_report` as `report` |
 | Recommender Agent | Stores `recommendation` JSON |
-| Strategy Evaluation Agent | Stores simulation results as `simulation_result` |
-| charting-mcp | Stores generated React/Recharts components as `chart` |
+| Evaluation Agent | Stores evaluation results as `analysis_result` |
+| example-mcp | Stores generated JSX visualization components as `chart` |
 | Step Functions | Passes `artifact_id` strings between states |
 | Claude.ai UI | Retrieves `chart` artifacts via signed URL for rendering |
 

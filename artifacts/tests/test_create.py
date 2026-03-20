@@ -95,7 +95,7 @@ async def test_create_data_export(mock_aws_all):
     """Create a data_export artifact (CSV content)."""
     storage, catalog = mock_aws_all
 
-    csv_content = "date,target,close\n2025-01-01,AAPL,195.50\n2025-01-02,AAPL,196.10"
+    csv_content = "date,target,close\n2025-01-01,ITEM-A,100.50\n2025-01-02,ITEM-A,101.10"
     result = await create_artifact(
         type="data_export",
         content=csv_content,

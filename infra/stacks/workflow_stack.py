@@ -16,18 +16,18 @@ from stacks.data_stack import DataStack
 # Simplified workflow matching the SfnWorkflow construct format.
 # Choice states, fail states, and wait states require a construct
 # upgrade — tracked for Phase 2.
-WEEKLY_ANALYSIS_YAML = """\
-name: weekly-analysis
+EXAMPLE_WORKFLOW_YAML = """\
+name: example-workflow
 steps:
-  - agent: gap-detector
+  - agent: example-agent
     next: parallel-analysis
   - parallel:
-      - agent: sentiment-analyzer
-      - agent: technical-analyzer
-    next: strategy-evaluator
-  - agent: strategy-evaluator
-    next: portfolio-recommender
-  - agent: portfolio-recommender
+      - agent: example-analyzer-a
+      - agent: example-analyzer-b
+    next: example-processor
+  - agent: example-processor
+    next: example-summarizer
+  - agent: example-summarizer
 """
 
 
@@ -54,10 +54,10 @@ class WorkflowStack(Stack):
         artifacts_bucket = data_stack.buckets.get("artifacts")
         output_bucket_name = artifacts_bucket.bucket_name if artifacts_bucket else ""
 
-        self.weekly_analysis = SfnWorkflow(
+        self.example_workflow = SfnWorkflow(
             self,
-            "WeeklyAnalysis",
-            blueprint_yaml=WEEKLY_ANALYSIS_YAML,
+            "ExampleWorkflow",
+            blueprint_yaml=EXAMPLE_WORKFLOW_YAML,
             agent_functions=agent_functions,
             output_bucket_name=output_bucket_name,
             env_name=env_name,
