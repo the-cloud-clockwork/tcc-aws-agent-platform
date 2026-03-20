@@ -11,36 +11,43 @@ Usage::
 
     from agent_core.hooks.observability_hooks import create_observability_hooks
 
-    hooks = create_observability_hooks(
+    hook = create_observability_hooks(
         agent_id="gap_detector",
         prompt_id="gap_detector",
         prompt_version="v1.2",
         execution_mode="simulation",
     )
-    agent = Agent(..., callbacks=hooks)
+    agent = Agent(..., hooks=[hook])
 """
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from agent_core.observability.audit_log import AuditLogWriter
 from agent_core.observability.langfuse_hook import LangfuseHook
 from agent_core.observability.structured_logger import StructuredLogger
+
+if TYPE_CHECKING:
+    from strands.hooks import HookRegistry
 
 logger = logging.getLogger("agent_core.hooks.observability")
 
 
 @dataclass
 class CompositeObservabilityHook:
-    """Strands callback hook that combines Langfuse, audit, and structured logging.
+    """Strands HookProvider that combines Langfuse, audit, and structured logging.
 
-    Implements the Strands callback protocol:
-    - ``on_agent_start`` -- logs pipeline start, creates Langfuse trace
-    - ``after_model_invocation`` -- logs to Langfuse with cost
-    - ``on_tool_end`` -- logs tool calls to structured logger
-    - ``on_agent_end`` -- logs pipeline completion, finalizes trace, writes audit
+    Implements the Strands ``HookProvider`` protocol via ``register_hooks``.
+    Also retains the legacy callback methods for backward compatibility and
+    direct invocation in tests.
+
+    Events handled:
+    - ``BeforeInvocationEvent`` -- logs pipeline start, creates Langfuse trace
+    - ``AfterModelCallEvent`` -- logs to Langfuse with cost
+    - ``AfterToolCallEvent`` -- logs tool calls to structured logger
+    - ``AfterInvocationEvent`` -- logs pipeline completion, finalizes trace, writes audit
     """
 
     agent_id: str = "unknown"
@@ -73,7 +80,49 @@ class CompositeObservabilityHook:
             prompt_version=self.prompt_version,
         )
 
-    # ---- Strands callback protocol ----
+    # ---- Strands HookProvider protocol ----
+
+    def register_hooks(self, registry: HookRegistry, **kwargs: Any) -> None:
+        """Register typed event callbacks with the Strands hook registry."""
+        from strands.hooks.events import (
+            AfterInvocationEvent,
+            AfterModelCallEvent,
+            AfterToolCallEvent,
+            BeforeInvocationEvent,
+        )
+
+        registry.add_callback(BeforeInvocationEvent, self._on_before_invocation)
+        registry.add_callback(AfterModelCallEvent, self._on_after_model_call)
+        registry.add_callback(AfterToolCallEvent, self._on_after_tool_call)
+        registry.add_callback(AfterInvocationEvent, self._on_after_invocation)
+
+    # ---- Typed event handlers ----
+
+    def _on_before_invocation(self, event: Any) -> None:
+        """Handle BeforeInvocationEvent."""
+        self.on_agent_start()
+
+    def _on_after_model_call(self, event: Any) -> None:
+        """Handle AfterModelCallEvent."""
+        self.after_model_invocation()
+
+    def _on_after_tool_call(self, event: Any) -> None:
+        """Handle AfterToolCallEvent."""
+        tool_name = "unknown"
+        error = None
+        # Extract tool name from the event's tool_use dict
+        if hasattr(event, "tool_use") and event.tool_use:
+            tool_name = event.tool_use.get("name", "unknown")
+        # Check for exceptions
+        if hasattr(event, "exception") and event.exception is not None:
+            error = str(event.exception)
+        self.on_tool_end(tool_name=tool_name, error=error)
+
+    def _on_after_invocation(self, event: Any) -> None:
+        """Handle AfterInvocationEvent."""
+        self.on_agent_end()
+
+    # ---- Legacy callback methods (still used directly in tests) ----
 
     def on_agent_start(self, **kwargs: Any) -> None:
         """Called when the agent begins execution."""
@@ -157,6 +206,27 @@ class CompositeObservabilityHook:
         except Exception:
             logger.debug("Audit log write failed on agent end -- non-fatal")
 
+    # ---- Callable protocol (backward compat for callbacks= usage) ----
+
+    def __call__(self, **kwargs: Any) -> None:
+        """Dispatch to the appropriate method based on event_type in kwargs.
+
+        This enables backward compatibility with the old ``callbacks=[hook]``
+        pattern where the hook was called as a function.
+        """
+        event_type = kwargs.pop("event_type", None)
+        dispatch = {
+            "agent_start": self.on_agent_start,
+            "model_invocation": self.after_model_invocation,
+            "tool_end": self.on_tool_end,
+            "agent_end": self.on_agent_end,
+        }
+        handler = dispatch.get(event_type)
+        if handler:
+            handler(**kwargs)
+        else:
+            logger.debug("Unhandled event_type=%s in __call__", event_type)
+
     @property
     def langfuse_summary(self) -> dict[str, Any]:
         """Return token/cost summary from the Langfuse hook."""
@@ -171,10 +241,11 @@ def create_observability_hooks(
     target: str = "",
     strategy_id: str = "",
     audit_table: str | None = None,
-) -> list[Any]:
-    """Factory function that creates the standard set of observability hooks.
+) -> CompositeObservabilityHook:
+    """Factory function that creates an observability HookProvider.
 
-    Returns a list of callback objects suitable for ``Agent(..., callbacks=hooks)``.
+    Returns a ``CompositeObservabilityHook`` instance suitable for
+    ``Agent(..., hooks=[hook])``.
 
     Parameters
     ----------
@@ -195,9 +266,9 @@ def create_observability_hooks(
 
     Returns
     -------
-    List containing a ``CompositeObservabilityHook`` instance.
+    A ``CompositeObservabilityHook`` instance (implements ``HookProvider``).
     """
-    hook = CompositeObservabilityHook(
+    return CompositeObservabilityHook(
         agent_id=agent_id,
         prompt_id=prompt_id,
         prompt_version=prompt_version,
@@ -206,4 +277,3 @@ def create_observability_hooks(
         strategy_id=strategy_id,
         audit_table=audit_table,
     )
-    return [hook]
