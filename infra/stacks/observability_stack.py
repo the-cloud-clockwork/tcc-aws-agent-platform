@@ -121,7 +121,7 @@ class ObservabilityStack(Stack):
             self,
             "XRayGroup",
             group_name=f"{prefix}-{env_name}",
-            filter_expression=f'annotation.environment == "{env_name}"',
+            filter_expression=f'annotation.environment = "{env_name}"',
         )
 
         # -- Agent Lambda Alarms -------------------------------------------
