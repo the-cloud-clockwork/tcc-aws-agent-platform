@@ -129,7 +129,7 @@ class ProviderRegistry:
         """Register a provider class by name.
 
         Args:
-            name: Provider name (e.g., "external", "telegram").
+            name: Provider name (e.g., "external", "webhook").
             provider_cls: IdentityProvider subclass.
         """
         self._providers[name] = provider_cls

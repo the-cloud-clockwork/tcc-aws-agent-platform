@@ -66,8 +66,8 @@ SAMPLE_STRATEGY_YAML = textwrap.dedent("""\
     exit_conditions:
       logic: OR
       conditions:
-        - type: trailing_stop
-        - field: holding_days
+        - type: threshold_breach
+        - field: elapsed_time
           op: gte
           value: 5
     max_concurrent_positions: 3
@@ -76,7 +76,7 @@ SAMPLE_STRATEGY_YAML = textwrap.dedent("""\
 """)
 
 SAMPLE_WORKFLOW_YAML = textwrap.dedent("""\
-    id: weekly_analysis
+    id: example_workflow
     version: "1.0.0"
     name: Weekly Analysis Pipeline
     trigger:
@@ -114,7 +114,7 @@ def tmp_blueprints(tmp_path: Path) -> Path:
         ├── strategies/
         │   └── multi_signal_entry.yaml
         └── workflows/
-            └── weekly_analysis.yaml
+            └── example_workflow.yaml
     """
     agents_dir = tmp_path / "agents"
     agents_dir.mkdir()
@@ -126,7 +126,7 @@ def tmp_blueprints(tmp_path: Path) -> Path:
 
     workflows_dir = tmp_path / "workflows"
     workflows_dir.mkdir()
-    (workflows_dir / "weekly_analysis.yaml").write_text(SAMPLE_WORKFLOW_YAML)
+    (workflows_dir / "example_workflow.yaml").write_text(SAMPLE_WORKFLOW_YAML)
 
     return tmp_path
 

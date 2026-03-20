@@ -22,7 +22,7 @@ def _make_blueprint(
         description="A test strategy",
         asset_types=["default"],
         scopes=["us_equity"],
-        required_signals=["gap_pct"],
+        required_signals=["score_a"],
         entry_conditions=entry_conditions or ConditionGroup(logic="AND", conditions=[]),
         exit_conditions=exit_conditions or ConditionGroup(logic="AND", conditions=[]),
         required_agents=["detector"],
@@ -46,13 +46,13 @@ class TestEvaluateCondition:
         assert result.passed is False
 
     def test_gt_operator(self):
-        cond = Condition(field="gap_pct", op="gt", value=2.0)
-        result = self.evaluator.evaluate_condition(cond, {"gap_pct": 3.5})
+        cond = Condition(field="score_a", op="gt", value=2.0)
+        result = self.evaluator.evaluate_condition(cond, {"score_a": 3.5})
         assert result.passed is True
 
     def test_lt_operator(self):
-        cond = Condition(field="gap_pct", op="lt", value=2.0)
-        result = self.evaluator.evaluate_condition(cond, {"gap_pct": 3.5})
+        cond = Condition(field="score_a", op="lt", value=2.0)
+        result = self.evaluator.evaluate_condition(cond, {"score_a": 3.5})
         assert result.passed is False
 
     def test_gte_operator(self):
@@ -87,14 +87,14 @@ class TestEvaluateCondition:
             self.evaluator.evaluate_condition(cond, {"x": "test"})
 
     def test_type_condition_present(self):
-        cond = Condition(type="trailing_stop")
-        result = self.evaluator.evaluate_condition(cond, {"trailing_stop": True})
+        cond = Condition(type="threshold_breach")
+        result = self.evaluator.evaluate_condition(cond, {"threshold_breach": True})
         assert result.passed is True
         assert result.op == "type_check"
 
     def test_type_condition_absent(self):
-        cond = Condition(type="trailing_stop")
-        result = self.evaluator.evaluate_condition(cond, {"gap_pct": 2.0})
+        cond = Condition(type="threshold_breach")
+        result = self.evaluator.evaluate_condition(cond, {"score_a": 2.0})
         assert result.passed is False
 
     def test_neq_operator(self):
@@ -111,11 +111,11 @@ class TestEvaluateGroup:
         group = ConditionGroup(
             logic="AND",
             conditions=[
-                Condition(field="gap_pct", op="gt", value=2.0),
+                Condition(field="score_a", op="gt", value=2.0),
                 Condition(field="volume", op="gt", value=1000),
             ],
         )
-        result = self.evaluator.evaluate_group(group, {"gap_pct": 3.0, "volume": 2000})
+        result = self.evaluator.evaluate_group(group, {"score_a": 3.0, "volume": 2000})
         assert result.matched is True
         assert result.score == 1.0
 
@@ -123,11 +123,11 @@ class TestEvaluateGroup:
         group = ConditionGroup(
             logic="AND",
             conditions=[
-                Condition(field="gap_pct", op="gt", value=2.0),
+                Condition(field="score_a", op="gt", value=2.0),
                 Condition(field="volume", op="gt", value=1000),
             ],
         )
-        result = self.evaluator.evaluate_group(group, {"gap_pct": 3.0, "volume": 500})
+        result = self.evaluator.evaluate_group(group, {"score_a": 3.0, "volume": 500})
         assert result.matched is False
         assert result.score == 0.5
 
@@ -135,11 +135,11 @@ class TestEvaluateGroup:
         group = ConditionGroup(
             logic="OR",
             conditions=[
-                Condition(field="gap_pct", op="gt", value=5.0),
+                Condition(field="score_a", op="gt", value=5.0),
                 Condition(field="volume", op="gt", value=1000),
             ],
         )
-        result = self.evaluator.evaluate_group(group, {"gap_pct": 1.0, "volume": 2000})
+        result = self.evaluator.evaluate_group(group, {"score_a": 1.0, "volume": 2000})
         assert result.matched is True
         assert result.score == 0.5
 
@@ -158,14 +158,14 @@ class TestEvaluate:
         bp = _make_blueprint(
             entry_conditions=ConditionGroup(
                 logic="AND",
-                conditions=[Condition(field="gap_pct", op="gt", value=2.0)],
+                conditions=[Condition(field="score_a", op="gt", value=2.0)],
             ),
             exit_conditions=ConditionGroup(
                 logic="AND",
-                conditions=[Condition(field="gap_pct", op="lt", value=0.5)],
+                conditions=[Condition(field="score_a", op="lt", value=0.5)],
             ),
         )
-        result = self.evaluator.evaluate(bp, {"gap_pct": 3.0})
+        result = self.evaluator.evaluate(bp, {"score_a": 3.0})
         assert result.entry_matched is True
         assert result.exit_matched is False
         assert result.strategy_id == "test_strategy"

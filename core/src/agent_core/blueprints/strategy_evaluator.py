@@ -56,7 +56,7 @@ class StrategyEvaluator:
 
     def evaluate_condition(self, cond: Condition, signals: dict[str, Any]) -> ConditionResult:
         """Evaluate a single condition against signals."""
-        # Special type-based conditions (e.g., trailing_stop)
+        # Special type-based conditions (e.g., threshold_breach)
         if cond.type is not None:
             present = cond.type in signals
             return ConditionResult(

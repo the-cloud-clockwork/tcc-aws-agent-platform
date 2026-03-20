@@ -63,12 +63,12 @@ class TestStructuredLogger:
             execution_id="exec-fixed",
         )
         with caplog.at_level(logging.INFO, logger="agent_core.structured"):
-            record = logger.info("Gap found", target="ENTITY-1", gap_pct=2.3)
+            record = logger.info("Match found", target="ENTITY-1", score_a=2.3)
 
         assert record.agent_id == "test_agent"
         assert record.level == "INFO"
         assert record.extra["target"] == "ENTITY-1"
-        assert record.extra["gap_pct"] == 2.3
+        assert record.extra["score_a"] == 2.3
 
         # Verify the log output is valid JSON
         assert len(caplog.records) == 1

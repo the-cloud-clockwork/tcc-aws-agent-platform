@@ -45,7 +45,7 @@ class BaseMCPServer:
     - Tool dispatch with error wrapping
     - Transport selection (stdio/http/sse via MCP_TRANSPORT env var)
     - HTTP health endpoint
-    - Optional background tasks (e.g. Telegram polling in twofa)
+    - Optional background tasks (e.g. background polling)
     """
 
     def __init__(

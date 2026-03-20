@@ -25,10 +25,10 @@ class TestMemoryBranching:
     def test_update_branch(self):
         mgr = MemoryBranchManager(session_id="test-session")
         branch = mgr.create_branch("test", base_state={"count": 0})
-        mgr.update_branch(branch.branch_id, state_updates={"count": 5}, metrics={"sharpe": 1.5})
+        mgr.update_branch(branch.branch_id, state_updates={"count": 5}, metrics={"quality_score": 1.5})
         updated = mgr.get_branch(branch.branch_id)
         assert updated.state["count"] == 5
-        assert updated.metrics["sharpe"] == 1.5
+        assert updated.metrics["quality_score"] == 1.5
 
     def test_compare_branches(self):
         mgr = MemoryBranchManager(session_id="test-session")
