@@ -85,9 +85,9 @@ Single import point for the entire library. Re-exports 17 symbols so consumers w
 
 **`xray_tracing.py`** — `XRayTracer` provides context manager (`subsegment`) and decorator (`capture`) APIs for X-Ray tracing. Falls back to `_NoOpSubsegment` when the SDK is disabled — code that adds annotations works safely in any environment.
 
-**`audit_log.py`** — `AuditLogWriter` writes decision events to DynamoDB with 5-year TTL (MiFID II). Uses conditional writes for idempotency — duplicate events from agent retries are silently ignored. Supports GSI queries by execution_id and event_type.
+**`audit_log.py`** — `AuditLogWriter` writes decision events to DynamoDB with 5-year TTL (regulatory compliance). Uses conditional writes for idempotency — duplicate events from agent retries are silently ignored. Supports GSI queries by execution_id and event_type.
 
-**`alerts.py`** — `AlertPublisher` sends structured alerts to SNS (→ Telegram). Convenience methods for circuit breaker events and pipeline status. Never crashes on failure — returns None instead.
+**`alerts.py`** — `AlertPublisher` sends structured alerts to SNS (→ notification channel). Convenience methods for circuit breaker events and pipeline status. Never crashes on failure — returns None instead.
 
 ---
 

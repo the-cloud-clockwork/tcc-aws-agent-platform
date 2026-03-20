@@ -16,7 +16,7 @@ class AgentSession:
     Usage::
 
         with loader.build_agent_session("my-agent") as session:
-            result = session.run("Analyze gaps for AAPL on 2026-03-15")
+            result = session.run("Process dataset for item-A")
     """
 
     def __init__(

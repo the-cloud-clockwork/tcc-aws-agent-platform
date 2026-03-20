@@ -244,20 +244,20 @@ class TestStrategyEvaluatorIntegration:
             description="Enter when multiple signals confirm threshold",
             asset_types=["default"],
             scopes=["global"],
-            required_signals=["score_a", "score_b", "volume_ratio"],
+            required_signals=["score_a", "score_b", "ratio_a"],
             entry_conditions=ConditionGroup(
                 logic="AND",
                 conditions=[
                     Condition(field="score_a", op="gte", value=2.0),
                     Condition(field="score_b", op="gte", value=0.6),
-                    Condition(field="volume_ratio", op="gt", value=1.5),
+                    Condition(field="ratio_a", op="gt", value=1.5),
                 ],
             ),
             exit_conditions=ConditionGroup(
                 logic="OR",
                 conditions=[
-                    Condition(type="trailing_stop"),
-                    Condition(field="holding_days", op="gte", value=5),
+                    Condition(type="threshold_breach"),
+                    Condition(field="elapsed_time", op="gte", value=5),
                 ],
             ),
             required_agents=["detector"],
@@ -270,20 +270,20 @@ class TestStrategyEvaluatorIntegration:
         signals = {
             "score_a": 3.2,
             "score_b": 0.75,
-            "volume_ratio": 2.1,
-            "trailing_stop": True,
-            "holding_days": 2,
+            "ratio_a": 2.1,
+            "threshold_breach": True,
+            "elapsed_time": 2,
         }
         result = evaluator.evaluate(bp, signals)
         assert result.entry_matched is True
-        assert result.exit_matched is True  # trailing_stop present
+        assert result.exit_matched is True  # threshold_breach present
         assert result.score > 0.5
 
         # Weak signals — entry should not match
         weak_signals = {
             "score_a": 0.5,
             "score_b": 0.4,
-            "volume_ratio": 0.8,
+            "ratio_a": 0.8,
         }
         result = evaluator.evaluate(bp, weak_signals)
         assert result.entry_matched is False
@@ -300,7 +300,7 @@ class TestStrategyEvaluatorIntegration:
             entry_conditions=ConditionGroup(
                 logic="AND",
                 conditions=[
-                    Condition(field="gap_pct", op="gt", value=5.0),
+                    Condition(field="score_a", op="gt", value=5.0),
                     Condition(field="volume", op="gt", value=10000),
                 ],
             ),
@@ -316,7 +316,7 @@ class TestStrategyEvaluatorIntegration:
             entry_conditions=ConditionGroup(
                 logic="AND",
                 conditions=[
-                    Condition(field="gap_pct", op="gt", value=1.0),
+                    Condition(field="score_a", op="gt", value=1.0),
                 ],
             ),
             exit_conditions=ConditionGroup(logic="AND", conditions=[]),
@@ -324,6 +324,6 @@ class TestStrategyEvaluatorIntegration:
             required_mcps=[],
         )
 
-        results = StrategyEvaluator().evaluate_all([bp1, bp2], {"gap_pct": 3.0, "volume": 500})
+        results = StrategyEvaluator().evaluate_all([bp1, bp2], {"score_a": 3.0, "volume": 500})
         assert results[0].strategy_id == "lenient"
         assert results[0].entry_matched is True

@@ -1,8 +1,8 @@
 """SNS alert publisher for notifications.
 
 Publishes structured alert messages to an SNS topic. A downstream Lambda
-(``telegram_alert/handler.py``) subscribes to the topic and forwards
-messages to Telegram.
+(``alert_handler/handler.py``) subscribes to the topic and forwards
+messages to a notification channel.
 
 Usage::
 
@@ -15,7 +15,7 @@ Usage::
 
     publisher.pipeline_failed(
         execution_id="arn:aws:states:...",
-        error="Gap Detection Agent timed out after 15min",
+        error="Detection agent timed out after 15min",
     )
 
     publisher.send_alert(
@@ -49,7 +49,7 @@ class AlertLevel(str, Enum):
 
 
 class AlertPublisher:
-    """Publishes alert messages to SNS for Telegram delivery.
+    """Publishes alert messages to SNS for notification delivery.
 
     Parameters
     ----------
@@ -94,7 +94,7 @@ class AlertPublisher:
         level:
             Severity level.
         title:
-            Short title for the alert (used as Telegram header).
+            Short title for the alert (used as notification header).
         message:
             Human-readable message body.
         details:

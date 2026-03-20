@@ -43,8 +43,8 @@ class TestBlueprintLoader:
 
     def test_load_workflow(self, tmp_blueprints: Path) -> None:
         loader = BlueprintLoader(tmp_blueprints)
-        bp = loader.load_workflow("weekly_analysis")
-        assert bp.id == "weekly_analysis"
+        bp = loader.load_workflow("example_workflow")
+        assert bp.id == "example_workflow"
         assert len(bp.states) == 2
         assert bp.states[0].id == "ValidateSchedule"
 

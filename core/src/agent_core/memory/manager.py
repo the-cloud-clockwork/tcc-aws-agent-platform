@@ -31,7 +31,7 @@ class MemoryManager:
         manager = MemoryManager()
         manager.update_session_memory(session_id, agent_id, {"key": "value"})
         data = manager.get_session_memory(session_id)
-        results = manager.semantic_search(session_id, "AAPL gap analysis")
+        results = manager.semantic_search(session_id, "item-A data analysis")
     """
 
     def __init__(

@@ -16,7 +16,7 @@ class Condition(BaseModel):
     value: float | str | bool | list[str] | list[float] | None = None
     type: str | None = Field(
         default=None,
-        description="Special condition type, e.g. 'trailing_stop'.",
+        description="Special condition type, e.g. 'threshold_breach'.",
     )
 
 

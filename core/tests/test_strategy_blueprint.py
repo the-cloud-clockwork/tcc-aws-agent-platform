@@ -24,9 +24,9 @@ class TestStrategyBlueprint:
         assert bp.exit_conditions.logic == "OR"
         assert len(bp.exit_conditions.conditions) == 2
         # First condition is a special type
-        assert bp.exit_conditions.conditions[0].type == "trailing_stop"
+        assert bp.exit_conditions.conditions[0].type == "threshold_breach"
         # Second is a field comparison
-        assert bp.exit_conditions.conditions[1].field == "holding_days"
+        assert bp.exit_conditions.conditions[1].field == "elapsed_time"
 
     def test_required_agents_and_mcps(self, sample_strategy_dict: dict) -> None:
         bp = StrategyBlueprint(**sample_strategy_dict)
