@@ -23,7 +23,7 @@ scaling:
     target_cpu_percent: 70
   lambda:
     provisioned_concurrency: 0  # No provisioned concurrency in dev
-    provisioned_agents: ["portfolio-recommender"]
+    provisioned_agents: []
 
 dynamodb:
   billing_mode: PAY_PER_REQUEST  # On-demand for dev (unpredictable usage)
@@ -73,36 +73,8 @@ buckets:
   - prompt-registry
 
 agents:
-  - name: gap-detector
-    handler: qitp_agents.gap_detector.handler.handler
-    memory: 1024
-    timeout: 900
-  - name: sentiment-analyzer
-    handler: qitp_agents.sentiment_analyzer.handler.handler
-    memory: 1024
-    timeout: 900
-  - name: strategy-evaluator
-    handler: qitp_agents.strategy_evaluator.handler.handler
-    memory: 1024
-    timeout: 900
-  - name: portfolio-recommender
-    handler: qitp_agents.portfolio_recommender.handler.handler
-    memory: 2048
-    timeout: 900
-  - name: technical-analyzer
-    handler: qitp_agents.technical_analyzer.handler.handler
-    memory: 1024
-    timeout: 900
-  - name: ml-predictor
-    handler: qitp_agents.ml_predictor.handler.handler
-    memory: 1024
-    timeout: 900
-  - name: watchlist-screener
-    handler: qitp_agents.watchlist_screener.handler.handler
-    memory: 1024
-    timeout: 900
-  - name: tax-reporter
-    handler: qitp_agents.tax_reporter.handler.handler
+  - name: example-agent
+    handler: my_agents.example.handler.handler
     memory: 1024
     timeout: 900
 
@@ -111,35 +83,7 @@ mcps:
     port: 8080
     cpu: 256
     memory: 512
-  - name: market-data
-    port: 8080
-    cpu: 256
-    memory: 512
-  - name: sentiment
-    port: 8080
-    cpu: 256
-    memory: 512
-  - name: technical
-    port: 8080
-    cpu: 256
-    memory: 512
-  - name: backtest
-    port: 8080
-    cpu: 256
-    memory: 512
-  - name: charting
-    port: 8080
-    cpu: 256
-    memory: 512
-  - name: ibkr
-    port: 8080
-    cpu: 256
-    memory: 512
-  - name: twofa
-    port: 8080
-    cpu: 256
-    memory: 512
-  - name: ml-predict
+  - name: example-svc
     port: 8080
     cpu: 256
     memory: 512

@@ -229,10 +229,16 @@ fi
 TERMS+=("${EXTRA_TERMS[@]}")
 
 # ── Build grep pattern ────────────────────────────────────────────────
+# Add \b word boundaries for simple alphanumeric terms to avoid
+# substring false positives (e.g. "tax" matching "syntax")
 pattern=""
 for t in "${TERMS[@]}"; do
   [[ -n "$pattern" ]] && pattern+="\|"
-  pattern+="$t"
+  if [[ "$t" =~ ^[a-zA-Z0-9_]+$ ]]; then
+    pattern+="\\b${t}\\b"
+  else
+    pattern+="${t}"
+  fi
 done
 
 # ── Excludes ──────────────────────────────────────────────────────────
@@ -245,12 +251,9 @@ EXCLUDES=(
   --exclude-dir=dist
   --exclude-dir=.scannerwork
   --exclude-dir=.pytest_cache
-  --exclude-dir=lambda/agents/dist
-  --exclude="CLAUDE.md"
   --exclude="domain-scan.sh"
   --exclude="*.lock"
-  --exclude="sonar-project.properties"
-  --exclude="publish.yml"
+  --exclude="sonar-scan.yml"  # GitHub Actions uses: requires static org name
 )
 
 # ── Run ───────────────────────────────────────────────────────────────

@@ -25,7 +25,7 @@ multi_agent:
       agent_ref: my-agent
       type: agent
     - id: technical_analysis
-      agent_ref: technical-analyzer
+      agent_ref: example-analyzer
       type: agent
     - id: analytics_check
       agent_ref: analytics-agent

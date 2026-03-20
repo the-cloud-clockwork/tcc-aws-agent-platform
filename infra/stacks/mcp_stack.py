@@ -173,14 +173,9 @@ class McpStack(Stack):
             t = data_stack.tables.get(key)
             return t.table_name if t else ""
 
-        env_map["market-data"] = {
-            "S3_MARKET_DATA_BUCKET": bucket_name("historical-data"),
-            "WATCHLIST_S3_KEY": "watchlist/watchlist.json",
-        }
-        env_map["backtest"] = {
-            "OHLCV_BUCKET": bucket_name("historical-data"),
-            "STRATEGY_BUCKET": bucket_name("artifacts"),
-        }
+        # Platform-managed MCP env vars.
+        # Domain-specific MCP env vars should be injected via config overlay
+        # or CDK context, not hardcoded here.
         env_map["artifacts"] = {
             "ARTIFACTS_BUCKET": bucket_name("artifacts"),
             "ARTIFACTS_TABLE": table_name("artifacts"),

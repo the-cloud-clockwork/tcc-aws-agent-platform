@@ -33,7 +33,7 @@ Validate agent and strategy blueprint YAML files against `agent-core` Pydantic s
 agentcli blueprint lint blueprints/agents/data_analysis.yaml
 
 # validate is an alias for lint
-agentcli blueprint validate blueprints/strategies/gap_momentum.yaml
+agentcli blueprint validate blueprints/strategies/example_strategy.yaml
 ```
 
 **What it checks:**
@@ -82,7 +82,7 @@ Validate strategy YAML files and manage their lifecycle. Strategy blueprints def
 
 ```bash
 # Validate a strategy YAML against StrategyBlueprint schema
-agentcli strategy validate blueprints/strategies/gap_momentum_up.yaml
+agentcli strategy validate blueprints/strategies/example_strategy.yaml
 
 # List all strategies in the default directory (blueprints/strategies/)
 agentcli strategy list
@@ -91,7 +91,7 @@ agentcli strategy list
 agentcli strategy list --dir /path/to/strategies/
 
 # Promote a strategy to stable (writes status: stable into the YAML file)
-agentcli strategy promote blueprints/strategies/gap_momentum_up.yaml
+agentcli strategy promote blueprints/strategies/example_strategy.yaml
 ```
 
 The default strategies directory is `blueprints/strategies/` and is overridden by the `AGENT_STRATEGIES_DIR` environment variable. `strategy list` shows a table with file name, strategy name, version, validation status, and description for every `.yaml`/`.yml` file found.
@@ -176,15 +176,15 @@ tools:
 ### Strategy Blueprint (minimum required fields)
 
 ```yaml
-id: gap-momentum-up
-name: Gap Momentum Up
+id: example-strategy
+name: Example Strategy
 version: "1.0.0"
-description: Long gap-up momentum strategy
+description: Example threshold-based strategy
 entry_conditions:
   logic: AND
   conditions:
-    - type: gap_up
-      field: gap_pct
+    - type: threshold
+      field: score_a
       op: ">="
       value: 2.0
 exit_conditions:
