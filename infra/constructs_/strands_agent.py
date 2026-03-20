@@ -33,17 +33,27 @@ class StrandsAgentTask(Construct):
         agent_name: str,
         output_bucket_name: str,
         env_name: str,
+        parameters: dict[str, str] | None = None,
     ) -> None:
         super().__init__(scope, construct_id)
 
         self.agent_name = agent_name
+
+        # Build the payload: if parameters are provided, construct explicit
+        # input mapping; otherwise forward the entire state.
+        if parameters:
+            payload = sfn.TaskInput.from_object(
+                {k: sfn.JsonPath.string_at(v) for k, v in parameters.items()}
+            )
+        else:
+            payload = sfn.TaskInput.from_json_path_at("$")
 
         # The Lambda task for Step Functions
         self.task = sfn_tasks.LambdaInvoke(
             self,
             f"Invoke-{agent_name}",
             lambda_function=agent_function,
-            payload=sfn.TaskInput.from_json_path_at("$"),
+            payload=payload,
             result_selector={
                 "artifact_id.$": "$.Payload.artifact_id",
                 "success.$": "$.Payload.success",
