@@ -7,6 +7,9 @@ COPY src/ src/
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 
+ARG PIP_EXTRA_INDEX_URL=""
+ENV PIP_EXTRA_INDEX_URL=${PIP_EXTRA_INDEX_URL}
+
 RUN pip install --no-cache-dir .
 
 ENV MCP_TRANSPORT=http

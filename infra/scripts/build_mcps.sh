@@ -15,6 +15,12 @@ echo "==> Logging into ECR..."
 aws ecr get-login-password --region "$REGION" | \
   docker login --username AWS --password-stdin "$ECR_BASE"
 
+echo "==> Getting CodeArtifact token for agent-core..."
+CA_TOKEN=$(aws codeartifact get-authorization-token \
+  --domain platform --domain-owner "$ACCOUNT" --region "$REGION" \
+  --query authorizationToken --output text)
+PIP_EXTRA_INDEX_URL="https://aws:${CA_TOKEN}@platform-${ACCOUNT}.d.codeartifact.${REGION}.amazonaws.com/pypi/platform-python/simple/"
+
 # MCP name → source path mapping
 declare -A MCPS=(
   ["market-data"]="$DOMAIN_ROOT/mcps/market-data"
@@ -66,7 +72,7 @@ for name in "${!MCPS[@]}"; do
     build_ctx="$path"
     build_args=""
   fi
-  if ! docker build --platform linux/amd64 $build_args -t "$full_repo:latest" "$build_ctx"; then
+  if ! docker build --platform linux/amd64 --build-arg PIP_EXTRA_INDEX_URL="$PIP_EXTRA_INDEX_URL" $build_args -t "$full_repo:latest" "$build_ctx"; then
     echo "    ERROR: Docker build failed for $name — skipping"
     FAILED+=("$name")
     continue
