@@ -67,9 +67,6 @@ tables:
   idempotency:
     partition_key: idempotency_key
     ttl_attribute: expires_at
-  risk_state:
-    partition_key: PK
-    ttl_attribute: expires_at
 
 buckets:
   - artifacts
