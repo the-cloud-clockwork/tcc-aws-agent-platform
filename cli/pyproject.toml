@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "agent-cli"
 version = "0.1.0"
-description = "Agent CLI tool for prompt management, strategy validation, and graph rendering"
+description = "Agent CLI tool for prompt management, blueprint validation, and graph rendering"
 requires-python = ">=3.11"
 dependencies = [
     "typer>=0.12.0",

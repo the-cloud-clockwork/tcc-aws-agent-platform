@@ -1,7 +1,7 @@
 """Langfuse integration hook for Strands agents.
 
 Logs every model invocation to Langfuse with structured tags: agent_id,
-prompt_id, prompt_version, execution_mode, target, strategy_id.
+prompt_id, prompt_version, execution_mode, target.
 Also computes token cost via CostTracker.
 
 Usage::
@@ -97,8 +97,6 @@ class LangfuseHook:
         One of ``simulation``, ``staging``, ``production``.
     target:
         Target entity being processed (optional).
-    strategy_id:
-        Strategy identifier (optional).
     """
 
     agent_id: str = "unknown"
@@ -106,7 +104,6 @@ class LangfuseHook:
     prompt_version: str = "unknown"
     execution_mode: str = "simulation"
     target: str = ""
-    strategy_id: str = ""
 
     _trace: Any = field(default=None, init=False, repr=False)
     _generation_count: int = field(default=0, init=False, repr=False)
@@ -126,8 +123,6 @@ class LangfuseHook:
         }
         if self.target:
             tags["target"] = self.target
-        if self.strategy_id:
-            tags["strategy_id"] = self.strategy_id
         return tags
 
     # ---- Strands callback protocol ----

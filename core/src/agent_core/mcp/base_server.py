@@ -11,7 +11,7 @@ Usage:
 
     @mcp.tool(Tool(name="get_data", description="...", inputSchema={...}))
     async def get_data(arguments: dict) -> dict:
-        return {"bars": [...]}
+        return {"items": [...]}}
 
     if __name__ == "__main__":
         mcp.run()

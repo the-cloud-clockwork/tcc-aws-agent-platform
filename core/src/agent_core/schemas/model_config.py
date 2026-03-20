@@ -20,9 +20,9 @@ class ModelConfig(BaseModel):
     max_tokens: int = Field(default=4096, gt=0)
     cache_prompt: str | None = Field(
         default="default",
-        description="Prompt caching strategy: 'default', 'none', or custom key.",
+        description="Prompt caching policy: 'default', 'none', or custom key.",
     )
     cache_tools: str | None = Field(
         default="default",
-        description="Tool-result caching strategy.",
+        description="Tool-result caching policy.",
     )

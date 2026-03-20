@@ -3,7 +3,7 @@
 Wraps AgentCore Memory service with session management.
 Provides three memory tiers:
 - Short-term: within a single SFN execution (ephemeral)
-- Long-term: cross-session preferences, strategy history (persistent)
+- Long-term: cross-session preferences, workflow history (persistent)
 - Episodic: retrievable by similarity search (indexed)
 
 From CLAUDE.md:

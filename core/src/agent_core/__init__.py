@@ -7,8 +7,6 @@ __version__ = "0.7.0"
 from agent_core.blueprints.agent import AgentBlueprint, GraphEdgeConfig, GraphNodeConfig
 from agent_core.blueprints.loader import BlueprintLoader, BlueprintLoadError
 from agent_core.blueprints.session import AgentSession
-from agent_core.blueprints.strategy import StrategyBlueprint
-from agent_core.blueprints.strategy_evaluator import StrategyEvaluator
 from agent_core.blueprints.workflow import WorkflowBlueprint
 from agent_core.blueprints.workflow_executor import WorkflowExecutor
 from agent_core.execution.mode import ExecutionMode, get_execution_mode, validate_agent_mode
@@ -66,8 +64,6 @@ __all__ = [
     "SessionManager",
     "SessionState",
     "StrandsSessionBridge",
-    "StrategyBlueprint",
-    "StrategyEvaluator",
     "StructuredLogger",
     "WorkflowBlueprint",
     "WorkflowExecutor",
