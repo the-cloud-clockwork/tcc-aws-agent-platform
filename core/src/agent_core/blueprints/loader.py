@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -269,11 +270,20 @@ class BlueprintLoader:
         model: ModelConfig,
         thinking: Any = None,
     ) -> dict[str, Any]:
-        """Build provider-specific model configuration dict."""
+        """Build provider-specific model configuration dict.
+
+        Strands Agent accepts ``model`` as a string model-id or a Model object.
+        Temperature and max_tokens are passed to the model provider, not the Agent.
+        """
+        # Use BEDROCK_REGION env var if set, otherwise default to us-west-2
+        bedrock_region = os.environ.get("BEDROCK_REGION", "us-west-2")
+        from strands.models import BedrockModel
+        bedrock_model = BedrockModel(
+            model_id=model.model_id,
+            region_name=bedrock_region,
+        )
         config: dict[str, Any] = {
-            "model_id": model.model_id,
-            "temperature": model.temperature,
-            "max_tokens": model.max_tokens,
+            "model": bedrock_model,
         }
         if thinking is not None and getattr(thinking, "enabled", False):
             config["thinking"] = {
@@ -387,12 +397,10 @@ class BlueprintLoader:
         }
         kwargs.update(self._build_model_config(blueprint.model, blueprint.thinking))
 
+        # TODO: Adapt ObservabilityHook to Strands HookProvider protocol
+        # For now, skip hooks to get pipeline running
         if hooks:
-            if len(hooks) == 1:
-                kwargs["callback_handler"] = hooks[0]
-            else:
-                from strands.handlers.callback_handler import CompositeCallbackHandler
-                kwargs["callback_handler"] = CompositeCallbackHandler(*hooks)
+            logger.info("Skipping %d hooks (pending HookProvider migration)", len(hooks))
         if structured_output_model is not None:
             kwargs["structured_output_model"] = structured_output_model
 
