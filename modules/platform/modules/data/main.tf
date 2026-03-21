@@ -14,30 +14,53 @@ locals {
       hash_key  = "artifact_id"
       range_key = "created_at"
       ttl_field = null
+      gsis = [
+        { name = "agent_id-created_at-index", hash_key = "agent_id", range_key = "created_at" }
+      ]
     }
     audit_log = {
       hash_key  = "event_id"
       range_key = "timestamp"
       ttl_field = null
+      gsis = [
+        { name = "agent_id-timestamp-index", hash_key = "agent_id", range_key = "timestamp" }
+      ]
     }
     prompt_registry = {
       hash_key  = "prompt_key"
       range_key = "version"
       ttl_field = null
+      gsis      = []
     }
     run_history = {
       hash_key  = "run_id"
       range_key = "started_at"
       ttl_field = null
+      gsis = [
+        { name = "agent_id-started_at-index", hash_key = "agent_id", range_key = "started_at" },
+        { name = "status-started_at-index", hash_key = "status", range_key = "started_at" }
+      ]
     }
     idempotency = {
       hash_key  = "idempotency_key"
       range_key = null
       ttl_field = "expires_at"
+      gsis      = []
     }
   }
 
   is_provisioned = var.dynamodb_billing_mode == "PROVISIONED"
+
+  # Collect all unique attribute names per table (table keys + GSI keys).
+  # DynamoDB requires each attribute used in any key to be defined exactly once.
+  table_attributes = {
+    for table_key, table in local.tables :
+    table_key => distinct(concat(
+      [table.hash_key],
+      table.range_key != null ? [table.range_key] : [],
+      flatten([for gsi in table.gsis : [gsi.hash_key, gsi.range_key]])
+    ))
+  }
 }
 
 # ── DynamoDB Tables ──────────────────────────────────────────────────────────
@@ -58,18 +81,25 @@ resource "aws_dynamodb_table" "tables" {
   # Range key (sort key) — optional
   range_key = each.value.range_key
 
-  # Hash key attribute definition
-  attribute {
-    name = each.value.hash_key
-    type = "S"
-  }
-
-  # Range key attribute definition (only when present)
+  # Attribute definitions — one per unique key attribute (table + GSIs)
   dynamic "attribute" {
-    for_each = each.value.range_key != null ? [each.value.range_key] : []
+    for_each = local.table_attributes[each.key]
     content {
       name = attribute.value
       type = "S"
+    }
+  }
+
+  # Global Secondary Indexes
+  dynamic "global_secondary_index" {
+    for_each = each.value.gsis
+    content {
+      name            = global_secondary_index.value.name
+      hash_key        = global_secondary_index.value.hash_key
+      range_key       = global_secondary_index.value.range_key
+      projection_type = "ALL"
+      read_capacity   = local.is_provisioned ? var.dynamodb_read_capacity : null
+      write_capacity  = local.is_provisioned ? var.dynamodb_write_capacity : null
     }
   }
 

@@ -3,11 +3,11 @@
 #
 # Creates AgentCore memory strategies extracted from agent blueprints.
 # Each strategy defines how long-term memories are processed:
-#   - USER_PREFERENCE: learns user preferences from conversations
+#   - SUMMARIZATION: produces session summaries (blueprint alias: SUMMARY)
 #   - SEMANTIC: extracts factual knowledge
-#   - SUMMARIZATION: produces session summaries
-#
-# Blueprint type "SUMMARY" is mapped to the API type "SUMMARIZATION".
+#   - USER_PREFERENCE: learns user preferences from conversations
+#   - EPISODIC: captures meaningful interaction slices for contextual recall
+#   - CUSTOM: user-defined strategy logic
 # ──────────────────────────────────────────────────────────────────────────────
 
 locals {
@@ -17,12 +17,15 @@ locals {
     s.key => s
   }
 
-  # Type mapping: blueprint uses SUMMARY, API uses SUMMARIZATION
+  # Type mapping: blueprint convenience names → API values
+  # Full API type list: SEMANTIC, SUMMARIZATION, USER_PREFERENCE, CUSTOM, EPISODIC
   strategy_type_map = {
     "SUMMARY"         = "SUMMARIZATION"
     "SUMMARIZATION"   = "SUMMARIZATION"
     "SEMANTIC"        = "SEMANTIC"
     "USER_PREFERENCE" = "USER_PREFERENCE"
+    "CUSTOM"          = "CUSTOM"
+    "EPISODIC"        = "EPISODIC"
   }
 }
 

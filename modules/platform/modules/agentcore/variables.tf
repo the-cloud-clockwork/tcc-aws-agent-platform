@@ -45,12 +45,12 @@ variable "tags" {
 # ── Gateway ──────────────────────────────────────────────────────────────────
 
 variable "gateway_auth_type" {
-  description = "Authorizer type for the AgentCore Gateway. One of: AWS_IAM, CUSTOM_JWT."
+  description = "Authorizer type for the AgentCore Gateway. One of: AWS_IAM, CUSTOM_JWT, NONE."
   type        = string
 
   validation {
-    condition     = contains(["AWS_IAM", "CUSTOM_JWT"], var.gateway_auth_type)
-    error_message = "gateway_auth_type must be AWS_IAM or CUSTOM_JWT."
+    condition     = contains(["AWS_IAM", "CUSTOM_JWT", "NONE"], var.gateway_auth_type)
+    error_message = "gateway_auth_type must be AWS_IAM, CUSTOM_JWT, or NONE."
   }
 }
 
@@ -80,6 +80,12 @@ variable "memory_event_expiry_days" {
 
 variable "memory_kms_key_arn" {
   description = "ARN of the KMS key used to encrypt AgentCore Memory data. Empty string to use AWS-managed key."
+  type        = string
+  default     = ""
+}
+
+variable "memory_description" {
+  description = "Description for the AgentCore Memory resource. Empty string to omit."
   type        = string
   default     = ""
 }

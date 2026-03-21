@@ -49,6 +49,8 @@ resource "aws_iam_role" "memory" {
 resource "aws_bedrockagentcore_memory" "this" {
   name = "${local.prefix}-${local.env}-memory"
 
+  description = var.memory_description != "" ? var.memory_description : null
+
   # Event expiry — duration in days
   event_expiry_duration = var.memory_event_expiry_days
 

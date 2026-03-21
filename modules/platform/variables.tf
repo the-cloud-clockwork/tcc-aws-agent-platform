@@ -109,8 +109,8 @@ variable "gateway_auth_type" {
   type    = string
   default = "AWS_IAM"
   validation {
-    condition     = contains(["AWS_IAM", "CUSTOM_JWT"], var.gateway_auth_type)
-    error_message = "Must be AWS_IAM or CUSTOM_JWT."
+    condition     = contains(["AWS_IAM", "CUSTOM_JWT", "NONE"], var.gateway_auth_type)
+    error_message = "Must be AWS_IAM, CUSTOM_JWT, or NONE."
   }
 }
 
@@ -127,6 +127,12 @@ variable "gateway_jwt_allowed_clients" {
 variable "memory_event_expiry_days" {
   type    = number
   default = 30
+}
+
+variable "memory_description" {
+  type        = string
+  description = "Description for the AgentCore Memory resource"
+  default     = ""
 }
 
 variable "cognito_enabled" {

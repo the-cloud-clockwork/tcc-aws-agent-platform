@@ -8,9 +8,7 @@ locals {
   name_prefix = "${var.resource_prefix}-${var.environment}"
   ssm_prefix  = var.ssm_root_path
 
-  tags = merge(var.tags, {
-    Environment = var.environment
-    Project     = var.resource_prefix
-    ManagedBy   = "terraform"
-  })
+  # Environment, Project, and ManagedBy are set via default_tags in
+  # providers.tf and apply to all resources automatically.
+  tags = var.tags
 }
