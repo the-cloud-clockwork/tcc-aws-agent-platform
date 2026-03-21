@@ -73,13 +73,19 @@ variable "memory_event_expiry_days" {
   type        = number
 
   validation {
-    condition     = var.memory_event_expiry_days >= 1
-    error_message = "memory_event_expiry_days must be at least 1."
+    condition     = var.memory_event_expiry_days >= 3
+    error_message = "memory_event_expiry_days must be at least 3 (AWS API minimum)."
   }
 }
 
 variable "memory_kms_key_arn" {
   description = "ARN of the KMS key used to encrypt AgentCore Memory data. Empty string to use AWS-managed key."
+  type        = string
+  default     = ""
+}
+
+variable "gateway_kms_key_arn" {
+  description = "ARN of the KMS key for AgentCore Gateway encryption. Empty string uses AWS-managed key."
   type        = string
   default     = ""
 }

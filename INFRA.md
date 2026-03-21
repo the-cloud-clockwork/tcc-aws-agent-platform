@@ -7,6 +7,9 @@
 > **Provider:** hashicorp/aws >= 6.21
 > **AWS Service:** Amazon Bedrock AgentCore
 
+>
+> **Block 1 Status:** COMPLETE (2026-03-21). All 5 critical findings fixed. Additional schema mismatches
+> discovered during `terraform validate` also fixed (see Block 1 completion notes below).
 ---
 
 ## Severity Legend
@@ -20,249 +23,67 @@
 
 ---
 
-## 1. CRITICAL: Sub-Module Interface Mismatches
+## Module Inventory — Verified Correct
 
-The root `platform/main.tf` and `platform/outputs.tf` were written for production-grade sub-modules, but the actual `data/`, `security/`, `network/`, `observability/`, and `api/` sub-modules are **stubs with incompatible interfaces**. The `agentcore/` sub-module is fully implemented and correct.
+All 6 platform sub-modules are fully implemented with correct variable/output interfaces matching the root composition:
 
-### 1.1 security/ Module
+| Sub-Module | Lines | Resources | Status |
+|------------|-------|-----------|--------|
+| `security/` | 506 | 17 | 5 KMS keys, conditional WAF, 12 VPC endpoints, Secrets Manager |
+| `data/` | 754 | 21 | 5 DynamoDB tables, 3 S3 buckets (two-tier KMS), SQS + DLQ, conditional CloudFront with OAC |
+| `network/` | 373 | 20 | 3-tier VPC (public/private/isolated), configurable NAT count, agent + MCP security groups |
+| `observability/` | 199 | 5 | Pipeline log group, SNS alerts, X-Ray group, CloudWatch dashboard |
+| `api/` | 758 | 46 | Lambda (ARM64), REST API Gateway, 5 GET routes with AWS_IAM, CORS, throttling, conditional WAF |
+| `agentcore/` | ~300 | 10 | Gateway (MCP), Memory, conditional Cognito, conditional Code Interpreter + Browser |
 
-**Root passes (main.tf:21-32):**
-```
-resource_prefix, environment, kms_key_deletion_window_days,
-waf_enabled, waf_rate_limit, waf_ip_whitelist,
-vpc_id, vpc_cidr_block, private_subnet_ids, tags
-```
-
-**Sub-module variables.tf accepts:**
-```
-environment, aws_region, vpc_id, vpc_cidr,
-route_table_ids, private_subnet_ids, tags
-```
-
-| Variable | Root Passes | Sub-Module Expects | Status |
-|----------|-------------|-------------------|--------|
-| `resource_prefix` | Yes | No | MISSING in sub-module |
-| `kms_key_deletion_window_days` | Yes | No | MISSING in sub-module |
-| `waf_enabled` | Yes | No | MISSING — WAF always created |
-| `waf_rate_limit` | Yes | No | MISSING — hardcoded 2000 |
-| `waf_ip_whitelist` | Yes | No | MISSING — no whitelist support |
-| `vpc_cidr_block` | Yes (from network output) | Expects `vpc_cidr` | NAME MISMATCH |
-| `aws_region` | No | Yes | MISSING in root call |
-| `route_table_ids` | No | Yes | MISSING in root call |
-
-**Root outputs.tf references these security outputs:**
-- `module.security.data_kms_key_arn` — DOES NOT EXIST (sub-module outputs `kms_key_arn`)
-- `module.security.storage_kms_key_arn` — DOES NOT EXIST
-- `module.security.platform_artifacts_kms_key_arn` — DOES NOT EXIST
-- `module.security.domain_artifacts_kms_key_arn` — DOES NOT EXIST
-- `module.security.waf_acl_arn` — EXISTS (matches)
-
-**Sub-module creates 1 KMS key. Root expects 5 separate keys** (data, storage, secrets, platform_artifacts, domain_artifacts).
+| Deployment Module | Lines | Resources | Status |
+|-------------------|-------|-----------|--------|
+| `agents/` | ~700 | 30+ | Per-agent: IAM, ECR, CodeBuild, AgentCore Runtime, Gateway targets, Memory strategies, Identity providers, SSM |
+| `workflows/` | ~400 | 10+ | Per-workflow: Step Functions, EventBridge triggers, IAM roles |
 
 ---
 
-### 1.2 data/ Module
+## 1. CRITICAL: Missing Lambda Placeholder File
 
-**Root passes (main.tf:34-49):**
-```
-resource_prefix, environment, account_id,
-data_kms_key_arn, storage_kms_key_arn,
-platform_artifacts_kms_key_arn, domain_artifacts_kms_key_arn,
-dynamodb_billing_mode, dynamodb_read_capacity, dynamodb_write_capacity,
-cloudfront_enabled, waf_acl_arn, removal_policy_destroy, tags
+**File:** `modules/platform/modules/api/main.tf:131`
+
+```hcl
+filename = "${path.module}/placeholder.zip"
 ```
 
-**Sub-module variables.tf accepts:**
+The Lambda function references `placeholder.zip` but the file **does not exist** at `modules/platform/modules/api/placeholder.zip`. Terraform will fail with `file not found` during `plan`.
+
+**Fix:** Create an empty zip placeholder:
+```bash
+cd modules/platform/modules/api && echo "" | zip placeholder.zip -
 ```
-environment, log_retention_days, tags
-```
-
-| Variable | Root Passes | Sub-Module Expects | Status |
-|----------|-------------|-------------------|--------|
-| `resource_prefix` | Yes | No | MISSING |
-| `account_id` | Yes | No | MISSING |
-| `data_kms_key_arn` | Yes | No | MISSING |
-| `storage_kms_key_arn` | Yes | No | MISSING |
-| `platform_artifacts_kms_key_arn` | Yes | No | MISSING |
-| `domain_artifacts_kms_key_arn` | Yes | No | MISSING |
-| `dynamodb_billing_mode` | Yes | No | MISSING |
-| `dynamodb_read_capacity` | Yes | No | MISSING |
-| `dynamodb_write_capacity` | Yes | No | MISSING |
-| `cloudfront_enabled` | Yes | No | MISSING — always created |
-| `waf_acl_arn` | Yes | No | MISSING |
-| `removal_policy_destroy` | Yes | No | MISSING |
-| `log_retention_days` | No | Yes | MISSING in root call |
-
-**Root outputs.tf references these data outputs:**
-- `module.data.table_names` — DOES NOT EXIST
-- `module.data.table_arns` — DOES NOT EXIST
-- `module.data.artifacts_bucket_name` — EXISTS (matches)
-- `module.data.artifacts_bucket_arn` — DOES NOT EXIST
-- `module.data.bucket_names` — DOES NOT EXIST
-- `module.data.cloudfront_domain` — DOES NOT EXIST (sub-module outputs `cloudfront_domain_name`)
-- `module.data.cloudfront_distribution_arn` — DOES NOT EXIST
-- `module.data.artifact_queue_url` — DOES NOT EXIST
-
-**Sub-module is missing:**
-- 5 DynamoDB tables (artifacts, audit_log, prompt_registry, run_history, idempotency)
-- 2 additional S3 buckets (prompt_registry, historical_data)
-- SQS queues (artifact_notifications + DLQ)
-- Two-tier KMS enforcement on artifacts bucket
-- Lifecycle policies per bucket
-- Conditional CloudFront with OAC
 
 ---
 
-### 1.3 network/ Module
+## 2. CRITICAL: Provider Resource Schema Risks
 
-**Root passes (main.tf:10-18):**
-```
-resource_prefix, environment, vpc_cidr,
-availability_zones (list(string)), nat_gateway_count, tags
-```
-
-**Sub-module variables.tf accepts:**
-```
-environment, vpc_cidr, public_subnet_cidrs (list(string)),
-private_subnet_cidrs (list(string)),
-availability_zones (number), tags
-```
-
-| Variable | Root Passes | Sub-Module Expects | Status |
-|----------|-------------|-------------------|--------|
-| `resource_prefix` | Yes | No | MISSING |
-| `availability_zones` | list(string) | number | TYPE MISMATCH |
-| `nat_gateway_count` | Yes | No | MISSING — creates 1 NAT per AZ always |
-| `public_subnet_cidrs` | No | Yes (with defaults) | MISSING in root call |
-| `private_subnet_cidrs` | No | Yes (with defaults) | MISSING in root call |
-
-**Root outputs.tf references:**
-- `module.network.vpc_cidr_block` — DOES NOT EXIST (sub-module outputs `vpc_cidr`)
-- `module.network.isolated_subnet_ids` — DOES NOT EXIST (sub-module has no isolated subnets)
-- `module.network.agent_security_group_id` — DOES NOT EXIST
-- `module.network.mcp_security_group_id` — DOES NOT EXIST
-
-**Sub-module is missing:**
-- 3-tier subnet architecture (public/private/isolated)
-- Configurable NAT gateway count
-- Agent security group (all outbound, no inbound)
-- MCP security group (inbound TCP 8080 from agents)
-- CIDR auto-allocation from VPC CIDR
-
----
-
-### 1.4 observability/ Module
-
-**Root passes (main.tf:63-72):**
-```
-resource_prefix, environment, log_retention_days,
-sns_alert_email, kms_key_arn, tags
-```
-
-**Sub-module variables.tf accepts:**
-```
-environment, log_retention_days,
-langfuse_api_url, langfuse_public_key, langfuse_secret_key, tags
-```
-
-| Variable | Root Passes | Sub-Module Expects | Status |
-|----------|-------------|-------------------|--------|
-| `resource_prefix` | Yes | No | MISSING |
-| `sns_alert_email` | Yes | No | MISSING |
-| `kms_key_arn` | Yes | No | MISSING |
-| `langfuse_api_url` | No | Yes | MISSING in root call |
-| `langfuse_public_key` | No | Yes (sensitive) | MISSING in root call |
-| `langfuse_secret_key` | No | Yes (sensitive) | MISSING in root call |
-
-**Root outputs.tf references:**
-- `module.observability.alert_topic_arn` — DOES NOT EXIST
-- `module.observability.pipeline_log_group_name` — DOES NOT EXIST
-
-**Sub-module is missing:**
-- SNS alert topic with optional email subscription
-- Pipeline log group (/{prefix}/{env}/pipeline)
-- CloudWatch dashboard (Agent Invocations, Token Cost, Pipeline Executions)
-- X-Ray group with environment filter
-
-**Sub-module has extras not wired from root:**
-- Langfuse credentials as variables (should be in Secrets Manager, not TF variables)
-
----
-
-### 1.5 api/ Module
-
-**Root passes (main.tf:74-88):**
-```
-resource_prefix, environment, artifacts_table_name, artifacts_table_arn,
-artifacts_bucket_name, artifacts_bucket_arn,
-platform_artifacts_kms_key_arn, domain_artifacts_kms_key_arn,
-api_throttle_rate, api_throttle_burst, api_cors_origins,
-waf_acl_arn, waf_enabled, tags
-```
-
-**Sub-module variables.tf accepts:**
-```
-environment, lambda_function_arn, cors_allowed_origins,
-api_authorization_type, api_authorizer_id, log_retention_days, tags
-```
-
-| Variable | Root Passes | Sub-Module Expects | Status |
-|----------|-------------|-------------------|--------|
-| `resource_prefix` | Yes | No | MISSING |
-| `artifacts_table_name` | Yes | No | MISSING |
-| `artifacts_table_arn` | Yes | No | MISSING |
-| `artifacts_bucket_name` | Yes | No | MISSING |
-| `artifacts_bucket_arn` | Yes | No | MISSING |
-| `platform_artifacts_kms_key_arn` | Yes | No | MISSING |
-| `domain_artifacts_kms_key_arn` | Yes | No | MISSING |
-| `api_throttle_rate` | Yes | No | MISSING |
-| `api_throttle_burst` | Yes | No | MISSING |
-| `api_cors_origins` | Yes | Expects `cors_allowed_origins` | NAME MISMATCH |
-| `waf_acl_arn` | Yes | No | MISSING |
-| `waf_enabled` | Yes | No | MISSING |
-| `lambda_function_arn` | No | Yes (required!) | MISSING in root — root should create Lambda |
-| `api_authorization_type` | No | Yes | MISSING in root call |
-| `api_authorizer_id` | No | Yes | MISSING in root call |
-| `log_retention_days` | No | Yes | MISSING in root call |
-
-**Root outputs.tf references:**
-- `module.api.api_url` — DOES NOT EXIST (sub-module outputs `api_endpoint`)
-
-**Sub-module is missing:**
-- Lambda function creation (artifacts-api)
-- REST API Gateway (uses HTTP API instead)
-- IAM role for Lambda execution
-- Specific routes (GET /api/artifacts, /artifacts/{id}, /runs, etc.)
-- AWS_IAM authorization on routes
-- Throttling configuration
-- WAF association
-
----
-
-## 2. CRITICAL: Provider Resource Schema Issues
+These are based on cross-referencing our HCL against the CloudFormation resource schemas. The Terraform AWS provider may map attributes differently, so each needs verification via `terraform validate` against the actual provider version.
 
 ### 2.1 Runtime `protocol_configuration` — Block vs String
 
-**Our code (`agents/runtime.tf`):**
+**File:** `modules/agents/runtime.tf`
+
 ```hcl
 protocol_configuration {
   protocol = try(each.value.runtime.protocol, "HTTP")
 }
 ```
 
-**CloudFormation schema says `ProtocolConfiguration` is a String:**
-```
-ProtocolConfiguration: String
-Allowed values: MCP | HTTP | A2A
-```
+**CloudFormation schema** defines `ProtocolConfiguration` as a **String** with allowed values `MCP | HTTP | A2A` — not a nested object. If the Terraform provider maps this as a simple string attribute rather than a block, this will fail.
 
-If the Terraform provider maps this as a simple string attribute (not a nested block), this will fail. The provider may wrap it differently — **verify against provider source or `terraform validate`**.
+**Verify:** Run `terraform validate` or check provider source for `aws_bedrockagentcore_agent_runtime`.
 
 ---
 
-### 2.2 Memory `event_expiry_duration` — Minimum Value
+### 2.2 Memory `event_expiry_duration` — Minimum Value Wrong
 
-**Our code (`agentcore/variables.tf`):**
+**File:** `modules/platform/modules/agentcore/variables.tf`
+
 ```hcl
 validation {
   condition     = var.memory_event_expiry_days >= 1
@@ -270,15 +91,16 @@ validation {
 }
 ```
 
-**CloudFormation schema says:** `EventExpiryDuration: Integer, Range: 3-365`
+**CloudFormation schema:** `EventExpiryDuration: Integer, Range: 3-365`
 
 The API will reject values 1 or 2. Validation should enforce `>= 3`.
 
 ---
 
-### 2.3 Gateway Target `credential_provider_configurations` — Structure
+### 2.3 Gateway Target `credential_provider_configurations` — Attribute vs Block
 
-**Our code (`agents/gateway_targets.tf`):**
+**File:** `modules/agents/gateway_targets.tf`
+
 ```hcl
 credential_provider_configurations = [
   {
@@ -287,18 +109,22 @@ credential_provider_configurations = [
 ]
 ```
 
-This is written as an attribute assignment with a list of objects. In the Terraform AWS provider, this is likely a **nested block**, not an attribute. Should be:
+Written as an attribute assignment with a list literal. In the Terraform AWS provider, nested structures are typically **blocks**, not attribute assignments:
+
 ```hcl
 credential_provider_configurations {
   credential_provider_type = "GATEWAY_IAM_ROLE"
 }
 ```
 
+**Verify:** Run `terraform validate` or check provider schema.
+
 ---
 
-### 2.4 Gateway Target `tool_schema` — Inline Payload Structure
+### 2.4 Gateway Target `tool_schema` / `inline_payload` — Nesting Structure
 
-**Our code:**
+**File:** `modules/agents/gateway_targets.tf`
+
 ```hcl
 tool_schema {
   inline_payload {
@@ -307,103 +133,61 @@ tool_schema {
 }
 ```
 
-The actual provider schema for tool_schema may use different nesting. The CloudFormation ToolSchema type has `InlinePayload` with `InlineToolDefinitions` — but the Terraform provider attribute names may differ. **Verify against provider source.**
+The attribute `inline_tool_definitions` takes a list of objects with `input_schema` as a `jsonencode()`'d string. The actual provider may expect different attribute names or nesting. Additionally, GitHub issue [#44976](https://github.com/hashicorp/terraform-provider-aws/issues/44976) reports that `aws_bedrockagentcore_gateway_target` should support `mcp.mcp_server` target configuration, suggesting the API surface is still evolving.
 
 ---
 
-## 3. HIGH: Missing Infrastructure Resources
+## 3. HIGH: Missing AgentCore Resources
 
-### 3.1 No Backend Configuration
+### 3.1 Missing `aws_bedrockagentcore_runtime_endpoint`
 
-No `backend.tf` file exists in any module. State is stored locally by default. Production deployments MUST use remote state (S3 + DynamoDB locking).
+**Context:** AWS provider issue [#43424](https://github.com/hashicorp/terraform-provider-aws/issues/43424) lists `aws_bedrockagentcore_runtime_endpoint` as a separate resource (merged via PR #44301). Our `agents/runtime.tf` creates the runtime but not its endpoint. Without an endpoint, the runtime container may not be network-reachable.
 
-**Needed:**
-```hcl
-terraform {
-  backend "s3" {
-    bucket         = "platform-terraform-state-{account_id}"
-    key            = "platform/{environment}/terraform.tfstate"
-    region         = "eu-west-1"
-    dynamodb_table = "terraform-state-lock"
-    encrypt        = true
-  }
-}
-```
+**File:** `modules/agents/runtime.tf` — needs an additional resource block.
 
 ---
 
-### 3.2 No Cross-Region Provider for Bedrock
+### 3.2 Missing Gateway `kms_key_arn`
 
-`bedrock_region` (us-west-2) differs from `aws_region` (eu-west-1), but no aliased provider exists for cross-region operations. If any Terraform resource needs to create Bedrock resources in us-west-2, it will fail.
+**File:** `modules/platform/modules/agentcore/gateway.tf`
 
-**Needed in `providers.tf`:**
-```hcl
-provider "aws" {
-  alias  = "bedrock"
-  region = var.bedrock_region
-  # ... same default_tags
-}
-```
+CloudFormation schema for `AWS::BedrockAgentCore::Gateway` includes an optional `KmsKeyArn` property. Our gateway resource does not set it. For consistency with the platform's envelope-encryption strategy (5 dedicated KMS keys), the gateway should use a customer-managed key.
 
 ---
 
-### 3.3 Missing `aws_bedrockagentcore_runtime_endpoint` Resource
+### 3.3 Missing Gateway `policy_engine_configuration`
 
-The AWS provider issue #43424 lists `aws_bedrockagentcore_runtime_endpoint` as a separate resource from `aws_bedrockagentcore_agent_runtime`. Our `agents/runtime.tf` only creates the runtime but NOT the endpoint. Without an endpoint, the runtime may not be reachable.
+**File:** `modules/platform/modules/agentcore/gateway.tf`
 
----
-
-### 3.4 Missing Gateway KMS Encryption
-
-CloudFormation schema shows `KmsKeyArn` as an optional property on `AWS::BedrockAgentCore::Gateway`. Our `agentcore/gateway.tf` does not set this. Gateway data should be encrypted with a customer-managed KMS key.
+CloudFormation shows `PolicyEngineConfiguration` on the Gateway resource. Block 8 (Policy/Cedar) in the Python SDK creates Cedar policies and a PolicyClient, but there is no corresponding Terraform resource to wire the policy engine to the Gateway infrastructure. This means policies created via SDK have no infrastructure-level backing.
 
 ---
 
-### 3.5 Missing Gateway `PolicyEngineConfiguration`
+### 3.4 Missing Runtime `lifecycle_configuration`
 
-CloudFormation shows `PolicyEngineConfiguration` on the Gateway resource. This is where Block 8 (Policy/Cedar) would connect at the infrastructure level. Without this, Cedar policies deployed via SDK have no infrastructure backing in Terraform.
+**File:** `modules/agents/runtime.tf`
 
----
+CloudFormation shows `LifecycleConfiguration` with:
+- `MaxLifetime` — Maximum runtime session lifetime
+- `IdleRuntimeSessionTimeout` — Idle timeout before session teardown
 
-### 3.6 Missing Gateway `InterceptorConfigurations`
+Without this, runtimes use AWS defaults. Known bug: [#45290](https://github.com/hashicorp/terraform-provider-aws/issues/45290) — `lifecycle_configuration` attributes should be marked as `Computed` when not specified. This means even setting it may cause drift on subsequent applies.
 
-CloudFormation shows `InterceptorConfigurations` (array, max 2 items) for Lambda interceptors. This enables pre/post-processing of Gateway requests. Not implemented.
-
----
-
-### 3.7 Missing Runtime `LifecycleConfiguration`
-
-CloudFormation shows `LifecycleConfiguration` with `MaxLifetime` and `IdleRuntimeSessionTimeout`. Without this, runtimes use AWS defaults which may not match operational requirements.
+**Recommendation:** Add with `lifecycle { ignore_changes = [lifecycle_configuration] }` until provider bug is fixed.
 
 ---
 
-### 3.8 Missing Runtime `AuthorizerConfiguration`
+### 3.5 Missing `aws_bedrockagentcore_oauth2_credential_provider`
 
-CloudFormation shows `AuthorizerConfiguration` on the Runtime resource. This allows per-runtime authorization (separate from Gateway-level auth). Not implemented.
+**File:** `modules/agents/identity_providers.tf`
 
----
-
-### 3.9 Missing Runtime `RequestHeaderConfiguration`
-
-CloudFormation shows `RequestHeaderConfiguration` for HTTP request headers passed to the runtime. Not implemented.
+Currently only `aws_bedrockagentcore_apikey_credential_provider` is created. OAuth2 providers are explicitly skipped with a comment about secrets. However, the Terraform resource exists (per issue #43424) and can handle sensitive values with `sensitive = true` attributes, keeping them out of plan output while still managing the resource lifecycle.
 
 ---
 
-### 3.10 Missing Memory `StreamDeliveryResources`
+### 3.6 Missing `aws_bedrockagentcore_workload_provider`
 
-CloudFormation shows `StreamDeliveryResources` on Memory. This enables streaming memory events to external systems (e.g., Kinesis). Not implemented.
-
----
-
-### 3.11 Missing `aws_bedrockagentcore_workload_provider` Resource
-
-Listed in provider issue #43424 but not created anywhere. Workload providers enable non-agent workloads to access AgentCore resources.
-
----
-
-### 3.12 Missing `aws_bedrockagentcore_oauth2_credential_provider` Resource
-
-Listed in provider issue #43424. Our `identity_providers.tf` explicitly skips OAuth2 providers with a comment about secrets. However, the Terraform resource exists and can be used with `sensitive` attributes or Secrets Manager references, avoiding plaintext secrets in state.
+Listed in provider issue #43424. Workload providers enable non-agent workloads (e.g., Lambda functions, ECS tasks) to access AgentCore resources. Not created anywhere in our modules.
 
 ---
 
@@ -411,133 +195,115 @@ Listed in provider issue #43424. Our `identity_providers.tf` explicitly skips OA
 
 ### 4.1 ECR Encryption Uses AES256, Not KMS
 
-**`agents/ecr.tf`:**
+**File:** `modules/agents/ecr.tf`
+
 ```hcl
 encryption_configuration {
   encryption_type = "AES256"
 }
 ```
 
-Should use KMS encryption with the platform's storage key for consistency with the two-tier encryption strategy.
+All other data stores (DynamoDB, S3, SQS) use customer-managed KMS keys. ECR should too, for consistency with the platform's encryption strategy. Use the `storage_kms_key_arn` from the platform module.
 
 ---
 
-### 4.2 CloudFront Uses Legacy OAI
+### 4.2 Agent IAM Roles Use Wildcard Resources
 
-**`data/cloudfront.tf`** uses `aws_cloudfront_origin_access_identity` (legacy). AWS recommends Origin Access Control (OAC) with SigV4 signing. OAI is deprecated for new distributions.
+**File:** `modules/agents/iam.tf`
 
----
+The following permissions use `resources = ["*"]`:
+- `bedrock:InvokeModel`, `bedrock:InvokeModelWithResponseStream` — Should scope to specific model ARNs derived from the agent blueprint's `model_id`
+- `logs:CreateLogGroup`, `logs:CreateLogStream`, `logs:PutLogEvents` — Should scope to `/aws/bedrock-agentcore/{prefix}-{env}-{agent_id}*`
 
-### 4.3 Observability Module Accepts Langfuse Secrets as Variables
-
-**`observability/variables.tf`:**
-```hcl
-variable "langfuse_public_key" {
-  sensitive = true
-}
-variable "langfuse_secret_key" {
-  sensitive = true
-}
-```
-
-Secrets should be in AWS Secrets Manager (already created in the security module's `observability_api_key` secret), not passed as Terraform variables where they end up in state.
+Note: `ecr:GetAuthorizationToken` and `xray:Put*` must use `*` per API requirements — these are OK.
 
 ---
 
-### 4.4 Agent IAM Roles Use Wildcard Resources
+### 4.3 VPC Endpoints Missing `bedrock-agentcore` Service
 
-**`agents/iam.tf`** uses `resources = ["*"]` for:
-- `bedrock:InvokeModel` — Should scope to specific model ARNs from blueprint
-- `ecr:GetAuthorizationToken` — Must be `*` (API requirement), OK
-- `logs:*` — Should scope to agent-specific log groups
-- `xray:*` — Must be `*` (API requirement), OK
+**File:** `modules/platform/modules/security/vpc_endpoints.tf`
 
----
+Interface endpoints are created for `bedrock` and `bedrock-runtime`, but NOT for `bedrock-agentcore`. If the `bedrock-agentcore` VPC endpoint service exists in the region, agents running in PRIVATE network mode will need it for AgentCore API calls (runtime management, gateway access, memory operations).
 
-### 4.5 WAF Rate Limit Hardcoded at 2000
-
-**`security/waf.tf`** hardcodes `limit = 2000` instead of using a variable. The root module passes `waf_rate_limit` but the sub-module ignores it.
+**Verify:** Check if `com.amazonaws.{region}.bedrock-agentcore` is a valid VPC endpoint service.
 
 ---
 
-## 5. MEDIUM: Step Functions Integration
+## 5. HIGH: No Backend Configuration
 
-### 5.1 Agent Invocation Resource ARN
+No `backend.tf` file exists in any module. Terraform state is stored locally by default.
 
-**`workflows/state_machines.tf`:**
-```hcl
-Resource = "arn:aws:states:::bedrock-agentcore:invokeAgentRuntime"
-```
+**Impact:**
+- State file is not shared across team members
+- No state locking — concurrent applies can corrupt state
+- State file may contain secrets (KMS key ARNs, resource IDs) stored on local disk
 
-This is the Step Functions optimized integration pattern. Verify that:
-1. This exact service integration exists in Step Functions
-2. The `AgentRuntimeArn` parameter name is correct
-3. The `SessionState.Prompt.$` JSONPath reference is correct
-
-The actual Step Functions integration for AgentCore may use a different resource ARN format or parameter structure.
+**Needed:** S3 backend with DynamoDB locking. The backend config itself should be in the consuming repo (domain repos), not in the module source, but the platform module should document the expected backend pattern.
 
 ---
 
-### 5.2 SFN Role Missing States:StartExecution for Nested Workflows
+## 6. MEDIUM: Cross-Region Provider
 
-If workflows invoke other workflows (e.g., parallel orchestration), the SFN role needs `states:StartExecution` permission. Currently not included.
+**File:** `modules/platform/providers.tf`
 
----
+`bedrock_region` (us-west-2) differs from `aws_region` (eu-west-1), but no aliased provider exists. Currently this is passed as an environment variable (`BEDROCK_REGION`) to agent runtimes, so the SDK handles cross-region calls at runtime. However, if any future Terraform resource needs to be created in the Bedrock region (e.g., model customization, guardrails), a provider alias will be needed.
 
-## 6. MEDIUM: Configuration and Best Practices
-
-### 6.1 No Provider Version Constraints in Sub-Modules
-
-Sub-modules (`data/`, `security/`, `network/`, `observability/`, `api/`) use `required_version = ">= 1.4"` while the root and `agents/`/`workflows/` modules use `>= 1.10`. These should be consistent.
+**Status:** Not blocking today, but worth tracking.
 
 ---
 
-### 6.2 Network Module Creates NAT Per AZ Always
+## 7. MEDIUM: CodeBuild `NO_SOURCE` Pattern
 
-`network/main.tf` creates `length(local.azs)` NAT gateways regardless of cost optimization needs. The root passes `nat_gateway_count` but the sub-module doesn't accept it. Dev should use 1 NAT, production should use N (matching AZ count).
+**File:** `modules/agents/codebuild.tf`
 
----
-
-### 6.3 No DynamoDB Table GSIs
-
-The platform expects DynamoDB tables for artifacts, audit_log, etc. These tables likely need Global Secondary Indexes for query patterns:
-- artifacts: by `agent_id`, by `run_id`
-- audit_log: by `agent_id`, by `event_type`
-- run_history: by `agent_id`, by `status`
-
----
-
-### 6.4 No S3 Bucket Notification for Artifact Events
-
-The root expects `module.data.artifact_queue_url` (SQS queue) for artifact event notifications. The data sub-module has no SQS resources and no S3 bucket notification configuration.
-
----
-
-### 6.5 Missing SSM Parameters for Sub-Module Outputs
-
-The platform `outputs.tf` creates SSM parameters for all major resource IDs/ARNs. But since the sub-module outputs don't exist, none of these SSM parameters can be created.
-
----
-
-### 6.6 CodeBuild Uses `NO_SOURCE`
-
-**`agents/codebuild.tf`:**
 ```hcl
 source {
   type = "NO_SOURCE"
 }
 ```
 
-With `NO_SOURCE`, CodeBuild has no source to build from. The buildspec runs `docker build .` but there's no source code in the build environment. Either:
-- Use `S3` source type with the `codebuild_source_bucket` variable
-- Use `GITHUB` source type with webhook
-- Use `CODECOMMIT` source type
+The buildspec runs `docker build .` but with `NO_SOURCE` there is no source code available. The intended workflow is:
+1. Domain repo triggers CodeBuild externally (via CLI/SDK)
+2. Source is provided at trigger time via `sourceLocationOverride`
+
+This is a valid pattern for externally-triggered builds, but:
+- The buildspec should handle the case where source is injected via override
+- Documentation should clarify this workflow for domain repo consumers
+- Consider adding `codebuild_source_bucket` wiring (variable exists but isn't used)
 
 ---
 
-### 6.7 Memory Strategy Type Mapping May Be Incorrect
+## 8. MEDIUM: Step Functions Integration
 
-**`agents/memory_strategies.tf`:**
+### 8.1 AgentCore Integration ARN
+
+**File:** `modules/workflows/state_machines.tf`
+
+```hcl
+Resource = "arn:aws:states:::bedrock-agentcore:invokeAgentRuntime"
+```
+
+This is the Step Functions optimized integration pattern. Verify:
+1. This exact service integration exists — `bedrock-agentcore` is a new service, the SFN integration may use a different resource ARN
+2. The `AgentRuntimeArn` parameter name matches the API
+3. `SessionState.Prompt.$` JSONPath is correct for the API shape
+
+If the integration doesn't exist, tasks would need to use `arn:aws:states:::aws-sdk:bedrockagentcore:invokeAgentRuntime` (SDK integration pattern) instead.
+
+---
+
+### 8.2 Parallel State Result Merging
+
+**File:** `modules/workflows/state_machines.tf`
+
+Parallel states set `ResultPath = "$.parallel_results"` which overwrites the input. If downstream states need both the original input and parallel results, consider using `ResultSelector` to merge them.
+
+---
+
+## 9. MEDIUM: Memory Strategy Types
+
+**File:** `modules/agents/memory_strategies.tf`
+
 ```hcl
 strategy_type_map = {
   "SUMMARY"         = "SUMMARIZATION"
@@ -547,83 +313,161 @@ strategy_type_map = {
 }
 ```
 
-CloudFormation shows strategy types as `ShortTermMemory` in the example. The actual allowed values may be different from what we're using. **Verify against the MemoryStrategy property type documentation.**
+CloudFormation example shows `ShortTermMemory` as a strategy type. The full list of valid values may include types not in our mapping. If the API rejects our values, strategy creation will fail silently (Terraform will report the API error).
+
+**Verify:** Check the [MemoryStrategy property type documentation](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-bedrockagentcore-memory-memorystrategy.html).
 
 ---
 
-### 6.8 No Terraform State Locking
+## 10. MEDIUM: DynamoDB Missing GSIs
 
-Without a DynamoDB table for state locking, concurrent `terraform apply` operations can corrupt state. This is required for any team-based workflow.
+**File:** `modules/platform/modules/data/main.tf`
 
----
+Tables are created with hash/range keys only. Common query patterns will need GSIs:
 
-## 7. LOW: Minor Issues
+| Table | Likely GSI | Purpose |
+|-------|-----------|---------|
+| `artifacts` | `agent_id-created_at-index` | List artifacts by agent |
+| `audit_log` | `agent_id-timestamp-index` | Agent audit trail |
+| `run_history` | `agent_id-started_at-index` | Agent run history |
+| `run_history` | `status-started_at-index` | Find runs by status |
 
-### 7.1 Inconsistent Tagging
-
-- Sub-modules add their own `Module` tag but use different patterns
-- Root `locals.tf` merges tags with hardcoded values that duplicate `providers.tf` default_tags
-- Some resources have `Name` tags, others don't
-
-### 7.2 No Resource Import Blocks
-
-For brownfield deployments where resources already exist, `import` blocks would allow adopting existing infrastructure without recreation.
-
-### 7.3 No `moved` Blocks for Refactoring
-
-When sub-modules are rewritten to match the root interface, `moved` blocks will be needed to prevent Terraform from destroying and recreating resources.
-
-### 7.4 Agents Module Missing `depends_on` for Platform Resources
-
-The agents module references platform outputs (gateway_url, memory_id) but has no explicit dependency. When composed in a root module, `depends_on` or data source lookups may be needed.
+Without GSIs, these queries require full table scans, which are expensive and slow at scale.
 
 ---
 
-## 8. Summary — Action Items by Priority
+## 11. LOW: Minor Issues
 
-### Must Fix (Terraform will not work without these)
+### 11.1 Duplicate Tag Merging
 
-| # | Finding | Section | Files |
-|---|---------|---------|-------|
-| 1 | Rewrite `security/` sub-module to match root interface (5 KMS keys, conditional WAF, correct variable names) | 1.1 | `modules/platform/modules/security/*` |
-| 2 | Rewrite `data/` sub-module to match root interface (5 DynamoDB tables, 3 S3 buckets, SQS, conditional CloudFront with OAC) | 1.2 | `modules/platform/modules/data/*` |
-| 3 | Rewrite `network/` sub-module to match root interface (3-tier subnets, configurable NAT, security groups) | 1.3 | `modules/platform/modules/network/*` |
-| 4 | Rewrite `observability/` sub-module to match root interface (SNS, dashboard, X-Ray group, pipeline log group) | 1.4 | `modules/platform/modules/observability/*` |
-| 5 | Rewrite `api/` sub-module to match root interface (Lambda creation, REST API, specific routes, throttling, WAF) | 1.5 | `modules/platform/modules/api/*` |
-| 6 | Fix Runtime `protocol_configuration` — verify block vs string against provider | 2.1 | `modules/agents/runtime.tf` |
-| 7 | Fix Memory `event_expiry_duration` minimum validation (3, not 1) | 2.2 | `modules/platform/modules/agentcore/variables.tf` |
-| 8 | Fix Gateway target `credential_provider_configurations` — block vs attribute | 2.3 | `modules/agents/gateway_targets.tf` |
+**File:** `modules/platform/locals.tf`
 
-### Should Fix (Missing functionality)
+```hcl
+tags = merge(var.tags, {
+  Environment = var.environment
+  Project     = var.resource_prefix
+  ManagedBy   = "terraform"
+})
+```
 
-| # | Finding | Section | Files |
-|---|---------|---------|-------|
-| 9 | Add backend configuration for remote state | 3.1 | New `backend.tf` |
-| 10 | Add cross-region provider alias for Bedrock | 3.2 | `modules/platform/providers.tf` |
-| 11 | Add `aws_bedrockagentcore_runtime_endpoint` | 3.3 | `modules/agents/runtime.tf` |
-| 12 | Add Gateway `kms_key_arn` for encryption | 3.4 | `modules/platform/modules/agentcore/gateway.tf` |
-| 13 | Add Gateway `policy_engine_configuration` | 3.5 | `modules/platform/modules/agentcore/gateway.tf` |
-| 14 | Add Runtime `lifecycle_configuration` | 3.7 | `modules/agents/runtime.tf` |
-| 15 | Fix ECR to use KMS encryption | 4.1 | `modules/agents/ecr.tf` |
-| 16 | Remove Langfuse secrets from TF variables | 4.3 | `modules/platform/modules/observability/variables.tf` |
-| 17 | Scope agent IAM Bedrock permissions to model ARNs | 4.4 | `modules/agents/iam.tf` |
-| 18 | Fix CodeBuild source type | 6.6 | `modules/agents/codebuild.tf` |
+These same tags are also set as `default_tags` in `providers.tf`. Resources will have duplicate tag sources. This works but is redundant — `default_tags` already applies them.
 
-### Nice to Have
+### 11.2 Gateway `authorizer_configuration` Missing NONE Type
 
-| # | Finding | Section | Files |
-|---|---------|---------|-------|
-| 19 | Verify Step Functions AgentCore integration ARN | 5.1 | `modules/workflows/state_machines.tf` |
-| 20 | Add Gateway interceptor configurations | 3.6 | `modules/platform/modules/agentcore/gateway.tf` |
-| 21 | Add Memory stream delivery resources | 3.10 | `modules/platform/modules/agentcore/memory.tf` |
-| 22 | Add Runtime authorizer/request header config | 3.8, 3.9 | `modules/agents/runtime.tf` |
-| 23 | Add DynamoDB GSIs for query patterns | 6.3 | `modules/platform/modules/data/main.tf` |
-| 24 | Verify memory strategy type values | 6.7 | `modules/agents/memory_strategies.tf` |
-| 25 | Consistent Terraform version constraints | 6.1 | All sub-module `versions.tf` |
+**File:** `modules/platform/modules/agentcore/gateway.tf`
+
+CloudFormation shows `AuthorizerType` allows `CUSTOM_JWT | AWS_IAM | NONE`. Our validation only allows `AWS_IAM` and `CUSTOM_JWT`. The `NONE` type (no auth) may be useful for dev/testing.
+
+### 11.3 No `moved` Blocks
+
+If resource addresses change during refactoring, `moved` blocks prevent destroy-and-recreate cycles. Worth adding proactively for key resources.
+
+### 11.4 Missing `description` on Memory Resource
+
+**File:** `modules/platform/modules/agentcore/memory.tf`
+
+CloudFormation shows optional `Description` field. Our memory resource doesn't set it — minor but helpful for console identification.
 
 ---
 
-## 9. References
+## Block 1 — Completion Notes
+
+**Date:** 2026-03-21
+
+All 5 critical findings resolved. Provider schema verified via `terraform providers schema -json`.
+
+### Block 1 Fixes Applied
+
+| Finding | Fix Applied |
+|---------|-------------|
+| 1. Missing `placeholder.zip` | Created at `modules/platform/modules/api/placeholder.zip` |
+| 2. `protocol_configuration` | Confirmed as block. Renamed `protocol` → `server_protocol` per provider schema. Removed hardcoded `"HTTP"` default |
+| 3. Memory `event_expiry_duration` | Changed validation from `>= 1` to `>= 3` per AWS API minimum |
+| 4. `credential_provider_configurations` | Renamed to singular `credential_provider_configuration` block. Uses `gateway_iam_role {}` sub-block |
+| 5. `tool_schema`/`inline_payload` | Fixed nesting: `lambda_target_configuration` → `mcp { lambda {} }`. `inline_payload` kept singular (confirmed by schema). Removed `inline_tool_definitions` list — each tool is a separate `inline_payload` block |
+
+### Additional Fixes (discovered during `terraform validate`)
+
+These were NOT in the original audit but blocked validation:
+
+| Fix | File | Issue |
+|-----|------|-------|
+| Resource type rename | `agents/identity_providers.tf` | `apikey` → `api_key` in resource type name |
+| Add `api_key_wo` | `agents/identity_providers.tf` | Resource requires `api_key` or `api_key_wo` — was missing |
+| Remove invalid `credential_provider_vendor` | `agents/identity_providers.tf` | Attribute does not exist in provider schema |
+| Remove unsupported `tags` | `agents/memory_strategies.tf` | Provider does not support tags on this resource |
+| Fix VPC block name | `agents/runtime.tf` | `vpc_configuration` → `network_mode_config`, `subnet_ids` → `subnets`, `security_group_ids` → `security_groups` |
+| Fix authorizer nesting | `platform/modules/agentcore/gateway.tf` | JWT config must be inside `custom_jwt_authorizer {}` sub-block |
+| Fix `network_configuration` | `platform/modules/agentcore/tools.tf` | Changed from string to block with `network_mode` attribute |
+| Fix output attributes | `platform/modules/agentcore/outputs.tf` | `.id` → `.gateway_id`, `.arn` → `.gateway_arn`, `.id` → `.code_interpreter_id`/`.browser_id` |
+
+Both `modules/platform` and `modules/agents` now pass `terraform validate` (only deprecation warnings on `data.aws_region.current.name`).
+
+---
+
+## Block 2 — Completion Notes
+
+**Date:** 2026-03-21
+
+7 of 8 findings resolved. Finding 8 (Gateway `policy_engine_configuration`) skipped — attribute not present in Terraform AWS provider schema (>= 6.21). Provider schema verified via `terraform providers schema -json`.
+
+### Block 2 Fixes Applied
+
+| Finding | Fix Applied |
+|---------|-------------|
+| 6. Runtime Endpoint | Added `aws_bedrockagentcore_agent_runtime_endpoint` per agent, SSM parameter, output |
+| 7. Gateway KMS | Added `kms_key_arn` to gateway resource, wired to `data_kms_key_arn` from security module |
+| 8. Gateway Policy Engine | SKIPPED — `policy_engine_configuration` not in provider schema yet |
+| 9. Lifecycle Configuration | Added `lifecycle_configuration` attribute (conditional on blueprint), `ignore_changes` workaround for bug #45290 |
+| 10. ECR KMS | Changed to conditional `KMS`/`AES256` via `storage_kms_key_arn` variable, added storage KMS IAM statement |
+| 11. IAM Scoping | Scoped `bedrock:InvokeModel` to blueprint `model_id` ARN, scoped CloudWatch Logs to agent-specific groups, split ECR auth (wildcard) from image pull (scoped) |
+| 12. VPC Endpoint | Added `bedrock_agentcore` to `interface_endpoints` locals map (may not be available in all regions) |
+| 13. OAuth2 Provider | Added `aws_bedrockagentcore_oauth2_credential_provider` with SSM-backed secrets, `custom_oauth2_provider_config`, `ignore_changes` on provider config |
+
+---
+
+## 12. Summary — Action Items by Priority
+
+### Must Fix (Will fail terraform plan/apply)
+
+| # | Finding | Severity | Files |
+|---|---------|----------|-------|
+| 1 | ~~Create `placeholder.zip` for Lambda~~ | DONE | `modules/platform/modules/api/placeholder.zip` |
+| 2 | ~~Verify `protocol_configuration` block vs string~~ | DONE | `modules/agents/runtime.tf` |
+| 3 | ~~Fix memory `event_expiry_duration` min validation (3 not 1)~~ | DONE | `modules/platform/modules/agentcore/variables.tf` |
+| 4 | ~~Verify `credential_provider_configurations` block vs attribute~~ | DONE | `modules/agents/gateway_targets.tf` |
+| 5 | ~~Verify `tool_schema`/`inline_payload` nesting~~ | DONE | `modules/agents/gateway_targets.tf` |
+
+### Should Fix (Missing functionality or security)
+
+| # | Finding | Severity | Files |
+|---|---------|----------|-------|
+| 6 | ~~Add `aws_bedrockagentcore_runtime_endpoint`~~ | DONE | `modules/agents/runtime.tf` |
+| 7 | ~~Add Gateway `kms_key_arn`~~ | DONE | `modules/platform/modules/agentcore/gateway.tf` |
+| 8 | Add Gateway `policy_engine_configuration` | SKIPPED | Not in provider schema (aws >= 6.21). Revisit when provider adds support |
+| 9 | ~~Add Runtime `lifecycle_configuration`~~ | DONE | `modules/agents/runtime.tf` |
+| 10 | ~~ECR: switch AES256 to KMS~~ | DONE | `modules/agents/ecr.tf` |
+| 11 | ~~Scope agent IAM `bedrock:InvokeModel` to model ARNs~~ | DONE | `modules/agents/iam.tf` |
+| 12 | ~~Add VPC endpoint for `bedrock-agentcore`~~ | DONE | `modules/platform/modules/security/vpc_endpoints.tf` |
+| 13 | ~~Add `aws_bedrockagentcore_oauth2_credential_provider`~~ | DONE | `modules/agents/identity_providers.tf` |
+
+### Should Address (Best practice / completeness)
+
+| # | Finding | Severity | Files |
+|---|---------|----------|-------|
+| 14 | Document backend configuration pattern | MEDIUM | New `docs/` or README |
+| 15 | Verify SFN `bedrock-agentcore:invokeAgentRuntime` integration | MEDIUM | `modules/workflows/state_machines.tf` |
+| 16 | Add DynamoDB GSIs for common query patterns | MEDIUM | `modules/platform/modules/data/main.tf` |
+| 17 | Verify memory strategy type values | MEDIUM | `modules/agents/memory_strategies.tf` |
+| 18 | Document CodeBuild `NO_SOURCE` / override workflow | MEDIUM | `modules/agents/codebuild.tf` |
+| 19 | Add cross-region Bedrock provider alias | MEDIUM | `modules/platform/providers.tf` |
+| 20 | Add `NONE` to Gateway authorizer_type validation | LOW | `modules/platform/modules/agentcore/variables.tf` |
+| 21 | Remove duplicate tags in locals.tf | LOW | `modules/platform/locals.tf` |
+| 22 | Add `description` to Memory resource | LOW | `modules/platform/modules/agentcore/memory.tf` |
+
+---
+
+## 13. References
 
 - [AWS::BedrockAgentCore::Gateway CloudFormation](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-bedrockagentcore-gateway.html)
 - [AWS::BedrockAgentCore::Runtime CloudFormation](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-bedrockagentcore-runtime.html)

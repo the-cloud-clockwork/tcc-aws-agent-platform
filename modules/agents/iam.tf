@@ -58,7 +58,7 @@ resource "aws_iam_role" "agent" {
 data "aws_iam_policy_document" "agent_permissions" {
   for_each = local.blueprints
 
-  # Bedrock model invocation
+  # Bedrock model invocation — scoped to agent's configured model
   statement {
     sid    = "BedrockInvoke"
     effect = "Allow"
@@ -66,22 +66,31 @@ data "aws_iam_policy_document" "agent_permissions" {
       "bedrock:InvokeModel",
       "bedrock:InvokeModelWithResponseStream",
     ]
+    resources = [
+      "arn:aws:bedrock:${var.bedrock_region != "" ? var.bedrock_region : data.aws_region.current.name}::foundation-model/${each.value.model.model_id}",
+    ]
+  }
+
+  # ECR auth token — must be wildcard per API requirement
+  statement {
+    sid       = "EcrAuth"
+    effect    = "Allow"
+    actions   = ["ecr:GetAuthorizationToken"]
     resources = ["*"]
   }
 
-  # ECR image pull (for container-based runtimes)
+  # ECR image pull — scoped to agent's repository
   statement {
     sid    = "EcrPull"
     effect = "Allow"
     actions = [
-      "ecr:GetAuthorizationToken",
       "ecr:BatchGetImage",
       "ecr:GetDownloadUrlForLayer",
     ]
-    resources = ["*"]
+    resources = [aws_ecr_repository.agent[each.key].arn]
   }
 
-  # CloudWatch Logs
+  # CloudWatch Logs — scoped to agent-specific log groups
   statement {
     sid    = "CloudWatchLogs"
     effect = "Allow"
@@ -90,7 +99,10 @@ data "aws_iam_policy_document" "agent_permissions" {
       "logs:CreateLogStream",
       "logs:PutLogEvents",
     ]
-    resources = ["*"]
+    resources = [
+      "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/bedrock-agentcore/${local.name_prefix}-${each.key}*",
+      "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/bedrock-agentcore/${local.name_prefix}-${each.key}*:*",
+    ]
   }
 
   # X-Ray tracing
@@ -160,6 +172,20 @@ data "aws_iam_policy_document" "agent_permissions" {
         "kms:GenerateDataKey",
       ]
       resources = [var.domain_artifacts_kms_key_arn]
+    }
+  }
+
+  # Conditional: KMS access for storage key (ECR encryption)
+  dynamic "statement" {
+    for_each = var.storage_kms_key_arn != "" ? [1] : []
+    content {
+      sid    = "StorageKmsAccess"
+      effect = "Allow"
+      actions = [
+        "kms:Decrypt",
+        "kms:GenerateDataKey",
+      ]
+      resources = [var.storage_kms_key_arn]
     }
   }
 }

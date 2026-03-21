@@ -6,7 +6,7 @@
 
 output "gateway_id" {
   description = "ID of the AgentCore Gateway."
-  value       = aws_bedrockagentcore_gateway.this.id
+  value       = aws_bedrockagentcore_gateway.this.gateway_id
 }
 
 output "gateway_url" {
@@ -16,7 +16,7 @@ output "gateway_url" {
 
 output "gateway_arn" {
   description = "ARN of the AgentCore Gateway."
-  value       = aws_bedrockagentcore_gateway.this.arn
+  value       = aws_bedrockagentcore_gateway.this.gateway_arn
 }
 
 output "gateway_role_arn" {
@@ -40,12 +40,12 @@ output "memory_arn" {
 
 output "code_interpreter_id" {
   description = "ID of the Code Interpreter builtin tool. Empty string if disabled."
-  value       = var.code_interpreter_enabled ? aws_bedrockagentcore_code_interpreter.this[0].id : ""
+  value       = var.code_interpreter_enabled ? aws_bedrockagentcore_code_interpreter.this[0].code_interpreter_id : ""
 }
 
 output "browser_id" {
   description = "ID of the Browser builtin tool. Empty string if disabled."
-  value       = var.browser_enabled ? aws_bedrockagentcore_browser.this[0].id : ""
+  value       = var.browser_enabled ? aws_bedrockagentcore_browser.this[0].browser_id : ""
 }
 
 # ── Cognito ──────────────────────────────────────────────────────────────────

@@ -35,9 +35,4 @@ resource "aws_bedrockagentcore_memory_strategy" "this" {
 
   namespaces = each.value.namespace != "" ? [each.value.namespace] : []
 
-  tags = merge(local.tags, {
-    Name      = each.value.name
-    Component = "memory-strategy"
-    AgentId   = each.value.agent_id
-  })
 }

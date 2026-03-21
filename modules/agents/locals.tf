@@ -48,12 +48,15 @@ locals {
   agent_oauth_credentials = flatten([
     for agent_id, bp in local.blueprints : [
       for cred in try(bp.identity.credentials, []) : {
-        key       = "${agent_id}-${cred.name}"
-        agent_id  = agent_id
-        name      = cred.name
-        provider  = try(cred.provider, cred.name)
-        scopes    = try(cred.scopes, [])
-        auth_flow = try(cred.auth_flow, "M2M")
+        key                    = "${agent_id}-${cred.name}"
+        agent_id               = agent_id
+        name                   = cred.name
+        provider               = try(cred.provider, cred.name)
+        scopes                 = try(cred.scopes, [])
+        auth_flow              = try(cred.auth_flow, "M2M")
+        discovery_url          = try(cred.discovery_url, "")
+        client_id_ssm_path     = try(cred.client_id_ssm_path, "${var.ssm_root_path}/agents/${agent_id}/oauth/${cred.name}/client-id")
+        client_secret_ssm_path = try(cred.client_secret_ssm_path, "${var.ssm_root_path}/agents/${agent_id}/oauth/${cred.name}/client-secret")
       }
       if contains(["oauth_3lo", "oauth2", "m2m"], try(cred.type, ""))
     ]
