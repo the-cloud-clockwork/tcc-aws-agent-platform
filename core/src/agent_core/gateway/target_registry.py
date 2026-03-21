@@ -7,6 +7,7 @@ and API Gateway.
 Targets can be loaded from a ``gateway-targets.yaml`` file (lives in domain
 repos) or registered programmatically at deploy time.
 """
+
 from __future__ import annotations
 
 import logging
@@ -76,10 +77,18 @@ class TargetRegistry:
     def __init__(
         self,
         gateway_id: str | None = None,
-        region: str = "eu-west-1",
+        region: str | None = None,
     ) -> None:
         self._gateway_id = gateway_id or os.environ.get("AGENTCORE_GATEWAY_ID", "")
-        self._region = region
+        self._region = (
+            region
+            or os.environ.get("AWS_DEFAULT_REGION")
+            or os.environ.get("AWS_REGION")
+        )
+        if not self._region:
+            raise ValueError(
+                "No AWS region configured.  Pass region= or export AWS_DEFAULT_REGION."
+            )
         self._client: Any = None
 
     @property
@@ -170,7 +179,11 @@ class TargetRegistry:
             credentialProviderConfigurations=credential_providers,
         )
 
-        logger.info("Registered Gateway target '%s' (type=%s)", target.name, target.target_type.value)
+        logger.info(
+            "Registered Gateway target '%s' (type=%s)",
+            target.name,
+            target.target_type.value,
+        )
         return response
 
     def synchronize_all(self, targets: list[GatewayTarget]) -> dict[str, Any]:
