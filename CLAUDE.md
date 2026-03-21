@@ -30,7 +30,7 @@
 
 ## What This Repo Is
 
-A monorepo providing the foundational runtime, tooling, and infrastructure for AI agent systems built on AWS Strands Agents SDK. It contains 5 independent modules that together form a complete agent platform:
+A monorepo providing the foundational runtime, tooling, and infrastructure for AI agent systems built on AWS Strands Agents SDK. It contains 4 independent Python modules plus Terraform infrastructure that together form a complete agent platform:
 
 | Module | Package | Purpose |
 |--------|---------|---------|
@@ -38,7 +38,7 @@ A monorepo providing the foundational runtime, tooling, and infrastructure for A
 | `prompts/` | `prompt-registry` (CodeArtifact) | Versioned prompt management — S3 storage + DynamoDB metadata + mode-gated resolution |
 | `artifacts/` | `mcp-artifacts` (Docker) | Universal artifact store MCP server — S3 + DynamoDB catalog + signed URLs + claim-check pattern |
 | `cli/` | `agent-cli` (pip) | CLI for blueprint validation, prompt management, strategy lifecycle, graph rendering |
-| `infra/` | `agent-infra` (CDK) | 8 CDK stacks + 7 reusable constructs — VPC, Lambda, ECS Fargate, Step Functions, DynamoDB, S3, KMS, API Gateway, CloudWatch |
+| `modules/` | Terraform IaC | 3 Terraform modules (platform, agents, workflows) — VPC, KMS, DynamoDB, S3, CloudFront, AgentCore Gateway/Memory/Runtime, API Gateway, Step Functions, CloudWatch |
 
 ### How Domain Repos Consume This Platform
 
@@ -46,7 +46,7 @@ A monorepo providing the foundational runtime, tooling, and infrastructure for A
 Domain repo (e.g., tccw-qitp)
   └── agents/        → imports agent-core from CodeArtifact
   └── mcps/          → imports agent_core.mcp.* for base server, cache, routing
-  └── infra/         → reads platform SSM params, deploys domain resources on top
+  └── infra/         → consumes modules/ via source = "git::repo.git//modules/platform"
 ```
 
 The platform deploys FIRST (base infrastructure). Domain repos deploy SECOND (domain resources plugged into platform infrastructure).
@@ -121,24 +121,17 @@ Developer tooling. Entry point: `agentcli`.
 - `agentcli strategy validate/list/promote` — Strategy lifecycle
 - `agentcli graph render` — Multi-agent topology visualization (ASCII diagrams)
 
-### `infra/` — CDK Infrastructure (v0.2.0)
+### `modules/` — Terraform Infrastructure
 
-Configuration-driven CDK stacks. All resource names come from `config/{env}.yaml`.
+Three Terraform modules consumed by domain repos via `source = "git::repo.git//modules/platform"`.
 
-| Stack | Resources |
-|-------|-----------|
-| `DataStack` | DynamoDB tables (artifacts, audit_log, prompt_registry, run_history, idempotency) + S3 buckets |
-| `NetworkStack` | VPC (3-tier subnets, NAT) + security groups |
-| `SecurityStack` | KMS CMKs + Secrets Manager + WAF + VPC endpoints |
-| `AgentStack` | Lambda functions + Strands SDK layer + IAM roles |
-| `McpStack` | ECS Fargate cluster + Cloud Map namespace + ECR repos |
-| `ObservabilityStack` | CloudWatch dashboard + SNS alerts + X-Ray group |
-| `ApiStack` | API Gateway + throttling + CORS |
-| `WorkflowStack` | Step Functions state machine templates |
+| Module | Sub-modules / Resources |
+|--------|------------------------|
+| `modules/platform/` | network (VPC, subnets, NAT, SGs), security (5 KMS keys, WAF, VPC endpoints), data (5 DynamoDB tables, 3 S3 buckets, CloudFront, SQS), agentcore (Gateway, Memory, Browser, Code Interpreter, Cognito), observability (CloudWatch, X-Ray, SNS), api (API Gateway for artifacts) |
+| `modules/agents/` | Reads blueprint YAML via `yamldecode()`, creates ECR repos, CodeBuild ARM64 builds, `aws_bedrockagentcore_agent_runtime` per agent, Gateway targets, Memory strategies, Identity credential providers |
+| `modules/workflows/` | Reads workflow YAML, creates Step Functions state machines, EventBridge scheduled triggers |
 
-**Reusable constructs:** `McpServiceConstruct`, `StrandsAgentTask`, `SfnWorkflow`, `FargateAutoScaling`, `LambdaProvisionedConcurrency`, `WafWebAcl`, `VpcEndpointsConstruct`
-
-**SSM parameter namespace:** `/platform/{env}/tables/*/name`, `/platform/{env}/buckets/*/name`, `/platform/{env}/agents/*/arn`, `/platform/{env}/mcps/*/endpoint`, etc.
+**SSM parameter namespace:** `/{prefix}/{env}/tables/*/name`, `/{prefix}/{env}/buckets/*/name`, `/{prefix}/{env}/agentcore/gateway-url`, `/{prefix}/{env}/agents/*/runtime-arn`, etc.
 
 ---
 
@@ -151,7 +144,7 @@ Configuration-driven CDK stacks. All resource names come from `config/{env}.yaml
 | Bedrock Region | `us-west-2` |
 | CodeArtifact Domain | `platform` |
 | CodeArtifact Repo | `platform-python` |
-| SonarQube Project | `aws-agent-platform` (5 modules) |
+| SonarQube Project | `aws-agent-platform` (4 modules) |
 
 ---
 
@@ -164,16 +157,16 @@ pip install -e "core/[dev]"       # agent-core
 pip install -e "prompts/[dev]"    # prompt-registry
 pip install -e "artifacts/[dev]"  # mcp-artifacts
 pip install -e "cli/[dev]"        # agent-cli (depends on agent-core)
-pip install -e "infra/[dev]"      # CDK stacks
+# modules/ uses Terraform (no pip install needed)
 ```
 
-### CDK Deploy
+### Terraform Deploy
 
 ```bash
-cd infra
-cdk synth -c env=dev          # Synthesize
-cdk deploy -c env=dev         # Deploy all stacks
-cdk deploy -c env=dev DataStack AgentStack   # Deploy specific stacks
+cd modules/platform
+terraform init
+terraform plan -var-file=envs/dev.tfvars
+terraform apply -var-file=envs/dev.tfvars
 ```
 
 Environments: `dev` (on-demand, minimal), `staging` (provisioned, moderate), `production` (full HA, WAF, scaling).
@@ -197,7 +190,7 @@ Config: `ruff.toml` — Python 3.12, line-length 120, isort with known-first-par
 | `ci-prompts.yml` | `prompts/**` changes | pytest + ruff |
 | `ci-artifacts.yml` | `artifacts/**` changes | pytest + ruff |
 | `ci-cli.yml` | `cli/**` changes | pytest + ruff |
-| `ci-infra.yml` | `infra/**` changes | pytest + ruff + cdk synth |
+| ~~`ci-infra.yml`~~ | ~~removed~~ | ~~CDK workflow deleted — Terraform modules validated via `terraform validate`~~ |
 | `publish.yml` | `v*` tags | Build + publish to CodeArtifact |
 | `sonar-scan.yml` | Push/PR to main | Multi-module SonarQube analysis |
 
@@ -264,7 +257,7 @@ Example blueprints live in `core/src/agent_core/data/blueprints/agents/` and are
 - **Never hardcode resource names** — Everything from `config/{env}.yaml`
 - **Never run tests locally** — CI only (pytest hangs on this machine)
 - **Commit directly to main** — Scratch phase, no branches, no PRs
-- **IaC: CDK (current) → Terraform (target)** — CDK stacks exist; Terraform modules are the migration target per VISION.md Block 11
+- **IaC: Terraform** — `modules/` contains 3 Terraform modules (platform, agents, workflows). CDK has been removed.
 - **Tests are separate sessions** — Never interleave test runs with implementation work
 - **Always follow the Session Startup Protocol** — Read VISION → CONCEPTS → TECHNICAL-GUIDE → PROGRESS before any task
 
@@ -287,13 +280,10 @@ tccw-aws-agent-platform/
 ├── cli/                     # agent-cli developer tooling
 │   ├── src/agent_cli/
 │   └── tests/
-├── infra/                   # CDK infrastructure
-│   ├── app.py
-│   ├── config/              # dev.yaml, staging.yaml, production.yaml
-│   ├── stacks/              # 8 CDK stacks
-│   ├── constructs_/         # 7 reusable constructs
-│   ├── scripts/             # build_mcps.sh, package_agents.sh
-│   └── tests/
+├── modules/                 # Terraform infrastructure
+│   ├── platform/            # Core infra (network, security, data, agentcore, observability, api)
+│   ├── agents/              # Per-agent deployment (ECR, CodeBuild, Runtime, Gateway targets)
+│   └── workflows/           # Step Functions from workflow YAML
 ├── scripts/
 │   ├── domain-scan.sh       # Domain contamination scanner
 │   └── lock-deps.sh         # Dependency locking
