@@ -589,27 +589,27 @@ class BlueprintLoader:
             logger.info("Wired evaluation for %s", agent_id)
 
         # -- wire policy (Cedar rules → Gateway policy engine) --
+        policy_wiring = None
         if blueprint.policy and blueprint.policy.rules:
-            from agent_core.policy.cedar_policies import CedarPolicyBuilder
-            from agent_core.policy.client import PolicyClient
+            from agent_core.policy.wiring import PolicyWiring
 
-            policy_client = PolicyClient()
-            builder = CedarPolicyBuilder()
-            for rule in blueprint.policy.rules:
-                builder.add_rule_from_config(rule)
-            cedar_policies = builder.build()
+            versions_table = None
+            if (
+                blueprint.policy.versioning is not None
+                and blueprint.policy.versioning.enabled
+            ):
+                versions_table = os.environ.get(blueprint.policy.versioning.table_env)
 
-            policy_client.attach_to_gateway(
+            gateway_id = getattr(self._gateway_client, "gateway_url", "") or agent_id
+
+            policy_wiring = PolicyWiring(
+                config=blueprint.policy,
                 agent_id=agent_id,
-                policies=cedar_policies,
-                mode=blueprint.policy.mode,
+                gateway_identifier=gateway_id,
+                region=None,
+                versions_table_name=versions_table,
             )
-            logger.info(
-                "Wired %d Cedar policy rules for %s (mode=%s)",
-                len(blueprint.policy.rules),
-                agent_id,
-                blueprint.policy.mode,
-            )
+            logger.info("Wired policy for %s", agent_id)
 
         # -- wire session bridge for multi-turn --
         session_bridge = None
@@ -645,6 +645,7 @@ class BlueprintLoader:
                     mcp_clients,
                     current_mode,
                     evaluation_wiring=evaluation_wiring,
+                    policy_wiring=policy_wiring,
                 )
 
             # Single-node path (Phase 4 backward compat)
@@ -667,6 +668,7 @@ class BlueprintLoader:
                     memory_wiring=memory_wiring,
                     builtin_wiring=builtin_wiring,
                     evaluation_wiring=evaluation_wiring,
+                    policy_wiring=policy_wiring,
                     session_bridge=session_bridge,
                     observability_hook=obs_hook,
                 )
@@ -690,6 +692,7 @@ class BlueprintLoader:
                     memory_wiring=memory_wiring,
                     builtin_wiring=builtin_wiring,
                     evaluation_wiring=evaluation_wiring,
+                    policy_wiring=policy_wiring,
                     session_bridge=session_bridge,
                     observability_hook=obs_hook,
                 )
@@ -706,6 +709,7 @@ class BlueprintLoader:
             memory_wiring=memory_wiring,
             builtin_wiring=builtin_wiring,
             evaluation_wiring=evaluation_wiring,
+            policy_wiring=policy_wiring,
             session_bridge=session_bridge,
             observability_hook=obs_hook,
         )
@@ -807,6 +811,7 @@ class BlueprintLoader:
         primary_mcp_clients: list[Any],
         current_mode: ExecutionMode,
         evaluation_wiring: Any = None,
+        policy_wiring: Any = None,
     ) -> AgentSession:
         """Build a multi-node Swarm or Graph session from node configs.
 
@@ -882,6 +887,7 @@ class BlueprintLoader:
                 multi_agent=swarm,
                 pattern="swarm",
                 evaluation_wiring=evaluation_wiring,
+                policy_wiring=policy_wiring,
             )
 
         elif ma.pattern == "graph":
@@ -923,6 +929,7 @@ class BlueprintLoader:
                 multi_agent=graph,
                 pattern="graph",
                 evaluation_wiring=evaluation_wiring,
+                policy_wiring=policy_wiring,
             )
 
         raise BlueprintLoadError(f"Unknown multi-agent pattern: {ma.pattern}")

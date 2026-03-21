@@ -19,6 +19,7 @@ def __getattr__(name: str):  # noqa: N807
         "PolicyConfigError",
         "PolicyEngineNotFoundError",
         "PolicyMode",
+        "PolicyWiring",
     ):
         from agent_core.policy import client as _client
 
@@ -47,6 +48,11 @@ def __getattr__(name: str):  # noqa: N807
 
         return getattr(_translator, name)
 
+    if name == "PolicyWiring":
+        from agent_core.policy.wiring import PolicyWiring
+
+        return PolicyWiring
+
     if name in ("NL2CedarResult", "generate_from_natural_language"):
         from agent_core.policy import nl2cedar as _nl2cedar
 
@@ -68,6 +74,7 @@ __all__ = [
     "PolicyEngineNotFoundError",
     "PolicyError",
     "PolicyMode",
+    "PolicyWiring",
     "generate_cedar_files",
     "generate_from_natural_language",
     "translate_rule",

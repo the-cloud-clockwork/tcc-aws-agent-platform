@@ -82,9 +82,9 @@
 
 **Files:** `core/src/agent_core/policy/client.py`, `cedar_policies.py`, `translator.py`
 
-- [ ] Create `policy/wiring.py` — bridge blueprint `PolicyConfig` to `PolicyClient` (auto-create engine, deploy Cedar policies, attach to Gateway)
-- [ ] Wire `policy/wiring.py` into `BlueprintLoader.build_agent_session()`
-- [ ] Add policy versioning (track deployed policy versions, support rollback)
+- [x] Create `policy/wiring.py` — bridge blueprint `PolicyConfig` to `PolicyClient` (auto-create engine, deploy Cedar policies, attach to Gateway)
+- [x] Wire `policy/wiring.py` into `BlueprintLoader.build_agent_session()`
+- [x] Add policy versioning (track deployed policy versions, support rollback)
 
 ---
 
