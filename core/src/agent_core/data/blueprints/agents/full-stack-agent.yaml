@@ -1,4 +1,4 @@
-# Full-stack agent — Blocks 1-7 combined
+# Full-stack agent — Blocks 1-8 combined
 #
 # Demonstrates every implemented block wired together:
 #   Block 1: AgentCore Runtime (microVM, port 8080, @app.entrypoint)
@@ -8,6 +8,7 @@
 #   Block 5: Tools (Code Interpreter + Browser + Gateway MCP)
 #   Block 6: Observability (OTEL, Langfuse, audit, dashboard, data protection)
 #   Block 7: Evaluation (custom evaluator + online monitoring)
+#   Block 8: Policy (Cedar access control on Gateway)
 #
 # Extended thinking enabled for complex reasoning tasks.
 
@@ -127,6 +128,19 @@ evaluation:
       - Builtin.GoalSuccessRate
       - Builtin.Correctness
       - Builtin.ToolParameterAccuracy
+
+policy:
+  engine: FullStackPolicies
+  mode: LOG_ONLY
+  rules:
+    - name: allow_data_queries
+      allow: query_data
+    - name: limit_data_export
+      allow: export_data
+      when: "context.input.row_limit <= 10000"
+    - name: admins_only_delete
+      deny: delete_record
+      unless: "principal.scope.contains('group:Admins')"
 runtime:
   type: agentcore
   max_iterations: 15

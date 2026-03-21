@@ -13,6 +13,7 @@ from agent_core.schemas.identity_config import IdentityConfig
 from agent_core.schemas.memory_config import MemoryConfig
 from agent_core.schemas.model_config import ModelConfig
 from agent_core.schemas.observability_config import ObservabilityConfig
+from agent_core.schemas.policy_config import PolicyConfig
 from agent_core.schemas.runtime_config import RuntimeConfig
 from agent_core.schemas.tool_config import ToolDeclaration
 
@@ -122,6 +123,9 @@ class AgentBlueprint(BaseModel):
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     evaluation: EvaluationConfig = Field(default_factory=EvaluationConfig)
+    policy: PolicyConfig | None = Field(
+        default=None, description="Cedar access control configuration."
+    )
     execution_modes: ExecutionModes = Field(default_factory=ExecutionModes)
     output_schema: str | None = Field(
         default=None,
