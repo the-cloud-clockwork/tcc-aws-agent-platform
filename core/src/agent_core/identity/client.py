@@ -1,4 +1,5 @@
 """Platform wrapper for AgentCore Identity service CRUD operations."""
+
 from __future__ import annotations
 
 import logging
@@ -20,7 +21,15 @@ class IdentityClient:
     """
 
     def __init__(self, region: str | None = None) -> None:
-        self._region = region or os.environ.get("AWS_REGION", "eu-west-1")
+        self._region = (
+            region
+            or os.environ.get("AWS_DEFAULT_REGION")
+            or os.environ.get("AWS_REGION")
+        )
+        if not self._region:
+            raise CredentialError(
+                "No AWS region configured.  Pass region= or export AWS_DEFAULT_REGION."
+            )
         try:
             self._client = SdkIdentityClient(region=self._region)
         except Exception as exc:
@@ -100,18 +109,14 @@ class IdentityClient:
         try:
             return self._client.get_credential_provider(name)
         except Exception as exc:
-            raise CredentialError(
-                f"Failed to get provider '{name}': {exc}"
-            ) from exc
+            raise CredentialError(f"Failed to get provider '{name}': {exc}") from exc
 
     def list_providers(self) -> list[dict[str, Any]]:
         """List all credential providers."""
         try:
             return self._client.list_credential_providers()
         except Exception as exc:
-            raise CredentialError(
-                f"Failed to list providers: {exc}"
-            ) from exc
+            raise CredentialError(f"Failed to list providers: {exc}") from exc
 
     def delete_provider(self, name: str) -> None:
         """Delete a credential provider."""
@@ -119,6 +124,4 @@ class IdentityClient:
             self._client.delete_credential_provider(name)
             logger.info("Deleted provider: %s", name)
         except Exception as exc:
-            raise CredentialError(
-                f"Failed to delete provider '{name}': {exc}"
-            ) from exc
+            raise CredentialError(f"Failed to delete provider '{name}': {exc}") from exc
