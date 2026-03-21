@@ -11,6 +11,7 @@ from agent_core.schemas.gateway_config import GatewayConfig
 from agent_core.schemas.identity_config import IdentityConfig
 from agent_core.schemas.memory_config import MemoryConfig
 from agent_core.schemas.model_config import ModelConfig
+from agent_core.schemas.observability_config import ObservabilityConfig
 from agent_core.schemas.runtime_config import RuntimeConfig
 from agent_core.schemas.tool_config import ToolDeclaration
 
@@ -117,6 +118,7 @@ class AgentBlueprint(BaseModel):
     gateway: GatewayConfig = Field(default_factory=GatewayConfig)
     identity: IdentityConfig = Field(default_factory=IdentityConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
+    observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     execution_modes: ExecutionModes = Field(default_factory=ExecutionModes)
     output_schema: str | None = Field(

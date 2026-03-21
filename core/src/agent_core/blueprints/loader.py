@@ -420,6 +420,16 @@ class BlueprintLoader:
         if structured_output_model is not None:
             kwargs["structured_output_model"] = structured_output_model
 
+        # -- wire observability: trace_attributes --
+        if blueprint.observability.trace_attributes:
+            from agent_core.observability.otel import build_trace_attributes
+
+            kwargs["trace_attributes"] = build_trace_attributes(
+                blueprint_attrs=blueprint.observability.trace_attributes,
+                agent_name=blueprint.id,
+                agent_version=blueprint.version,
+            )
+
         return kwargs
 
     # ------------------------------------------------------------------
