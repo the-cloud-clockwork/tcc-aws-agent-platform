@@ -1,6 +1,7 @@
 """AgentCore Identity -- credential providers, decorators, and wiring."""
 
 from agent_core.identity.cache import CredentialCache
+from agent_core.identity.client import IdentityClient
 from agent_core.identity.cognito import CognitoProvider
 from agent_core.identity.entra import EntraProvider
 from agent_core.identity.okta import OktaProvider
@@ -18,6 +19,7 @@ __all__ = [
     "CredentialCache",
     "CredentialError",
     "EntraProvider",
+    "IdentityClient",
     "IdentityProvider",
     "IdentityWiring",
     "OktaProvider",

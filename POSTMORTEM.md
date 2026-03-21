@@ -31,9 +31,9 @@
 
 **Files:** `core/src/agent_core/identity/__init__.py`, `client.py`, `providers.py`
 
-- [ ] Export `IdentityClient` from `identity/__init__.py` — class exists but is not in public API
-- [ ] Remove hardcoded `"eu-west-1"` default from `identity/client.py:23`
-- [ ] Remove hardcoded `"eu-west-1"` default from `identity/providers.py:105`
+- [x] Export `IdentityClient` from `identity/__init__.py` — class exists but is not in public API
+- [x] Remove hardcoded `"eu-west-1"` default from `identity/client.py:23`
+- [x] Remove hardcoded `"eu-west-1"` default from `identity/providers.py:105`
 
 ---
 

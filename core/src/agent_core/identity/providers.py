@@ -7,6 +7,7 @@ there is no Lambda/env-var fallback.
 Provides the abstract ``IdentityProvider`` base class and a ``ProviderRegistry``
 for registering and looking up concrete providers at runtime.
 """
+
 from __future__ import annotations
 
 import logging
@@ -100,10 +101,14 @@ class IdentityProvider(ABC):
         cred_id = credential_id or self.credential_id
         from bedrock_agentcore.identity import AgentCoreIdentityClient
 
-        try:
-            client = AgentCoreIdentityClient(
-                region=os.environ.get("AWS_REGION", "eu-west-1"),
+        region = os.environ.get("AWS_DEFAULT_REGION") or os.environ.get("AWS_REGION")
+        if not region:
+            raise CredentialError(
+                "No AWS region configured.  Export AWS_DEFAULT_REGION."
             )
+
+        try:
+            client = AgentCoreIdentityClient(region=region)
             token: dict[str, Any] = client.get_credential(cred_id)
         except Exception as exc:
             raise CredentialError(
@@ -175,8 +180,7 @@ class ProviderRegistry:
         provider_cls = self._providers.get(name)
         if provider_cls is None:
             raise ValueError(
-                f"Unknown provider: {name}. "
-                f"Registered: {list(self._providers.keys())}"
+                f"Unknown provider: {name}. Registered: {list(self._providers.keys())}"
             )
         return provider_cls(provider_name=name)
 
