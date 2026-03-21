@@ -14,6 +14,39 @@ import textwrap
 import yaml
 
 from agent_core.blueprints.agent import AgentBlueprint
+from agent_core.schemas.identity_config import AuthorizerType
+
+
+def _build_identity_config(blueprint: AgentBlueprint) -> dict:
+    """Build identity section from blueprint identity configuration."""
+    identity_cfg: dict = {}
+
+    # Inbound: authorizer configuration
+    if blueprint.identity.authorizer is not None:
+        auth = blueprint.identity.authorizer
+        if auth.type == AuthorizerType.CUSTOM_JWT:
+            authorizer: dict = {"customJWTAuthorizer": {}}
+            if auth.discovery_url:
+                authorizer["customJWTAuthorizer"]["discoveryUrl"] = auth.discovery_url
+            if auth.allowed_clients:
+                authorizer["customJWTAuthorizer"]["allowedClients"] = auth.allowed_clients
+            identity_cfg["authorizer_configuration"] = authorizer
+
+    # Outbound: credential providers
+    credential_providers = []
+    for cred in blueprint.identity.credentials:
+        entry: dict = {
+            "name": cred.provider,
+            "type": cred.type.value,
+        }
+        if cred.scopes:
+            entry["scopes"] = cred.scopes
+        if cred.auth_flow is not None:
+            entry["auth_flow"] = cred.auth_flow.value
+        credential_providers.append(entry)
+    identity_cfg["credential_providers"] = credential_providers
+
+    return identity_cfg
 
 
 def generate_agentcore_config(
@@ -50,9 +83,7 @@ def generate_agentcore_config(
                 "memory": {
                     "mode": "NO_MEMORY",
                 },
-                "identity": {
-                    "credential_providers": [],
-                },
+                "identity": _build_identity_config(blueprint),
             },
         },
     }

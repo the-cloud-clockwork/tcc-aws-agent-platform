@@ -418,6 +418,22 @@ class BlueprintLoader:
         # -- create MCP clients via factory --
         mcp_clients = self._create_mcp_clients(blueprint)
 
+        # -- wire identity --
+        identity_wiring = None
+        if blueprint.identity.credentials:
+            from agent_core.identity.cache import CredentialCache
+            from agent_core.identity.wiring import IdentityWiring
+
+            identity_wiring = IdentityWiring(
+                credentials=blueprint.identity.credentials,
+                cache=CredentialCache(),
+            )
+            logger.info(
+                "Wired %d credential providers for %s",
+                len(blueprint.identity.credentials),
+                agent_id,
+            )
+
         # -- build agent kwargs --
         agent_kwargs = self._build_agent_kwargs(blueprint, mcp_clients)
 
@@ -447,6 +463,7 @@ class BlueprintLoader:
                 return AgentSession(
                     agent=agent, mcp_clients=mcp_clients,
                     multi_agent=swarm, pattern="swarm",
+                    identity_wiring=identity_wiring,
                 )
 
             elif ma.pattern == "graph":
@@ -462,12 +479,13 @@ class BlueprintLoader:
                 return AgentSession(
                     agent=agent, mcp_clients=mcp_clients,
                     multi_agent=graph, pattern="graph",
+                    identity_wiring=identity_wiring,
                 )
 
             else:
                 logger.warning("Unknown pattern '%s', falling back to single", ma.pattern)
 
-        return AgentSession(agent=agent, mcp_clients=mcp_clients)
+        return AgentSession(agent=agent, mcp_clients=mcp_clients, identity_wiring=identity_wiring)
 
     # ------------------------------------------------------------------
     # Multi-node session builder
