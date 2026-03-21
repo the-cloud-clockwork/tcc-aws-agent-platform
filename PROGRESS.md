@@ -98,14 +98,14 @@
 **Vision:** AWS-managed tools (Code Interpreter, Browser) registered as Gateway targets. Agent sees them as regular tools alongside domain tools.
 
 - [x] `tools/mcp_factory.py` — `create_mcp_client()` factory for Strands MCPClient
-- [ ] Add `builtin: code_interpreter` blueprint tool type
-- [ ] Add `builtin: browser` blueprint tool type
-- [ ] Register Code Interpreter as Gateway target (not custom integration)
-- [ ] Register Browser Tool as Gateway target
-- [ ] Support `AgentCoreBrowser` wrapper from `strands_tools.browser`
-- [ ] Support Code Interpreter sandboxed execution (`executeCode`, `executeCommand`, `writeFiles`)
-- [ ] Add tool mixing in `BlueprintLoader`: local + Gateway + builtin tools in single agent
-- [ ] Export `create_mcp_client` from `tools/__init__.py` (currently empty)
+- [x] Add `builtin: code_interpreter` blueprint tool type
+- [x] Add `builtin: browser` blueprint tool type
+- [x] Register Code Interpreter as Gateway target (not custom integration)
+- [x] Register Browser Tool as Gateway target
+- [x] Support `AgentCoreBrowser` wrapper from `strands_tools.browser`
+- [x] Support Code Interpreter sandboxed execution (`executeCode`, `executeCommand`, `writeFiles`)
+- [x] Add tool mixing in `BlueprintLoader`: local + Gateway + builtin tools in single agent
+- [x] Export `create_mcp_client` from `tools/__init__.py` (currently empty)
 
 ---
 

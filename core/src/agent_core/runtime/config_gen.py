@@ -7,6 +7,7 @@ Reads an AgentBlueprint and produces:
 These are consumed by the deployment pipeline and by
 `agentcli generate runtime-config` / `agentcli generate dockerfile`.
 """
+
 from __future__ import annotations
 
 import textwrap
@@ -15,6 +16,7 @@ import yaml
 
 from agent_core.blueprints.agent import AgentBlueprint
 from agent_core.schemas.identity_config import AuthorizerType
+from agent_core.schemas.tool_config import BuiltinToolConfig, BuiltinToolType
 
 
 def _build_identity_config(blueprint: AgentBlueprint) -> dict:
@@ -29,7 +31,9 @@ def _build_identity_config(blueprint: AgentBlueprint) -> dict:
             if auth.discovery_url:
                 authorizer["customJWTAuthorizer"]["discoveryUrl"] = auth.discovery_url
             if auth.allowed_clients:
-                authorizer["customJWTAuthorizer"]["allowedClients"] = auth.allowed_clients
+                authorizer["customJWTAuthorizer"]["allowedClients"] = (
+                    auth.allowed_clients
+                )
             identity_cfg["authorizer_configuration"] = authorizer
 
     # Outbound: credential providers
@@ -87,7 +91,27 @@ def generate_agentcore_config(
             },
         },
     }
+    # Builtin tools (Code Interpreter, Browser)
+    builtin_tools = _build_tools_config(blueprint)
+    if builtin_tools:
+        config["agents"][blueprint.id]["tools"] = builtin_tools
+
     return yaml.dump(config, default_flow_style=False, sort_keys=False)
+
+
+def _build_tools_config(blueprint: AgentBlueprint) -> list[dict]:
+    """Build tools config entries for builtin tools declared in the blueprint."""
+    tools: list[dict] = []
+    for tool_cfg in blueprint.tools:
+        if not isinstance(tool_cfg, BuiltinToolConfig):
+            continue
+        entry: dict = {"type": tool_cfg.builtin.value}
+        if tool_cfg.region:
+            entry["region"] = tool_cfg.region
+        if tool_cfg.builtin == BuiltinToolType.CODE_INTERPRETER:
+            entry["network_mode"] = tool_cfg.network_mode
+        tools.append(entry)
+    return tools
 
 
 def generate_dockerfile(
@@ -117,7 +141,7 @@ def generate_dockerfile(
 
     otel_install = ""
     if otel_enabled:
-        otel_install = 'RUN pip install --no-cache-dir aws-opentelemetry-distro\n'
+        otel_install = "RUN pip install --no-cache-dir aws-opentelemetry-distro\n"
 
     if otel_enabled:
         cmd = 'CMD ["opentelemetry-instrument", "python", "-m", "app"]'

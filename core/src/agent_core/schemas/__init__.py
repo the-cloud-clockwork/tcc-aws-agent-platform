@@ -17,18 +17,30 @@ from agent_core.schemas.memory_config import (
     MemoryStrategyType,
     RetrievalConfig,
 )
+from agent_core.schemas.tool_config import (
+    BuiltinToolConfig,
+    BuiltinToolType,
+    McpToolConfig,
+    ToolConfig,
+    ToolDeclaration,
+)
 
 __all__ = [
     "AuthFlow",
     "AuthorizerConfig",
     "AuthorizerType",
+    "BuiltinToolConfig",
+    "BuiltinToolType",
     "CredentialConfig",
     "CredentialType",
     "GatewayAuthType",
     "GatewayConfig",
     "IdentityConfig",
+    "McpToolConfig",
     "MemoryConfig",
     "MemoryStrategyConfig",
     "MemoryStrategyType",
     "RetrievalConfig",
+    "ToolConfig",
+    "ToolDeclaration",
 ]

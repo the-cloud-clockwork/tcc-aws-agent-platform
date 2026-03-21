@@ -12,7 +12,7 @@ from agent_core.schemas.identity_config import IdentityConfig
 from agent_core.schemas.memory_config import MemoryConfig
 from agent_core.schemas.model_config import ModelConfig
 from agent_core.schemas.runtime_config import RuntimeConfig
-from agent_core.schemas.tool_config import ToolConfig
+from agent_core.schemas.tool_config import ToolDeclaration
 
 
 class GraphNodeConfig(BaseModel):
@@ -113,7 +113,7 @@ class AgentBlueprint(BaseModel):
         ...,
         description="Reference key for the Prompt Registry (e.g. 'my_agent_v1.2').",
     )
-    tools: list[ToolConfig] = Field(default_factory=list)
+    tools: list[ToolDeclaration] = Field(default_factory=list)
     gateway: GatewayConfig = Field(default_factory=GatewayConfig)
     identity: IdentityConfig = Field(default_factory=IdentityConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
