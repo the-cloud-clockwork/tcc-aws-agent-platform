@@ -99,6 +99,26 @@ resource "aws_iam_role_policy" "codebuild" {
 }
 
 # ── Per-Agent CodeBuild Projects ───────────────────────────────────────────
+#
+# Build Workflow (NO_SOURCE pattern):
+#   1. Domain repo triggers CodeBuild via AWS CLI or SDK:
+#        aws codebuild start-build \\
+#          --project-name <project-name> \\
+#          --source-type-override S3 \\
+#          --source-location-override <bucket>/<path>.zip
+#
+#   2. The source override injects the domain repo's agent source code
+#      at build time. The inline buildspec then runs:
+#        - docker build → builds the agent container image
+#        - docker push → pushes to the agent's ECR repository
+#
+#   3. The codebuild_source_bucket variable (wired to IAM above) grants
+#      read access to the S3 bucket used in sourceLocationOverride.
+#      It is intentionally NOT wired to the CodeBuild source block
+#      because the source is provided at trigger time, not at definition time.
+#
+# This pattern decouples the platform (which owns the build pipeline)
+# from the domain (which owns the agent source code).
 
 resource "aws_codebuild_project" "agent" {
   for_each = local.blueprints

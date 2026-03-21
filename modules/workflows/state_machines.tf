@@ -2,6 +2,9 @@
 ## Workflows Module — Step Functions State Machines
 ## Reads workflow YAML and generates SFN definitions.
 ## Each agent step invokes an AgentCore Runtime.
+##
+## Uses the AWS SDK integration pattern for bedrock-agentcore
+## (no optimized integration exists for this service).
 ## -----------------------------------------------------
 
 resource "aws_cloudwatch_log_group" "sfn" {
@@ -33,16 +36,14 @@ resource "aws_sfn_state_machine" "workflows" {
           s if can(s.agent)
         ] :
         state.id => {
-          Type = "Task"
-          Resource = "arn:aws:states:::bedrock-agentcore:invokeAgentRuntime"
+          Type     = "Task"
+          Resource = "arn:aws:states:::aws-sdk:bedrockagentcore:invokeAgentRuntime"
           Parameters = {
             "AgentRuntimeArn" = try(
               var.agent_runtime_arns[state.agent],
               "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${state.agent}"
             )
-            "SessionState" = {
-              "Prompt.$" = try(state.prompt, "$.prompt")
-            }
+            "Payload.$" = try(state.prompt, "$.prompt")
           }
           ResultPath = "$.results.${state.agent}"
           Retry = [{
@@ -86,15 +87,13 @@ resource "aws_sfn_state_machine" "workflows" {
               States = {
                 (branch.agent) = {
                   Type     = "Task"
-                  Resource = "arn:aws:states:::bedrock-agentcore:invokeAgentRuntime"
+                  Resource = "arn:aws:states:::aws-sdk:bedrockagentcore:invokeAgentRuntime"
                   Parameters = {
                     "AgentRuntimeArn" = try(
                       var.agent_runtime_arns[branch.agent],
                       "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${branch.agent}"
                     )
-                    "SessionState" = {
-                      "Prompt.$" = "$.prompt"
-                    }
+                    "Payload.$" = "$.prompt"
                   }
                   ResultPath = "$.results.${branch.agent}"
                   Retry = [{

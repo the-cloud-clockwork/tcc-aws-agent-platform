@@ -426,6 +426,27 @@ Both `modules/platform` and `modules/agents` now pass `terraform validate` (only
 
 ---
 
+## Block 3 — Completion Notes
+
+**Date:** 2026-03-21
+
+8 of 8 findings resolved. Finding 14 (backend configuration documentation) is out of scope for Block 3 — it belongs in domain repo documentation, not the platform module.
+
+### Block 3 Fixes Applied
+
+| Finding | Fix Applied |
+|---------|-------------|
+| 15. SFN Integration | Switched from non-existent optimized integration to SDK pattern (`aws-sdk:bedrockagentcore:invokeAgentRuntime`). Updated parameters: `SessionState.Prompt` → `Payload` |
+| 16. DynamoDB GSIs | Added 4 GSIs across 3 tables (artifacts, audit_log, run_history). Extended locals with `gsis` list and computed `table_attributes` for deduplication. Dynamic `global_secondary_index` blocks with conditional provisioned capacity |
+| 17. Memory Strategy Types | Added `CUSTOM` and `EPISODIC` to `strategy_type_map`. Updated header comments listing all 5 API types |
+| 18. CodeBuild Documentation | Added workflow documentation block explaining NO_SOURCE / sourceLocationOverride pattern and codebuild_source_bucket IAM wiring |
+| 19. Cross-Region Provider | Added `aws.bedrock` provider alias for `var.bedrock_region` with matching `default_tags`. No existing resources switched — available for future use |
+| 20. Gateway NONE Auth | Added `NONE` to `gateway_auth_type` validation in both agentcore sub-module and root platform variables. Gateway resource dynamic block already handles NONE correctly |
+| 21. Duplicate Tags | Removed duplicate Environment/Project/ManagedBy from `local.tags` — already applied via `default_tags` in provider. `local.tags` now passes through `var.tags` only |
+| 22. Memory Description | Added `memory_description` variable with pass-through wiring (agentcore variables → root variables → main.tf). Memory resource sets `description` conditionally (null when empty) |
+
+---
+
 ## 12. Summary — Action Items by Priority
 
 ### Must Fix (Will fail terraform plan/apply)
@@ -456,15 +477,14 @@ Both `modules/platform` and `modules/agents` now pass `terraform validate` (only
 | # | Finding | Severity | Files |
 |---|---------|----------|-------|
 | 14 | Document backend configuration pattern | MEDIUM | New `docs/` or README |
-| 15 | Verify SFN `bedrock-agentcore:invokeAgentRuntime` integration | MEDIUM | `modules/workflows/state_machines.tf` |
-| 16 | Add DynamoDB GSIs for common query patterns | MEDIUM | `modules/platform/modules/data/main.tf` |
-| 17 | Verify memory strategy type values | MEDIUM | `modules/agents/memory_strategies.tf` |
-| 18 | Document CodeBuild `NO_SOURCE` / override workflow | MEDIUM | `modules/agents/codebuild.tf` |
-| 19 | Add cross-region Bedrock provider alias | MEDIUM | `modules/platform/providers.tf` |
-| 20 | Add `NONE` to Gateway authorizer_type validation | LOW | `modules/platform/modules/agentcore/variables.tf` |
-| 21 | Remove duplicate tags in locals.tf | LOW | `modules/platform/locals.tf` |
-| 22 | Add `description` to Memory resource | LOW | `modules/platform/modules/agentcore/memory.tf` |
-
+| 15 | ~~Fix SFN to SDK integration pattern (optimized integration does not exist)~~ | DONE | `modules/workflows/state_machines.tf` |
+| 16 | ~~Add DynamoDB GSIs for common query patterns~~ | DONE | `modules/platform/modules/data/main.tf` |
+| 17 | ~~Verify and update memory strategy type values~~ | DONE | `modules/agents/memory_strategies.tf` |
+| 18 | ~~Document CodeBuild `NO_SOURCE` / override workflow~~ | DONE | `modules/agents/codebuild.tf` |
+| 19 | ~~Add cross-region Bedrock provider alias~~ | DONE | `modules/platform/providers.tf` |
+| 20 | ~~Add `NONE` to Gateway authorizer_type validation~~ | DONE | `modules/platform/modules/agentcore/variables.tf` |
+| 21 | ~~Remove duplicate tags in locals.tf~~ | DONE | `modules/platform/locals.tf` |
+| 22 | ~~Add `description` to Memory resource~~ | DONE | `modules/platform/modules/agentcore/memory.tf` |
 ---
 
 ## 13. References
