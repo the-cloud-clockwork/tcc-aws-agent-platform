@@ -138,20 +138,20 @@
 
 **Vision:** AgentCore Evaluation reads OTEL traces, scores with LLM-as-judge. 13 built-in evaluators + custom domain judges. Online (continuous) and on-demand evaluation.
 
-- [ ] Create `evaluation/` subsystem directory
-- [ ] Implement `EvaluationClient` wrapper for AgentCore Evaluation service
-- [ ] Support on-demand evaluation: `run(agent_id, session_id, evaluators)`
-- [ ] Support 13 built-in evaluators:
-  - [ ] Response Quality: Correctness, Completeness, Faithfulness, Helpfulness, Harmlessness, Coherence, Relevance
-  - [ ] Task Completion: GoalSuccessRate
-  - [ ] Tool Usage: ToolSelectionAccuracy, ToolParameterAccuracy
-  - [ ] Safety: Harmfulness, Stereotyping
-- [ ] Support custom LLM-as-judge evaluators (`create_evaluator()`)
-- [ ] Support online evaluation (`create_online_config()` with sampling rate)
-- [ ] Add `evaluation:` block to `AgentBlueprint` Pydantic schema
-- [ ] Wire evaluator selection and sampling rate from blueprint config
-- [ ] Add `agentcli eval run` CLI command for on-demand evaluation
-- [ ] Add `agentcli eval status` CLI command for online eval results
+- [x] Create `evaluation/` subsystem directory
+- [x] Implement `EvaluationClient` wrapper for AgentCore Evaluation service
+- [x] Support on-demand evaluation: `run(agent_id, session_id, evaluators)`
+- [x] Support 13 built-in evaluators:
+  - [x] Response Quality: Correctness, Completeness, Faithfulness, Helpfulness, Harmlessness, Coherence, Relevance
+  - [x] Task Completion: GoalSuccessRate
+  - [x] Tool Usage: ToolSelectionAccuracy, ToolParameterAccuracy
+  - [x] Safety: Harmfulness, Stereotyping
+- [x] Support custom LLM-as-judge evaluators (`create_evaluator()`)
+- [x] Support online evaluation (`create_online_config()` with sampling rate)
+- [x] Add `evaluation:` block to `AgentBlueprint` Pydantic schema
+- [x] Wire evaluator selection and sampling rate from blueprint config
+- [x] Add `agentcli eval run` CLI command for on-demand evaluation
+- [x] Add `agentcli eval status` CLI command for online eval results
 
 ---
 

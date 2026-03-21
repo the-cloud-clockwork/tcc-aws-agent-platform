@@ -516,6 +516,35 @@ class BlueprintLoader:
                 memory_id,
             )
 
+        # -- wire evaluation --
+        evaluation_ids: dict[str, str] = {}
+        if blueprint.evaluation.custom_evaluators or blueprint.evaluation.online:
+            from agent_core.evaluation.client import EvaluationClient
+
+            eval_client = EvaluationClient()
+
+            for custom_cfg in blueprint.evaluation.custom_evaluators:
+                eid = eval_client.create_evaluator(custom_cfg)
+                evaluation_ids[custom_cfg.name] = eid
+                logger.info(
+                    "Created custom evaluator '%s' -> %s for %s",
+                    custom_cfg.name,
+                    eid,
+                    agent_id,
+                )
+
+            if blueprint.evaluation.online:
+                eval_client.create_online_config(
+                    agent_id=agent_id,
+                    config_name=f"{agent_id}_online_eval",
+                    config=blueprint.evaluation.online,
+                )
+                logger.info(
+                    "Wired online evaluation for %s (sampling=%d%%)",
+                    agent_id,
+                    blueprint.evaluation.online.sampling_rate,
+                )
+
         # -- build agent kwargs --
         agent_kwargs = self._build_agent_kwargs(
             blueprint, mcp_clients, memory_wiring=memory_wiring

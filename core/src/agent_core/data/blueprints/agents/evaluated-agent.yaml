@@ -1,0 +1,89 @@
+# Evaluated agent — Blocks 1+2+6+7
+#
+# Demonstrates evaluation wired alongside observability:
+#   Block 1: AgentCore Runtime (microVM, port 8080)
+#   Block 2: Gateway (MCP tools via Gateway URL)
+#   Block 6: Observability (OTEL tracing, audit log)
+#   Block 7: Evaluation (online monitoring + custom evaluator)
+#
+# All model IDs, temperatures, and sampling rates come from this
+# blueprint — the platform never assumes defaults.
+
+id: evaluated-agent
+name: Evaluated Analysis Agent
+version: "1.0.0"
+description: Agent with continuous evaluation and custom quality scoring.
+
+model:
+  provider: bedrock
+  model_id: ${AGENT_MODEL_ID}
+  max_tokens: 8192
+  temperature: 0.2
+
+prompt_ref: evaluated-agent-system-v1
+
+tools:
+  - mcp: data-source-mcp
+    tools:
+      - query_data
+      - list_datasets
+
+gateway:
+  auth_type: aws_iam
+
+observability:
+  trace_attributes:
+    team: platform
+    tier: staging
+  audit_log:
+    ttl_days: 365
+
+evaluation:
+  custom_evaluators:
+    - name: response_quality
+      level: TRACE
+      model_id: ${EVAL_JUDGE_MODEL_ID}
+      max_tokens: 500
+      temperature: 1.0
+      instructions: >
+        Evaluate the quality of the assistant's response.
+        Consider accuracy, completeness, and helpfulness.
+
+        Context: {context}
+        Assistant response: {assistant_turn}
+
+        Rate the response quality.
+      rating_scale:
+        - value: 1.0
+          label: Excellent
+          definition: Accurate, complete, and highly useful response.
+        - value: 0.75
+          label: Good
+          definition: Mostly accurate with minor gaps.
+        - value: 0.5
+          label: Adequate
+          definition: Partially addresses the request.
+        - value: 0.25
+          label: Poor
+          definition: Significant inaccuracies or missing information.
+        - value: 0.0
+          label: Unacceptable
+          definition: Completely wrong or harmful response.
+
+  online:
+    sampling_rate: ${EVAL_SAMPLING_RATE}
+    evaluators:
+      - Builtin.GoalSuccessRate
+      - Builtin.Correctness
+      - Builtin.ToolSelectionAccuracy
+
+runtime:
+  type: agentcore
+  max_iterations: 10
+  idle_timeout_minutes: 15
+  protocol: HTTP
+
+execution_modes:
+  simulation: true
+  staging: true
+  production: true

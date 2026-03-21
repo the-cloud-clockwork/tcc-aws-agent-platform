@@ -51,6 +51,7 @@ from agent_core.tools.wiring import BuiltinToolWiring
 from agent_core.gateway import GatewayClient, ToolDiscovery
 from agent_core.identity import CredentialCache, CredentialError, IdentityWiring
 from agent_core.memory import MemoryHookProvider, MemoryManager, MemoryWiring
+from agent_core.evaluation import EvaluationClient, EvaluationResult, EvaluationScore
 
 from agent_core.mcp import (
     BaseMCPServer,
@@ -78,6 +79,9 @@ __all__ = [
     "CompositeObservabilityHook",
     "CostTracker",
     "ExecutionMode",
+    "EvaluationClient",
+    "EvaluationResult",
+    "EvaluationScore",
     "GenericHandler",
     "GraphEdgeConfig",
     "GraphNodeConfig",

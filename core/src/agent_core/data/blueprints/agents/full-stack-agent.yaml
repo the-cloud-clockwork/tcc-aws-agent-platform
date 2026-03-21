@@ -1,4 +1,4 @@
-# Full-stack agent — Blocks 1-6 combined
+# Full-stack agent — Blocks 1-7 combined
 #
 # Demonstrates every implemented block wired together:
 #   Block 1: AgentCore Runtime (microVM, port 8080, @app.entrypoint)
@@ -7,6 +7,7 @@
 #   Block 4: Memory (short-term + long-term with strategies)
 #   Block 5: Tools (Code Interpreter + Browser + Gateway MCP)
 #   Block 6: Observability (OTEL, Langfuse, audit, dashboard, data protection)
+#   Block 7: Evaluation (custom evaluator + online monitoring)
 #
 # Extended thinking enabled for complex reasoning tasks.
 
@@ -95,6 +96,37 @@ observability:
       - CreditCardNumber
       - USPhoneNumber
 
+
+evaluation:
+  custom_evaluators:
+    - name: analysis_quality
+      level: TRACE
+      model_id: ${EVAL_JUDGE_MODEL_ID}
+      max_tokens: 500
+      temperature: 1.0
+      instructions: >
+        Evaluate the quality of the analysis provided.
+        Consider accuracy, depth, and actionability.
+
+        Context: {context}
+        Assistant response: {assistant_turn}
+      rating_scale:
+        - value: 1.0
+          label: Excellent
+          definition: Thorough, accurate, and actionable analysis.
+        - value: 0.5
+          label: Adequate
+          definition: Partially addresses the analysis needs.
+        - value: 0.0
+          label: Poor
+          definition: Inaccurate or unhelpful analysis.
+
+  online:
+    sampling_rate: ${EVAL_SAMPLING_RATE}
+    evaluators:
+      - Builtin.GoalSuccessRate
+      - Builtin.Correctness
+      - Builtin.ToolParameterAccuracy
 runtime:
   type: agentcore
   max_iterations: 15
