@@ -92,8 +92,8 @@
 
 **Files:** `core/src/agent_core/blueprints/loader.py`
 
-- [ ] Verify `build_agent_session()` calls `evaluation/wiring.py` after Block 7 creates it
-- [ ] Verify `build_agent_session()` calls `policy/wiring.py` after Block 8 creates it
+- [x] Verify `build_agent_session()` calls `evaluation/wiring.py` after Block 7 creates it
+- [x] Verify `build_agent_session()` calls `policy/wiring.py` after Block 8 creates it
 
 ---
 
@@ -101,8 +101,8 @@
 
 **Files:** `core/src/agent_core/__init__.py`, `a2a/client.py`
 
-- [ ] Add missing imports for `A2AClient`, `A2AServerWrapper`, `A2AWiring`, `remote_agent_tool` to `core/__init__.py` — declared in `__all__` but never imported
-- [ ] Add streaming support to `A2AClient.call_a2a()` — currently returns final text only
+- [x] Add missing imports for `A2AClient`, `A2AServerWrapper`, `A2AWiring`, `remote_agent_tool` to `core/__init__.py` — declared in `__all__` but never imported
+- [x] Add streaming support to `A2AClient.call_a2a()` — currently returns final text only
 
 ---
 

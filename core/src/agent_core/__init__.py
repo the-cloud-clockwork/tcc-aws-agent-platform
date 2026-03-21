@@ -53,6 +53,7 @@ from agent_core.identity import CredentialCache, CredentialError, IdentityWiring
 from agent_core.memory import MemoryHookProvider, MemoryManager, MemoryWiring
 from agent_core.evaluation import EvaluationClient, EvaluationResult, EvaluationScore
 from agent_core.policy import CedarPolicy, CedarPolicyBuilder, PolicyClient, PolicyMode
+from agent_core.a2a import A2AClient, A2AServerWrapper, A2AWiring, remote_agent_tool
 
 from agent_core.mcp import (
     BaseMCPServer,
