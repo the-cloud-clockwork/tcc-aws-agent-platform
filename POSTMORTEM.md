@@ -9,11 +9,11 @@
 
 **Files:** `core/src/agent_core/runtime/adapter.py`, `handler.py`, `entrypoint.py`
 
-- [ ] Fix `AgentResult` dataclass — add missing fields: `claim_check`, `artifact_id`, `s3_key`, `tier`, `error` (`adapter.py:44-51`)
-- [ ] Add `to_lambda_response()` method to `AgentResult` — `handler.py:145` calls it but only `to_response()` exists
-- [ ] Reconcile `handler.py` Lambda pattern — `handle(self, event, context)` is Lambda-shaped; either remove or align with `@app.entrypoint`
-- [ ] Implement `.bedrock_agentcore.yaml` generation from blueprint config (marked done in old PROGRESS.md but no code exists)
-- [ ] Implement Dockerfile template generation from blueprint config (marked done but not implemented)
+- [x] Fix `AgentResult` dataclass — add missing fields: `claim_check`, `artifact_id`, `s3_key`, `tier`, `error` (`adapter.py:44-51`)
+- [x] Add `to_lambda_response()` method to `AgentResult` — `handler.py:145` calls it but only `to_response()` exists
+- [x] Reconcile `handler.py` Lambda pattern — `handle(self, event, context)` is Lambda-shaped; either remove or align with `@app.entrypoint`
+- [x] Implement `.bedrock_agentcore.yaml` generation from blueprint config (marked done in old PROGRESS.md but no code exists)
+- [x] Implement Dockerfile template generation from blueprint config (marked done but not implemented)
 
 ---
 

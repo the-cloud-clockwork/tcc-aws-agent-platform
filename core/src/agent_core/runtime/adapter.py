@@ -4,6 +4,7 @@ All agents run on AgentCore Runtime. This module provides dataclasses
 for normalized payloads and the InvocationContext that mirrors the
 bedrock_agentcore.runtime context object.
 """
+
 from __future__ import annotations
 
 import logging
@@ -49,16 +50,32 @@ class AgentResult:
     session_id: str
     output: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
+    error: str | None = None
+    claim_check: str | None = None
+    artifact_id: str | None = None
+    s3_key: str | None = None
+    tier: str | None = None
 
     def to_response(self) -> dict[str, Any]:
         """Format as AgentCore Runtime response."""
-        return {
+        resp: dict[str, Any] = {
             "status": self.status,
             "agent_id": self.agent_id,
             "session_id": self.session_id,
             "output": self.output,
             "metadata": self.metadata,
         }
+        if self.error is not None:
+            resp["error"] = self.error
+        if self.claim_check is not None:
+            resp["claim_check"] = self.claim_check
+        if self.artifact_id is not None:
+            resp["artifact_id"] = self.artifact_id
+        if self.s3_key is not None:
+            resp["s3_key"] = self.s3_key
+        if self.tier is not None:
+            resp["tier"] = self.tier
+        return resp
 
 
 def normalize_payload(event: dict[str, Any]) -> AgentPayload:
@@ -72,15 +89,9 @@ def normalize_payload(event: dict[str, Any]) -> AgentPayload:
         or event.get("agentId")
         or event.get("metadata", {}).get("agent_id", "default")
     )
-    session_id = (
-        event.get("session_id")
-        or event.get("sessionId")
-        or str(uuid.uuid4())
-    )
+    session_id = event.get("session_id") or event.get("sessionId") or str(uuid.uuid4())
     execution_mode = (
-        event.get("execution_mode")
-        or event.get("executionMode")
-        or "simulation"
+        event.get("execution_mode") or event.get("executionMode") or "simulation"
     )
     parameters = event.get("parameters") or event.get("params") or {}
     memory_context = event.get("memory_context")
