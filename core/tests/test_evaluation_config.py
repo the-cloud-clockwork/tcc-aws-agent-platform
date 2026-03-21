@@ -11,7 +11,6 @@ from agent_core.schemas.evaluation_config import (
     EvaluationConfig,
     EvaluatorLevel,
     OnlineEvaluationConfig,
-    RatingScaleEntry,
 )
 
 
@@ -55,24 +54,6 @@ class TestEvaluatorLevel:
         assert EvaluatorLevel.SPAN.value == "SPAN"
 
 
-class TestRatingScaleEntry:
-    def test_required_fields(self) -> None:
-        entry = RatingScaleEntry(value=1.0, label="Good")
-        assert entry.value == 1.0
-        assert entry.label == "Good"
-        assert entry.definition == ""
-
-    def test_with_definition(self) -> None:
-        entry = RatingScaleEntry(
-            value=0.5, label="Adequate", definition="Meets basic requirements."
-        )
-        assert entry.definition == "Meets basic requirements."
-
-    def test_frozen(self) -> None:
-        entry = RatingScaleEntry(value=1.0, label="Good")
-        with pytest.raises(ValidationError):
-            entry.value = 0.5  # type: ignore[misc]
-
 
 class TestCustomEvaluatorConfig:
     def _make_config(self, **overrides) -> CustomEvaluatorConfig:
@@ -83,10 +64,7 @@ class TestCustomEvaluatorConfig:
             "max_tokens": 500,
             "temperature": 1.0,
             "instructions": "Evaluate {context} and {assistant_turn}",
-            "rating_scale": [
-                {"value": 1.0, "label": "Good"},
-                {"value": 0.0, "label": "Bad"},
-            ],
+            "scale": [1, 5],
         }
         defaults.update(overrides)
         return CustomEvaluatorConfig(**defaults)
@@ -101,7 +79,7 @@ class TestCustomEvaluatorConfig:
         assert cfg.model_id == "some-model-id"
         assert cfg.max_tokens == 500
         assert cfg.temperature == 1.0
-        assert len(cfg.rating_scale) == 2
+        assert cfg.scale == [1, 5]
 
     def test_temperature_bounds(self) -> None:
         with pytest.raises(ValidationError):
@@ -113,9 +91,9 @@ class TestCustomEvaluatorConfig:
         with pytest.raises(ValidationError):
             self._make_config(max_tokens=0)
 
-    def test_rating_scale_minimum_entries(self) -> None:
+    def test_scale_minimum_entries(self) -> None:
         with pytest.raises(ValidationError):
-            self._make_config(rating_scale=[{"value": 1.0, "label": "Only one"}])
+            self._make_config(scale=[1])
 
 
 class TestOnlineEvaluationConfig:
@@ -171,10 +149,7 @@ class TestEvaluationConfig:
                     max_tokens=300,
                     temperature=0.5,
                     instructions="Rate {context} {assistant_turn}",
-                    rating_scale=[
-                        RatingScaleEntry(value=1.0, label="Good"),
-                        RatingScaleEntry(value=0.0, label="Bad"),
-                    ],
+                    scale=[1, 5],
                 )
             ]
         )

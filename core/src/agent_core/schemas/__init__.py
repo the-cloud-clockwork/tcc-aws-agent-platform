@@ -8,7 +8,6 @@ from agent_core.schemas.evaluation_config import (
     EvaluationConfig,
     EvaluatorLevel,
     OnlineEvaluationConfig,
-    RatingScaleEntry,
 )
 from agent_core.schemas.gateway_config import GatewayAuthType, GatewayConfig
 from agent_core.schemas.identity_config import (
@@ -56,7 +55,6 @@ __all__ = [
     "OnlineEvaluationConfig",
     "PolicyConfig",
     "PolicyRuleConfig",
-    "RatingScaleEntry",
     "RetrievalConfig",
     "ToolConfig",
     "ToolDeclaration",

@@ -17,10 +17,12 @@ console = Console()
 
 
 def _detect_blueprint_type(data: dict) -> str:
-    """Detect whether a YAML is an agent or workflow blueprint."""
-    if "multi_agent" in data or "agent_id" in data or "model" in data:
+    """Detect whether a YAML is an agent, strategy, or workflow blueprint."""
+    if "model" in data or "prompt_ref" in data or "gateway" in data:
         return "agent"
-    if "states" in data or "schedule" in data:
+    if "required_signals" in data or "entry_conditions" in data or "exit_conditions" in data:
+        return "strategy"
+    if "states" in data or ("trigger" in data and "states" in data):
         return "workflow"
     return "unknown"
 
@@ -42,10 +44,77 @@ def _validate_agent_blueprint(data: dict) -> tuple[bool, list[str]]:
         return False, [str(e)]
 
 
+def _validate_strategy_blueprint(data: dict) -> tuple[bool, list[str]]:
+    """Validate against StrategyBlueprint Pydantic model."""
+    try:
+        from agent_core.blueprints.strategy import StrategyBlueprint
+        StrategyBlueprint.model_validate(data)
+        return True, []
+    except ImportError:
+        errors = []
+        for field in ["id", "name", "version"]:
+            if field not in data:
+                errors.append(f"Missing required field: {field}")
+        return len(errors) == 0, errors
+    except Exception as e:
+        return False, [str(e)]
+
+
+def _validate_workflow_blueprint(data: dict) -> tuple[bool, list[str]]:
+    """Validate against WorkflowBlueprint Pydantic model."""
+    try:
+        from agent_core.blueprints.workflow import WorkflowBlueprint
+        WorkflowBlueprint.model_validate(data)
+        return True, []
+    except ImportError:
+        errors = []
+        for field in ["id", "version", "states"]:
+            if field not in data:
+                errors.append(f"Missing required field: {field}")
+        return len(errors) == 0, errors
+    except Exception as e:
+        return False, [str(e)]
+
+
+def _cross_validate_agent(data: dict) -> list[str]:
+    """Cross-block validation warnings for agent blueprints."""
+    warnings: list[str] = []
+    if data.get("policy") and data["policy"].get("rules") and not data.get("gateway"):
+        warnings.append("Policy rules declared but no gateway configured (policies need Gateway)")
+    if data.get("memory") and data["memory"].get("strategies"):
+        rt = data.get("runtime", {})
+        if rt.get("type") and rt["type"] != "agentcore":
+            warnings.append("Memory strategies require runtime.type: agentcore")
+    ma = data.get("multi_agent")
+    if ma and ma.get("role") == "coordinator" and not ma.get("nodes"):
+        warnings.append("Coordinator role declared but no multi_agent.nodes defined")
+    if data.get("evaluation") and data["evaluation"].get("online") and not data.get("observability"):
+        warnings.append("Online evaluation configured but no observability block (evaluation reads OTEL traces)")
+    return warnings
+
+
+def _report_block_coverage(data: dict) -> list[tuple[str, bool]]:
+    """Report which blocks are configured in an agent blueprint."""
+    blocks = [
+        ("runtime", bool(data.get("runtime"))),
+        ("gateway", bool(data.get("gateway"))),
+        ("identity", bool(data.get("identity") and (data["identity"].get("authorizer") or data["identity"].get("credentials")))),
+        ("memory", bool(data.get("memory") and data["memory"].get("strategies"))),
+        ("tools", bool(data.get("tools"))),
+        ("observability", bool(data.get("observability"))),
+        ("evaluation", bool(data.get("evaluation") and (data["evaluation"].get("online") or data["evaluation"].get("custom_evaluators")))),
+        ("policy", bool(data.get("policy") and data["policy"].get("rules"))),
+        ("multi_agent", bool(data.get("multi_agent"))),
+    ]
+    return blocks
+
+
 def _validate_by_type(bp_type: str, data: dict) -> tuple[bool, list[str]]:
     """Dispatch validation to the correct handler."""
     validators = {
         "agent": _validate_agent_blueprint,
+        "strategy": _validate_strategy_blueprint,
+        "workflow": _validate_workflow_blueprint,
     }
     validator = validators.get(bp_type)
     if validator:
@@ -76,6 +145,14 @@ def _build_summary_tree(yaml_path: Path, bp_type: str, data: dict) -> Tree:
 
     if "tools" in data:
         tree.add(f"Tools: {len(data['tools'])}")
+
+    # Block coverage for agent blueprints
+    if bp_type == "agent":
+        blocks_branch = tree.add("[bold]Block Coverage[/bold]")
+        for block_name, present in _report_block_coverage(data):
+            icon = "[green]\u2713[/green]" if present else "[dim]\u2014[/dim]"
+            blocks_branch.add(f"{icon} {block_name}")
+
     return tree
 
 
@@ -107,6 +184,15 @@ def lint(
 
     console.print(_build_summary_tree(yaml_path, bp_type, data))
     console.print()
+
+    # Cross-block validation warnings (agent only)
+    if bp_type == "agent" and is_valid:
+        warnings = _cross_validate_agent(data)
+        if warnings:
+            console.print("[yellow]Warnings:[/yellow]")
+            for w in warnings:
+                console.print(f"  [yellow]![/yellow] {w}")
+            console.print()
 
     if is_valid:
         console.print("[green]PASS[/green] \u2014 Blueprint is valid.")

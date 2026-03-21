@@ -1,4 +1,4 @@
-# Full-stack agent — Blocks 1-9 combined
+# Full-stack agent — All 12 blocks combined
 #
 # Demonstrates every implemented block wired together:
 #   Block 1: AgentCore Runtime (microVM, port 8080, @app.entrypoint)
@@ -54,17 +54,16 @@ gateway:
 
 identity:
   authorizer:
-    type: custom_jwt
-    discovery_url: https://cognito-idp.${AWS_REGION}.amazonaws.com/${USER_POOL_ID}/.well-known/openid-configuration
-    allowed_clients:
-      - ${COGNITO_CLIENT_ID}
+    type: cognito_jwt
+    user_pool_id: ${USER_POOL_ID}
+    client_id: ${COGNITO_CLIENT_ID}
   credentials:
     - name: external_data_provider
       type: oauth2
       provider: DataProviderOAuth
       scopes:
         - read
-      auth_flow: m2m
+      auth_flow: M2M
 
 memory:
   mode: MANAGED
@@ -84,14 +83,17 @@ memory:
       relevance_score: 0.3
 
 observability:
+  enabled: true
   trace_attributes:
     team: platform
     tier: production
   langfuse:
+    enabled: true
     tags:
       - full-stack
       - production
   audit_log:
+    enabled: true
     ttl_days: 1825
   dashboard:
     metric_namespace: AgentPlatform
@@ -115,19 +117,9 @@ evaluation:
 
         Context: {context}
         Assistant response: {assistant_turn}
-      rating_scale:
-        - value: 1.0
-          label: Excellent
-          definition: Thorough, accurate, and actionable analysis.
-        - value: 0.5
-          label: Adequate
-          definition: Partially addresses the analysis needs.
-        - value: 0.0
-          label: Poor
-          definition: Inaccurate or unhelpful analysis.
-
+      scale: [1, 5]
   online:
-    sampling_rate: ${EVAL_SAMPLING_RATE}
+    sampling_rate: 10
     evaluators:
       - Builtin.GoalSuccessRate
       - Builtin.Correctness

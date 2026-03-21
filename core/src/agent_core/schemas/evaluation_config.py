@@ -41,18 +41,6 @@ class EvaluatorLevel(str, Enum):
     SPAN = "SPAN"
 
 
-class RatingScaleEntry(BaseModel):
-    """A single point on a custom evaluator's rating scale."""
-
-    model_config = ConfigDict(frozen=True)
-
-    value: float = Field(..., description="Numeric score value.")
-    label: str = Field(..., description="Human-readable label for this score.")
-    definition: str = Field(
-        default="", description="Detailed definition of what this score means."
-    )
-
-
 class CustomEvaluatorConfig(BaseModel):
     """Configuration for a custom LLM-as-judge evaluator.
 
@@ -78,10 +66,11 @@ class CustomEvaluatorConfig(BaseModel):
         ...,
         description="Evaluation prompt template. Must contain {context} and {assistant_turn} placeholders.",
     )
-    rating_scale: list[RatingScaleEntry] = Field(
+    scale: list[int] = Field(
         ...,
         min_length=2,
-        description="Rating scale entries (at least 2 points).",
+        max_length=2,
+        description="Rating scale range as [min, max] (e.g. [1, 5]).",
     )
 
 

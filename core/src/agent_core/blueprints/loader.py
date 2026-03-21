@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from agent_core.blueprints.agent import AgentBlueprint
 from agent_core.blueprints.session import AgentSession
+from agent_core.blueprints.strategy import StrategyBlueprint
 from agent_core.blueprints.workflow import WorkflowBlueprint
 from agent_core.execution.mode import (
     ExecutionMode,
@@ -150,6 +151,25 @@ class BlueprintLoader:
         data = self._read_yaml(Path(path))
         try:
             return AgentBlueprint(**data)
+        except Exception as exc:
+            raise BlueprintLoadError(f"Validation failed for {path}: {exc}") from exc
+
+    def load_strategy(self, strategy_id: str) -> StrategyBlueprint:
+        """Load a strategy blueprint YAML and return a validated Pydantic model."""
+        path = self._find_yaml("strategies", strategy_id)
+        data = self._read_yaml(path)
+        try:
+            return StrategyBlueprint(**data)
+        except Exception as exc:
+            raise BlueprintLoadError(
+                f"Validation failed for strategy '{strategy_id}': {exc}"
+            ) from exc
+
+    def load_strategy_from_path(self, path: str | Path) -> StrategyBlueprint:
+        """Load a strategy blueprint from an explicit file path."""
+        data = self._read_yaml(Path(path))
+        try:
+            return StrategyBlueprint(**data)
         except Exception as exc:
             raise BlueprintLoadError(f"Validation failed for {path}: {exc}") from exc
 
@@ -581,6 +601,29 @@ class BlueprintLoader:
                     agent_id,
                     blueprint.evaluation.online.sampling_rate,
                 )
+
+        # -- wire policy (Cedar rules → Gateway policy engine) --
+        if blueprint.policy and blueprint.policy.rules:
+            from agent_core.policy.cedar_policies import CedarPolicyBuilder
+            from agent_core.policy.client import PolicyClient
+
+            policy_client = PolicyClient()
+            builder = CedarPolicyBuilder()
+            for rule in blueprint.policy.rules:
+                builder.add_rule_from_config(rule)
+            cedar_policies = builder.build()
+
+            policy_client.attach_to_gateway(
+                agent_id=agent_id,
+                policies=cedar_policies,
+                mode=blueprint.policy.mode,
+            )
+            logger.info(
+                "Wired %d Cedar policy rules for %s (mode=%s)",
+                len(blueprint.policy.rules),
+                agent_id,
+                blueprint.policy.mode,
+            )
 
         # -- wire session bridge for multi-turn --
         session_bridge = None

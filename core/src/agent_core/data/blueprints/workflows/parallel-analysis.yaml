@@ -1,0 +1,76 @@
+# Parallel Analysis Workflow
+# Demonstrates: parallel branches, aggregation, timeout
+# Blocks: 12 (Blueprints)
+
+id: parallel-analysis
+version: "1.0.0"
+name: Parallel Multi-Agent Analysis
+description: >
+  Runs multiple independent analysis agents in parallel, then
+  aggregates their results into a unified report. Demonstrates
+  the parallel state type with timeout and error handling.
+
+trigger:
+  type: manual
+
+timeout_minutes: 45
+
+states:
+  - id: FetchInput
+    type: task
+    agent_ref: data-collector
+    input_mapping:
+      prompt: "Fetch and validate the input data for parallel analysis."
+    retry:
+      - error_equals: ["ServiceUnavailable"]
+        interval_seconds: 5
+        max_attempts: 3
+        backoff_rate: 2.0
+    next: ParallelAnalysis
+
+  - id: ParallelAnalysis
+    type: parallel
+    branches:
+      - states:
+          - id: PrimaryAnalysis
+            type: task
+            agent_ref: primary-analyzer
+            input_mapping:
+              prompt: "Perform primary analysis on the input data."
+              data: "$.FetchInput.output"
+      - states:
+          - id: SecondaryAnalysis
+            type: task
+            agent_ref: secondary-analyzer
+            input_mapping:
+              prompt: "Perform secondary analysis on the input data."
+              data: "$.FetchInput.output"
+      - states:
+          - id: ValidationCheck
+            type: task
+            agent_ref: validator
+            input_mapping:
+              prompt: "Validate data quality and flag anomalies."
+              data: "$.FetchInput.output"
+    catch:
+      - error_equals: ["States.ALL"]
+        next: AnalysisFailed
+    next: AggregateResults
+
+  - id: AggregateResults
+    type: task
+    agent_ref: reporter
+    input_mapping:
+      prompt: "Synthesize the parallel analysis results into a unified report."
+      primary: "$.ParallelAnalysis[0].output"
+      secondary: "$.ParallelAnalysis[1].output"
+      validation: "$.ParallelAnalysis[2].output"
+    next: AnalysisComplete
+
+  - id: AnalysisComplete
+    type: succeed
+
+  - id: AnalysisFailed
+    type: fail
+    error: ParallelAnalysisError
+    cause: "One or more parallel analysis branches failed."

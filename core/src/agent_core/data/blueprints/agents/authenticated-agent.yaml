@@ -32,10 +32,9 @@ gateway:
 
 identity:
   authorizer:
-    type: custom_jwt
-    discovery_url: https://cognito-idp.${AWS_REGION}.amazonaws.com/${USER_POOL_ID}/.well-known/openid-configuration
-    allowed_clients:
-      - ${COGNITO_CLIENT_ID}
+    type: cognito_jwt
+    user_pool_id: ${USER_POOL_ID}
+    client_id: ${COGNITO_CLIENT_ID}
   credentials:
     - name: external_oauth
       type: oauth2
@@ -43,11 +42,11 @@ identity:
       scopes:
         - read
         - write
-      auth_flow: user_federation
+      auth_flow: USER_FEDERATION
     - name: analytics_service
       type: oauth2
       provider: AnalyticsM2MProvider
-      auth_flow: m2m
+      auth_flow: M2M
     - name: third_party_api_key
       type: api_key
       provider: ThirdPartyAPIKey

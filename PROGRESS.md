@@ -264,26 +264,32 @@
 - [x] `blueprints/agent.py` — `AgentBlueprint` with model, tools, runtime, execution_modes, hooks, multi_agent, artifacts
 - [x] `blueprints/loader.py` — `BlueprintLoader` with `load_agent()`, `load_strategy()`, `load_workflow()`, `build_agent_session()`
 - [x] `blueprints/workflow.py` — `WorkflowBlueprint` with states, triggers, retry/catch, parallel branches
+- [x] `blueprints/strategy.py` — `StrategyBlueprint` with conditions, parameters, required signals
 - [x] `schemas/model_config.py` — `ModelConfig` (provider, model_id, temperature, max_tokens)
 - [x] `schemas/tool_config.py` — `ToolConfig` (mcp server name, tool list)
 - [x] `schemas/execution_modes.py` — `ExecutionModes` with alias support
 - [x] `schemas/runtime_config.py` — `RuntimeConfig`
-- [ ] Add `identity:` block to AgentBlueprint schema
-  - [ ] `authorizer` (type, user_pool_id, client_id)
-  - [ ] `credentials[]` (name, type, provider, scopes)
+- [x] Add `identity:` block to AgentBlueprint schema
+  - [x] `authorizer` (type: cognito_jwt/custom_jwt/aws_iam, user_pool_id, client_id, discovery_url)
+  - [x] `credentials[]` (name, type, provider, scopes, auth_flow)
 - [x] Add `memory:` block to AgentBlueprint schema
   - [x] `strategies[]` (type, name, namespace)
   - [x] `event_expiry_days`, `short_term_k`
-- [ ] Add `observability:` block to AgentBlueprint schema
-  - [ ] `trace_attributes`, `langfuse.enabled`, `audit_log.enabled`
-- [ ] Add `evaluation:` block to AgentBlueprint schema
-  - [ ] `online.sampling_rate`, `online.evaluators[]`
-  - [ ] `custom_evaluators[]` (name, instructions, scale)
-- [ ] Add `policy:` block to AgentBlueprint schema
-  - [ ] `engine`, `mode`, `rules[]` (name, allow/deny, when/unless)
-- [ ] Extend `tools:` to support `builtin: code_interpreter | browser`
-- [ ] Extend `runtime:` with `type: agentcore`, `idle_timeout_minutes`, `network_mode`, `protocol`
-- [ ] Extend `multi_agent:` with `role`, `nodes[].a2a_url`
-- [ ] Add `StrategyBlueprint` Pydantic model (currently parsed but not fully validated)
-- [ ] Add full blueprint validation in `agentcli blueprint lint` (all 12 blocks)
-- [ ] Add `agentcli deploy` command that reads blueprint → builds container → pushes ECR → creates Runtime
+- [x] Add `observability:` block to AgentBlueprint schema
+  - [x] `enabled`, `trace_attributes`, `langfuse.enabled`, `audit_log.enabled`
+- [x] Add `evaluation:` block to AgentBlueprint schema
+  - [x] `online.sampling_rate`, `online.evaluators[]`
+  - [x] `custom_evaluators[]` (name, instructions, scale)
+- [x] Add `policy:` block to AgentBlueprint schema
+  - [x] `engine`, `mode`, `rules[]` (name, allow/deny, when/unless)
+- [x] Wire policy rules from blueprint → CedarPolicyBuilder → Gateway attachment in `build_agent_session()`
+- [x] Extend `tools:` to support `builtin: code_interpreter | browser`
+- [x] Extend `runtime:` with `type: agentcore`, `idle_timeout_minutes`, `network_mode`, `protocol`
+- [x] Extend `multi_agent:` with `role`, `nodes[].a2a_url`
+- [x] Add `StrategyBlueprint` Pydantic model with domain-agnostic conditions and parameters
+- [x] Add `load_strategy()` and `load_strategy_from_path()` to BlueprintLoader
+- [x] Add full blueprint validation in `agentcli blueprint lint` (agent + strategy + workflow, block coverage, cross-validation)
+- [x] Add `agentcli deploy agent` command using `bedrock_agentcore_starter_toolkit.Runtime()`
+- [x] Add strategy YAML examples (basic-strategy, multi-signal-strategy)
+- [x] Add workflow YAML examples (sequential-pipeline, parallel-analysis)
+- [x] Update full-stack-agent.yaml to demonstrate all 12 blocks with compliant schemas

@@ -3,6 +3,7 @@
 import typer
 
 from agent_cli.blueprint import blueprint_app
+from agent_cli.deploy import deploy_app
 from agent_cli.evaluation import eval_app
 from agent_cli.policy import policy_app
 from agent_cli.generate import generate_app
@@ -23,6 +24,7 @@ app.add_typer(
 )
 app.add_typer(eval_app, name="eval", help="Agent evaluation operations")
 app.add_typer(policy_app, name="policy", help="Cedar policy operations")
+app.add_typer(deploy_app, name="deploy", help="Build and deploy agents to AgentCore Runtime")
 
 
 @app.callback()

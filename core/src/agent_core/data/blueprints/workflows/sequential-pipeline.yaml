@@ -1,0 +1,85 @@
+# Sequential Pipeline Workflow
+# Demonstrates: sequential tasks, retry/catch, choice routing, input mapping
+# Blocks: 12 (Blueprints)
+
+id: sequential-pipeline
+version: "1.0.0"
+name: Sequential Data Pipeline
+description: >
+  Three-stage pipeline: collect data, analyze it, generate report.
+  Includes execution mode gating, retry logic, and error handling.
+
+trigger:
+  type: schedule
+  schedule: "cron(0 8 ? * MON-FRI *)"
+  timezone: UTC
+
+timeout_minutes: 30
+
+states:
+  - id: CheckExecutionMode
+    type: choice
+    choices:
+      - condition:
+          path: "$.execution_mode"
+          op: eq
+          value: production
+        next: CollectData
+      - condition:
+          path: "$.execution_mode"
+          op: eq
+          value: simulation
+        next: CollectData
+    default: PipelineSkipped
+
+  - id: CollectData
+    type: task
+    agent_ref: data-collector
+    input_mapping:
+      prompt: "Collect and validate the latest data from configured sources."
+      source_config: "$.source_config"
+    retry:
+      - error_equals: ["ServiceUnavailable", "ThrottlingException"]
+        interval_seconds: 5
+        max_attempts: 3
+        backoff_rate: 2.0
+    catch:
+      - error_equals: ["States.ALL"]
+        next: PipelineFailed
+    next: AnalyzeData
+
+  - id: AnalyzeData
+    type: task
+    agent_ref: analyzer
+    input_mapping:
+      prompt: "Analyze the collected data and produce structured findings."
+      data: "$.CollectData.output"
+    retry:
+      - error_equals: ["ModelTimeoutException"]
+        interval_seconds: 10
+        max_attempts: 2
+        backoff_rate: 1.5
+    catch:
+      - error_equals: ["States.ALL"]
+        next: PipelineFailed
+    next: GenerateReport
+
+  - id: GenerateReport
+    type: task
+    agent_ref: reporter
+    input_mapping:
+      prompt: "Generate a summary report from the analysis findings."
+      findings: "$.AnalyzeData.output"
+    next: PipelineComplete
+
+  - id: PipelineComplete
+    type: succeed
+
+  - id: PipelineSkipped
+    type: succeed
+    comment: Pipeline skipped due to execution mode.
+
+  - id: PipelineFailed
+    type: fail
+    error: PipelineExecutionError
+    cause: "One or more pipeline stages failed after retries."
