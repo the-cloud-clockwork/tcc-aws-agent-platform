@@ -1,0 +1,60 @@
+# Streaming agent — Block 9 (Strands Integration)
+#
+# Demonstrates:
+#   - Streaming support via stream_async() / SSE
+#   - Multi-turn conversation within a session
+#   - Observability auto-wiring (no explicit hooks: needed)
+#   - Tool mixing (Gateway MCP tools)
+#
+# Consumer usage:
+#
+#   # One-line entrypoint generation:
+#   app = loader.build_entrypoint("streaming-agent")
+#   app.run()
+#
+#   # Or manual session with streaming:
+#   with loader.build_agent_session("streaming-agent") as session:
+#       async for event in session.stream_async("Analyze this data"):
+#           print(event)
+#
+#   # Multi-turn conversation:
+#   with loader.build_agent_session("streaming-agent") as session:
+#       session.run_turn("Hello, I need help with analysis")
+#       session.run_turn("Now compare with last quarter")
+
+id: streaming-agent
+name: Streaming Analysis Agent
+version: "1.0.0"
+description: Agent that streams responses for real-time UX and supports multi-turn conversation.
+
+model:
+  provider: bedrock
+  model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
+  max_tokens: 4096
+  temperature: 0.3
+
+prompt_ref: streaming-agent-system-v1
+
+tools:
+  - mcp: data-source-mcp
+    tools:
+      - query_data
+      - list_datasets
+
+gateway:
+  auth_type: none
+
+observability:
+  trace_attributes:
+    team: platform
+    component: streaming
+
+runtime:
+  type: agentcore
+  protocol: HTTP
+  idle_timeout_minutes: 10
+
+execution_modes:
+  simulation: true
+  staging: true
+  production: true

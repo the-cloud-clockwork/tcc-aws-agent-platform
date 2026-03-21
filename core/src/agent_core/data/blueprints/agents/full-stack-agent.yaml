@@ -1,4 +1,4 @@
-# Full-stack agent — Blocks 1-8 combined
+# Full-stack agent — Blocks 1-9 combined
 #
 # Demonstrates every implemented block wired together:
 #   Block 1: AgentCore Runtime (microVM, port 8080, @app.entrypoint)
@@ -9,6 +9,10 @@
 #   Block 6: Observability (OTEL, Langfuse, audit, dashboard, data protection)
 #   Block 7: Evaluation (custom evaluator + online monitoring)
 #   Block 8: Policy (Cedar access control on Gateway)
+#   Block 9: Strands Integration (full wiring, streaming, multi-turn)
+#
+# Observability hook is auto-wired from the observability: config block.
+# No need to declare it in hooks: — that field is for custom hooks only.
 #
 # Extended thinking enabled for complex reasoning tasks.
 
@@ -155,8 +159,6 @@ execution_modes:
 
 output_schema: AnalysisOutput
 
-hooks:
-  - observability
 
 artifacts:
   tier: platform

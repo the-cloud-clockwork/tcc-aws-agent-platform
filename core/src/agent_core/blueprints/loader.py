@@ -269,8 +269,12 @@ class BlueprintLoader:
         Strands Agent accepts ``model`` as a string model-id or a Model object.
         Temperature and max_tokens are passed to the model provider, not the Agent.
         """
-        # Use BEDROCK_REGION env var if set, otherwise default to us-west-2
-        bedrock_region = os.environ.get("BEDROCK_REGION", "us-west-2")
+        bedrock_region = os.environ.get("BEDROCK_REGION", "")
+        if not bedrock_region:
+            raise BlueprintLoadError(
+                "BEDROCK_REGION env var is required. Set it to the AWS region "
+                "where Bedrock models are available (e.g. us-west-2, eu-west-1)."
+            )
         from strands.models import BedrockModel
 
         bedrock_model = BedrockModel(
@@ -398,20 +402,42 @@ class BlueprintLoader:
         mcp_clients: list[Any],
         *,
         memory_wiring: Any = None,
-    ) -> dict[str, Any]:
-        """Build common Agent constructor kwargs."""
+        local_tools: list[Any] | None = None,
+    ) -> tuple[dict[str, Any], Any]:
+        """Build common Agent constructor kwargs.
+
+        Returns a tuple of (kwargs_dict, observability_hook) so the caller
+        can store the observability hook in the AgentSession.
+        """
         system_prompt = self._resolve_prompt(blueprint.prompt_ref)
-        hooks = self._resolve_hooks(blueprint.hooks)
         structured_output_model = self._resolve_output_schema(blueprint.output_schema)
 
-        # Inject memory hook provider into hooks list
+        # -- auto-wire observability hook from blueprint config --
+        from agent_core.hooks.observability_hooks import create_observability_hooks
+
+        audit_table = os.environ.get(blueprint.observability.audit_log.table_env, None)
+        obs_hook = create_observability_hooks(
+            agent_id=blueprint.id,
+            prompt_id=blueprint.prompt_ref,
+            prompt_version=blueprint.version,
+            execution_mode=os.environ.get("EXECUTION_MODE", "simulation"),
+            audit_table=audit_table,
+        )
+
+        # Compose hooks: observability first, then custom, then memory
+        hooks: list[Any] = [obs_hook]
+        hooks.extend(self._resolve_hooks(blueprint.hooks))
         if memory_wiring is not None:
-            hooks = list(hooks) if hooks else []
             hooks.append(memory_wiring.hook_provider)
+
+        # -- merge tools: Gateway + builtins + local @tool functions --
+        all_tools = list(mcp_clients) if mcp_clients else []
+        if local_tools:
+            all_tools.extend(local_tools)
 
         kwargs: dict[str, Any] = {
             "system_prompt": system_prompt,
-            "tools": mcp_clients if mcp_clients else None,
+            "tools": all_tools if all_tools else None,
         }
         kwargs.update(self._build_model_config(blueprint.model, blueprint.thinking))
 
@@ -419,6 +445,10 @@ class BlueprintLoader:
             kwargs["hooks"] = hooks
         if structured_output_model is not None:
             kwargs["structured_output_model"] = structured_output_model
+
+        # -- wire state dict for memory hook providers --
+        if memory_wiring is not None:
+            kwargs["state"] = {}
 
         # -- wire observability: trace_attributes --
         if blueprint.observability.trace_attributes:
@@ -430,7 +460,7 @@ class BlueprintLoader:
                 agent_version=blueprint.version,
             )
 
-        return kwargs
+        return kwargs, obs_hook
 
     # ------------------------------------------------------------------
     # Agent Session builder
@@ -440,6 +470,8 @@ class BlueprintLoader:
         self,
         agent_id: str,
         mode: ExecutionMode | None = None,
+        *,
+        local_tools: list[Any] | None = None,
     ) -> AgentSession:
         """Build an :class:`AgentSession` with full lifecycle management.
 
@@ -453,6 +485,9 @@ class BlueprintLoader:
             The ``id`` field of the agent blueprint.
         mode:
             Override execution mode (defaults to env-var-based mode).
+        local_tools:
+            Optional list of local ``@tool`` functions to mix with
+            Gateway and builtin tools.
 
         Returns
         -------
@@ -475,6 +510,8 @@ class BlueprintLoader:
         # -- create tool providers (Gateway + builtins) --
         self._last_builtin_wiring = None
         mcp_clients = self._create_tool_providers(blueprint)
+        if local_tools:
+            mcp_clients.extend(local_tools)
         builtin_wiring = self._last_builtin_wiring
 
         # -- wire identity --
@@ -545,8 +582,17 @@ class BlueprintLoader:
                     blueprint.evaluation.online.sampling_rate,
                 )
 
+        # -- wire session bridge for multi-turn --
+        session_bridge = None
+        if memory_wiring is not None:
+            from agent_core.runtime.session import SessionState
+            from agent_core.runtime.strands_session_bridge import StrandsSessionBridge
+
+            session_state = SessionState()
+            session_bridge = StrandsSessionBridge(session_state)
+
         # -- build agent kwargs --
-        agent_kwargs = self._build_agent_kwargs(
+        agent_kwargs, obs_hook = self._build_agent_kwargs(
             blueprint, mcp_clients, memory_wiring=memory_wiring
         )
 
@@ -590,6 +636,8 @@ class BlueprintLoader:
                     identity_wiring=identity_wiring,
                     memory_wiring=memory_wiring,
                     builtin_wiring=builtin_wiring,
+                    session_bridge=session_bridge,
+                    observability_hook=obs_hook,
                 )
 
             elif ma.pattern == "graph":
@@ -610,6 +658,8 @@ class BlueprintLoader:
                     identity_wiring=identity_wiring,
                     memory_wiring=memory_wiring,
                     builtin_wiring=builtin_wiring,
+                    session_bridge=session_bridge,
+                    observability_hook=obs_hook,
                 )
 
             else:
@@ -623,7 +673,74 @@ class BlueprintLoader:
             identity_wiring=identity_wiring,
             memory_wiring=memory_wiring,
             builtin_wiring=builtin_wiring,
+            session_bridge=session_bridge,
+            observability_hook=obs_hook,
         )
+
+    def build_entrypoint(
+        self,
+        agent_id: str,
+        *,
+        local_tools: list[Any] | None = None,
+        middleware: list[Any] | None = None,
+    ) -> Any:
+        """Build a fully wired ``AgentCoreApp`` from a blueprint.
+
+        Returns an :class:`AgentCoreApp` with a registered ``@app.entrypoint``
+        handler that manages the full agent lifecycle:
+
+        - Sets OTEL session baggage from the invocation context
+        - Enters the :class:`AgentSession` context manager
+        - Routes to ``run()`` or ``stream_async()`` based on payload
+        - Handles cleanup on exit
+
+        The consumer's ``app.py`` becomes::
+
+            from agent_core import BlueprintLoader
+
+            loader = BlueprintLoader("blueprints", prompt_dir="prompts")
+            app = loader.build_entrypoint("my-agent")
+
+            if __name__ == "__main__":
+                app.run()
+
+        Parameters
+        ----------
+        agent_id:
+            The ``id`` field of the agent blueprint.
+        local_tools:
+            Optional list of local ``@tool`` functions.
+        middleware:
+            Optional Starlette middleware list for the app.
+        """
+        from agent_core.runtime.entrypoint import AgentCoreApp
+
+        session = self.build_agent_session(agent_id, local_tools=local_tools)
+        app = AgentCoreApp(middleware=middleware)
+
+        @app.entrypoint
+        async def handler(payload: dict, context: Any) -> Any:
+            from agent_core.observability.otel import (
+                detach_session_baggage,
+                set_session_baggage,
+            )
+
+            token = set_session_baggage(
+                session_id=getattr(context, "session_id", ""),
+                user_id=payload.get("user_id"),
+            )
+            try:
+                with session:
+                    prompt = payload.get("prompt", "")
+                    if payload.get("stream", False):
+                        async for event in session.stream_async(prompt):
+                            yield event
+                    else:
+                        yield session.run(prompt)
+            finally:
+                detach_session_baggage(token)
+
+        return app
 
     # ------------------------------------------------------------------
     # Multi-node session builder
@@ -657,7 +774,7 @@ class BlueprintLoader:
             node_mcp_clients = self._create_tool_providers(node_bp)
             all_mcp_clients.extend(node_mcp_clients)
 
-            node_kwargs = self._build_agent_kwargs(node_bp, node_mcp_clients)
+            node_kwargs, _ = self._build_agent_kwargs(node_bp, node_mcp_clients)
             node_agent = Agent(**node_kwargs)
             node_agents[node_cfg.node_id] = node_agent
             logger.info(

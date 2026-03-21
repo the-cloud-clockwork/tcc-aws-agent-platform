@@ -11,6 +11,7 @@ Contract:
   - Streaming via async def + yield (SSE)
   - Starlette middleware stack support
 """
+
 from __future__ import annotations
 
 import logging
@@ -85,6 +86,35 @@ class AgentCoreApp:
         self._sdk_app.entrypoint(fn)
         logger.info("Registered entrypoint: %s", fn.__name__)
         return fn
+
+    @classmethod
+    def from_blueprint(
+        cls,
+        loader: Any,
+        agent_id: str,
+        *,
+        local_tools: list[Any] | None = None,
+        middleware: list[Middleware] | None = None,
+    ) -> AgentCoreApp:
+        """Create an AgentCoreApp fully wired from a blueprint.
+
+        Convenience class method that delegates to
+        ``loader.build_entrypoint()``.
+
+        Args:
+            loader: A :class:`BlueprintLoader` instance.
+            agent_id: The blueprint ``id`` to load.
+            local_tools: Optional local ``@tool`` functions.
+            middleware: Optional Starlette middleware list.
+
+        Returns:
+            A fully configured :class:`AgentCoreApp` ready to ``.run()``.
+        """
+        return loader.build_entrypoint(
+            agent_id,
+            local_tools=local_tools,
+            middleware=middleware,
+        )
 
     def run(self) -> None:
         """Start the AgentCore Runtime server.
