@@ -55,7 +55,8 @@ locals {
     sts             = "com.amazonaws.${local.region}.sts"
     ssm             = "com.amazonaws.${local.region}.ssm"
     bedrock         = "com.amazonaws.${local.region}.bedrock"
-    bedrock_runtime = "com.amazonaws.${local.region}.bedrock-runtime"
+    bedrock_runtime   = "com.amazonaws.${local.region}.bedrock-runtime"
+    bedrock_agentcore = "com.amazonaws.${local.region}.bedrock-agentcore"
   }
 }
 

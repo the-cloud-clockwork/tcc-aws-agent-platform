@@ -100,10 +100,14 @@ resource "aws_bedrockagentcore_gateway" "this" {
   dynamic "authorizer_configuration" {
     for_each = var.gateway_auth_type == "CUSTOM_JWT" ? [1] : []
     content {
-      discovery_url   = var.gateway_jwt_discovery_url
-      allowed_clients = var.gateway_jwt_allowed_clients
+      custom_jwt_authorizer {
+        discovery_url   = var.gateway_jwt_discovery_url
+        allowed_clients = var.gateway_jwt_allowed_clients
+      }
     }
   }
+
+  kms_key_arn = var.gateway_kms_key_arn != "" ? var.gateway_kms_key_arn : null
 
   tags = merge(var.tags, {
     Name      = "${local.prefix}-${local.env}-gateway"

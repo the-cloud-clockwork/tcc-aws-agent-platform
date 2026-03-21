@@ -17,7 +17,8 @@ resource "aws_ecr_repository" "agent" {
   }
 
   encryption_configuration {
-    encryption_type = "AES256"
+    encryption_type = var.storage_kms_key_arn != "" ? "KMS" : "AES256"
+    kms_key         = var.storage_kms_key_arn != "" ? var.storage_kms_key_arn : null
   }
 
   tags = merge(local.tags, {

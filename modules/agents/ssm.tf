@@ -19,3 +19,17 @@ resource "aws_ssm_parameter" "agent_runtime_arn" {
     AgentId   = each.key
   })
 }
+
+resource "aws_ssm_parameter" "agent_runtime_endpoint" {
+  for_each = local.blueprints
+
+  name  = "${var.ssm_root_path}/agents/${each.key}/runtime-endpoint"
+  type  = "String"
+  value = aws_bedrockagentcore_agent_runtime_endpoint.agent[each.key].agent_runtime_endpoint_arn
+
+  tags = merge(local.tags, {
+    Name      = "${var.ssm_root_path}/agents/${each.key}/runtime-endpoint"
+    Component = "ssm"
+    AgentId   = each.key
+  })
+}

@@ -10,8 +10,11 @@
 resource "aws_bedrockagentcore_code_interpreter" "this" {
   count = var.code_interpreter_enabled ? 1 : 0
 
-  name                  = "${local.prefix}-${local.env}-code-interpreter"
-  network_configuration = "PUBLIC"
+  name = "${local.prefix}-${local.env}-code-interpreter"
+
+  network_configuration {
+    network_mode = "PUBLIC"
+  }
 
   tags = merge(var.tags, {
     Name      = "${local.prefix}-${local.env}-code-interpreter"
@@ -25,8 +28,11 @@ resource "aws_bedrockagentcore_code_interpreter" "this" {
 resource "aws_bedrockagentcore_browser" "this" {
   count = var.browser_enabled ? 1 : 0
 
-  name                  = "${local.prefix}-${local.env}-browser"
-  network_configuration = "PUBLIC"
+  name = "${local.prefix}-${local.env}-browser"
+
+  network_configuration {
+    network_mode = "PUBLIC"
+  }
 
   tags = merge(var.tags, {
     Name      = "${local.prefix}-${local.env}-browser"

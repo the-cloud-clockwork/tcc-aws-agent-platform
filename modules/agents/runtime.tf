@@ -39,25 +39,57 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
   network_configuration {
     network_mode = try(each.value.runtime.network_mode, "PUBLIC")
 
-    dynamic "vpc_configuration" {
+    dynamic "network_mode_config" {
       for_each = try(each.value.runtime.network_mode, "PUBLIC") == "PRIVATE" ? [1] : []
       content {
-        vpc_id             = var.vpc_id
-        subnet_ids         = var.private_subnet_ids
-        security_group_ids = [var.agent_security_group_id]
+        subnets         = var.private_subnet_ids
+        security_groups = [var.agent_security_group_id]
       }
     }
   }
 
-  # Protocol — HTTP or MCP
+  # Protocol — HTTP, MCP, or A2A
   protocol_configuration {
-    protocol = try(each.value.runtime.protocol, "HTTP")
+    server_protocol = each.value.runtime.protocol
   }
+
+  # Lifecycle timeouts — from blueprint when specified
+  lifecycle_configuration = (
+    try(each.value.runtime.max_lifetime, null) != null ||
+    try(each.value.runtime.idle_timeout, null) != null
+  ) ? [{
+    max_lifetime                 = try(each.value.runtime.max_lifetime, null)
+    idle_runtime_session_timeout = try(each.value.runtime.idle_timeout, null)
+  }] : null
 
   tags = merge(local.tags, {
     Name      = "${local.name_prefix}-${each.key}"
     Component = "runtime"
     AgentId   = each.key
     Version   = try(each.value.version, "0.0.0")
+  })
+
+  # Workaround for provider bug #45290: lifecycle_configuration attributes
+  # are not marked as Computed, causing drift on subsequent applies.
+  lifecycle {
+    ignore_changes = [lifecycle_configuration]
+  }
+}
+
+# ── Runtime Endpoint ───────────────────────────────────────────────────────
+#
+# Each runtime needs an endpoint to be network-reachable.
+
+resource "aws_bedrockagentcore_agent_runtime_endpoint" "agent" {
+  for_each = local.blueprints
+
+  name             = "${local.name_prefix}-${each.key}-ep"
+  agent_runtime_id = aws_bedrockagentcore_agent_runtime.agent[each.key].agent_runtime_id
+  description      = "Endpoint for runtime: ${each.key}"
+
+  tags = merge(local.tags, {
+    Name      = "${local.name_prefix}-${each.key}-ep"
+    Component = "runtime-endpoint"
+    AgentId   = each.key
   })
 }

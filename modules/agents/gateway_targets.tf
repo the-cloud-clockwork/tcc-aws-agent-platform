@@ -21,35 +21,24 @@ resource "aws_bedrockagentcore_gateway_target" "this" {
   gateway_identifier = var.gateway_id
 
   target_configuration {
-    lambda_target_configuration {
-      lambda_arn = each.value.lambda_arn
+    mcp {
+      lambda {
+        lambda_arn = each.value.lambda_arn
 
-      # Tool schema — inline tool definitions from the targets file
-      tool_schema {
-        inline_payload {
-          inline_tool_definitions = [
-            for tool in try(each.value.tools, []) : {
-              name        = tool.name
-              description = try(tool.description, "Tool: ${tool.name}")
-              input_schema = try(
-                jsonencode(tool.input_schema),
-                jsonencode({ type = "object", properties = {} })
-              )
+        tool_schema {
+          dynamic "inline_payload" {
+            for_each = try(each.value.tools, [])
+            content {
+              name        = inline_payload.value.name
+              description = try(inline_payload.value.description, "Tool: ${inline_payload.value.name}")
             }
-          ]
+          }
         }
       }
     }
   }
 
-  credential_provider_configurations = [
-    {
-      credential_provider_type = "GATEWAY_IAM_ROLE"
-    }
-  ]
-
-  tags = merge(local.tags, {
-    Name      = each.value.name
-    Component = "gateway-target"
-  })
+  credential_provider_configuration {
+    gateway_iam_role {}
+  }
 }

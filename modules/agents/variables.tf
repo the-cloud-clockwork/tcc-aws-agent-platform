@@ -89,6 +89,12 @@ variable "domain_artifacts_kms_key_arn" {
   default = ""
 }
 
+variable "storage_kms_key_arn" {
+  type        = string
+  description = "ARN of the storage KMS key for ECR encryption."
+  default     = ""
+}
+
 # -- Build -----------------------------------------------------------
 
 variable "codebuild_source_bucket" {

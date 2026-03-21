@@ -62,6 +62,7 @@ module "agentcore" {
   gateway_jwt_allowed_clients = var.gateway_jwt_allowed_clients
   memory_event_expiry_days    = var.memory_event_expiry_days
   memory_kms_key_arn          = module.security.data_kms_key_arn
+  gateway_kms_key_arn         = module.security.data_kms_key_arn
   cognito_enabled             = var.cognito_enabled
   code_interpreter_enabled    = var.builtin_code_interpreter_enabled
   browser_enabled             = var.builtin_browser_enabled
