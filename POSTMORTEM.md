@@ -60,11 +60,11 @@
 
 **Files:** `core/src/agent_core/observability/cost_tracker.py`, `otel.py`, `data_protection.py`
 
-- [ ] Externalize model pricing from `cost_tracker.py:40-67` — 13 hardcoded model IDs + prices. Load from config/env var instead
-- [ ] Remove hardcoded fallback pricing `(0.003, 0.015)` — make configurable
-- [ ] Add OTEL auto-instrumentation wrapper pattern (Dockerfile CMD with `opentelemetry-instrument`)
-- [ ] Apply PII anonymization to Langfuse traces, not just CloudWatch logs
-- [ ] Implement CloudWatch GenAI-specific metrics (model inference time, token counts per model)
+- [x] Externalize model pricing from `cost_tracker.py:40-67` — 13 hardcoded model IDs + prices. Load from config/env var instead
+- [x] Remove hardcoded fallback pricing `(0.003, 0.015)` — make configurable
+- [x] Add OTEL auto-instrumentation wrapper pattern (Dockerfile CMD with `opentelemetry-instrument`)
+- [x] Apply PII anonymization to Langfuse traces, not just CloudWatch logs
+- [x] Implement CloudWatch GenAI-specific metrics (model inference time, token counts per model)
 
 ---
 

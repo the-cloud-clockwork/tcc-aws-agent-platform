@@ -1,7 +1,9 @@
-"""Token cost computation per model using Bedrock pricing.
+"""Token cost computation per model using configurable Bedrock pricing.
 
-Maintains a lookup table of per-token costs for Bedrock models and
-computes the cost of a single model invocation given input/output token counts.
+Pricing is loaded from environment variables — no hardcoded model IDs or
+prices.  Set ``BEDROCK_MODEL_PRICING`` to a JSON object mapping model IDs
+to ``[input_per_1k, output_per_1k]`` tuples.  Set ``BEDROCK_DEFAULT_PRICING``
+to a JSON array ``[input_per_1k, output_per_1k]`` for unknown models.
 
 Usage::
 
@@ -11,12 +13,17 @@ Usage::
         input_tokens=1500,
         output_tokens=800,
     )
-    # cost.total_usd == 0.0069  (example)
 """
+
 from __future__ import annotations
 
+import json
+import logging
+import os
 from dataclasses import dataclass
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -41,57 +48,85 @@ class TokenCost:
         }
 
 
-# Pricing per 1K tokens in USD (as of 2025-05)
-# Source: https://aws.amazon.com/bedrock/pricing/
-_PRICING: dict[str, tuple[float, float]] = {
-    # (input_per_1k, output_per_1k)
-    # Claude 4 Sonnet
-    "us.anthropic.claude-sonnet-4-20250514-v1:0": (0.003, 0.015),
-    "eu.anthropic.claude-sonnet-4-6": (0.003, 0.015),
-    "anthropic.claude-sonnet-4-20250514-v1:0": (0.003, 0.015),
-    # Claude 4 Opus
-    "eu.anthropic.claude-opus-4-6-v1": (0.015, 0.075),
-    "us.anthropic.claude-opus-4-20250514-v1:0": (0.015, 0.075),
-    "anthropic.claude-opus-4-20250514-v1:0": (0.015, 0.075),
-    # Claude 3.5 Sonnet (v2)
-    "anthropic.claude-3-5-sonnet-20241022-v2:0": (0.003, 0.015),
-    "us.anthropic.claude-3-5-sonnet-20241022-v2:0": (0.003, 0.015),
-    # Claude 3.5 Haiku
-    "anthropic.claude-3-5-haiku-20241022-v1:0": (0.0008, 0.004),
-    "us.anthropic.claude-3-5-haiku-20241022-v1:0": (0.0008, 0.004),
-    # Nova Micro
-    "amazon.nova-micro-v1:0": (0.000035, 0.00014),
-    # Nova Lite
-    "amazon.nova-lite-v1:0": (0.00006, 0.00024),
-    # Nova Pro
-    "amazon.nova-pro-v1:0": (0.0008, 0.0032),
-}
+def _load_pricing_from_env() -> dict[str, tuple[float, float]]:
+    """Load model pricing from ``BEDROCK_MODEL_PRICING`` env var.
 
-# Fallback for unknown models
-_DEFAULT_PRICING: tuple[float, float] = (0.003, 0.015)
+    Expected format: JSON object ``{"model_id": [input_per_1k, output_per_1k], ...}``
+    Returns empty dict if env var is not set.
+    """
+    raw = os.environ.get("BEDROCK_MODEL_PRICING", "")
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+        return {k: (v[0], v[1]) for k, v in data.items()}
+    except (json.JSONDecodeError, IndexError, TypeError):
+        logger.warning("Invalid BEDROCK_MODEL_PRICING format, ignoring")
+        return {}
+
+
+def _load_default_pricing_from_env() -> tuple[float, float] | None:
+    """Load fallback pricing from ``BEDROCK_DEFAULT_PRICING`` env var.
+
+    Expected format: JSON array ``[input_per_1k, output_per_1k]``
+    Returns None if env var is not set.
+    """
+    raw = os.environ.get("BEDROCK_DEFAULT_PRICING", "")
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+        return (data[0], data[1])
+    except (json.JSONDecodeError, IndexError, TypeError):
+        logger.warning("Invalid BEDROCK_DEFAULT_PRICING format, ignoring")
+        return None
 
 
 class CostTracker:
     """Computes token costs for Bedrock model invocations.
 
+    Pricing is resolved from (in order):
+    1. ``custom_pricing`` constructor param
+    2. ``BEDROCK_MODEL_PRICING`` env var
+    3. ``default_pricing`` constructor param
+    4. ``BEDROCK_DEFAULT_PRICING`` env var
+    5. Raises ``ValueError`` for unknown models (no silent fallback)
+
     Parameters
     ----------
     custom_pricing:
-        Optional dict to override or extend the built-in pricing table.
+        Optional dict to override or extend env-based pricing.
         Keys are model IDs, values are ``(input_per_1k, output_per_1k)`` tuples.
+    default_pricing:
+        Optional fallback for unknown models.
     """
 
-    def __init__(self, custom_pricing: dict[str, tuple[float, float]] | None = None) -> None:
-        self._pricing = dict(_PRICING)
+    def __init__(
+        self,
+        custom_pricing: dict[str, tuple[float, float]] | None = None,
+        default_pricing: tuple[float, float] | None = None,
+    ) -> None:
+        self._pricing: dict[str, tuple[float, float]] = _load_pricing_from_env()
         if custom_pricing:
             self._pricing.update(custom_pricing)
+
+        self._default_pricing = default_pricing or _load_default_pricing_from_env()
 
     def get_pricing(self, model_id: str) -> tuple[float, float]:
         """Return ``(input_per_1k, output_per_1k)`` for a model ID.
 
-        Falls back to default pricing if the model is unknown.
+        Raises ``ValueError`` if the model is unknown and no default pricing
+        is configured.
         """
-        return self._pricing.get(model_id, _DEFAULT_PRICING)
+        pricing = self._pricing.get(model_id)
+        if pricing is not None:
+            return pricing
+        if self._default_pricing is not None:
+            return self._default_pricing
+        raise ValueError(
+            f"No pricing configured for model '{model_id}'.  "
+            f"Set BEDROCK_MODEL_PRICING or BEDROCK_DEFAULT_PRICING env var."
+        )
 
     def compute_cost(
         self,

@@ -10,6 +10,7 @@ Two layers of defense:
 
 from __future__ import annotations
 
+import collections.abc
 import json
 import logging
 import os
@@ -137,3 +138,79 @@ def apply_log_data_protection(
         log_group,
         config.cloudwatch_masking_identifiers,
     )
+
+
+def sanitize_text(
+    text: str,
+    config: DataProtectionConfig,
+    *,
+    region: str | None = None,
+    source: str = "INPUT",
+) -> str:
+    """Anonymize PII in text using Bedrock Guardrails.
+
+    Applies the guardrail configured in *config* to strip or mask PII
+    before the text is sent to external observability backends (e.g. Langfuse).
+
+    Args:
+        text: Raw text to sanitize.
+        config: Data protection configuration with guardrail IDs.
+        region: AWS region (resolved from env if not provided).
+        source: Guardrail content source — ``"INPUT"`` or ``"OUTPUT"``.
+
+    Returns:
+        Sanitized text with PII anonymized.  Returns original text
+        unchanged if the guardrail is not configured or the API fails.
+    """
+    guardrail_id = os.environ.get(config.guardrail_id_env)
+    if not guardrail_id:
+        return text
+
+    guardrail_version = os.environ.get(config.guardrail_version_env, "DRAFT")
+    resolved_region = (
+        region or os.environ.get("AWS_DEFAULT_REGION") or os.environ.get("AWS_REGION")
+    )
+
+    try:
+        client = boto3.client("bedrock-runtime", region_name=resolved_region)
+        response = client.apply_guardrail(
+            guardrailIdentifier=guardrail_id,
+            guardrailVersion=guardrail_version,
+            source=source,
+            content=[{"text": {"text": text}}],
+        )
+        outputs = response.get("outputs", [])
+        if outputs:
+            return outputs[0].get("text", text)
+        return text
+    except Exception:
+        logger.exception("Guardrail PII sanitization failed, returning original text")
+        return text
+
+
+def build_pii_filter(
+    config: DataProtectionConfig,
+    *,
+    region: str | None = None,
+) -> collections.abc.Callable[[str], str]:
+    """Create a PII filter callable for use with ``LangfuseHook``.
+
+    Returns a function that takes a string and returns the sanitized version.
+    If the guardrail is not configured, returns a no-op passthrough.
+
+    Args:
+        config: Data protection configuration.
+        region: AWS region override.
+    """
+    guardrail_id = os.environ.get(config.guardrail_id_env)
+    if not guardrail_id:
+
+        def _passthrough(text: str) -> str:
+            return text
+
+        return _passthrough
+
+    def _filter(text: str) -> str:
+        return sanitize_text(text, config, region=region)
+
+    return _filter
