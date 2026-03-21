@@ -230,29 +230,36 @@
 - [x] `infra/constructs_/` — 7 reusable CDK constructs
 - [x] `infra/config/` — `dev.yaml`, `staging.yaml`, `production.yaml` environment configs
 - [x] `infra/scripts/` — `build_mcps.sh`, `package_agents.sh`
-- [ ] Create `modules/` directory for Terraform modules
-- [ ] Create `modules/platform/` — Core platform infrastructure module
-  - [ ] VPC, security groups, NAT
-  - [ ] AgentCore Runtime configuration
-  - [ ] AgentCore Gateway creation
-  - [ ] AgentCore Memory resource
-  - [ ] Cognito user pool + identity providers
-  - [ ] KMS CMKs + Secrets Manager
-  - [ ] CloudWatch dashboards + SNS alerts
-  - [ ] DynamoDB tables (audit, idempotency, prompts, artifacts)
-  - [ ] S3 buckets (prompts, artifacts)
-  - [ ] ECR repositories
-- [ ] Create `modules/agents/` — Agent deployment module
-  - [ ] Read blueprint YAML → configure AgentCore Runtime per agent
-  - [ ] Register Gateway targets from `gateway-targets.yaml`
-  - [ ] Configure Memory strategies per agent
-  - [ ] Attach Cedar policies per agent
-  - [ ] Configure evaluation per agent
-  - [ ] Build + push Docker images to ECR
-- [ ] Create `modules/workflows/` — Workflow deployment module
-  - [ ] Read workflow YAML → generate Step Functions state machines
-- [ ] Output platform values via SSM parameters and Terraform outputs
-- [ ] Support `terraform apply -var="environment=production"` workflow
+- [x] Create `modules/` directory for Terraform modules
+- [x] Create `modules/platform/` — Core platform infrastructure module
+  - [x] VPC, security groups, NAT
+  - [x] AgentCore Runtime configuration
+  - [x] AgentCore Gateway creation
+  - [x] AgentCore Memory resource
+  - [x] Cognito user pool + identity providers
+  - [x] KMS CMKs + Secrets Manager
+  - [x] CloudWatch dashboards + SNS alerts
+  - [x] DynamoDB tables (audit, idempotency, prompts, artifacts)
+  - [x] S3 buckets (prompts, artifacts) — Two-tier /platform + /domain with KMS enforcement
+  - [x] ECR repositories
+  - [x] CloudFront distribution with OAC for artifact delivery
+  - [x] WAF WebACL (conditional per environment)
+  - [x] VPC endpoints (S3, DynamoDB, ECR, Secrets Manager, KMS, STS, SSM, Bedrock)
+  - [x] API Gateway for artifact retrieval
+  - [x] Browser + Code Interpreter builtin tools
+- [x] Create `modules/agents/` — Agent deployment module
+  - [x] Read blueprint YAML → configure AgentCore Runtime per agent
+  - [x] Register Gateway targets from `gateway-targets.yaml`
+  - [x] Configure Memory strategies per agent
+  - [x] Identity credential providers (API key, OAuth2)
+  - [x] Per-agent IAM roles with least-privilege
+  - [x] CodeBuild projects for ARM64 Docker builds
+  - [x] Build + push Docker images to ECR
+- [x] Create `modules/workflows/` — Workflow deployment module
+  - [x] Read workflow YAML → generate Step Functions state machines
+  - [x] EventBridge triggers for scheduled workflows
+- [x] Output platform values via SSM parameters and Terraform outputs
+- [x] Support `terraform apply -var-file="envs/production.tfvars"` workflow
 - [ ] Document migration path from CDK → Terraform
 
 ---
