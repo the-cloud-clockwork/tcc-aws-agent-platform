@@ -9,6 +9,7 @@ Two auth modes:
   - **CUSTOM_JWT** — Bearer token in ``Authorization`` header
   - **NONE** — No auth (local development only)
 """
+
 from __future__ import annotations
 
 import functools
@@ -80,13 +81,22 @@ class GatewayClient:
         gateway_url: str | None = None,
         auth_type: str = "aws_iam",
         jwt_env_var: str | None = None,
-        region: str = "eu-west-1",
+        region: str | None = None,
         service_name: str = "bedrock-agentcore",
     ) -> None:
         self._gateway_url = gateway_url
         self._auth_type = auth_type
         self._jwt_env_var = jwt_env_var
-        self._region = region
+        self._region = (
+            region
+            or os.environ.get("AWS_DEFAULT_REGION")
+            or os.environ.get("AWS_REGION")
+        )
+        if not self._region:
+            raise GatewayConfigError(
+                "No AWS region configured.  Set gateway.region in blueprint YAML "
+                "or export AWS_DEFAULT_REGION."
+            )
         self._service_name = service_name
         self._mcp_client: MCPClient | None = None
 

@@ -21,9 +21,9 @@
 
 **Files:** `core/src/agent_core/gateway/client.py`, `target_registry.py`, `tool_discovery.py`
 
-- [ ] Remove hardcoded `"eu-west-1"` default from `client.py:83` — require explicit region or fail
-- [ ] Remove hardcoded `"eu-west-1"` default from `target_registry.py:79` — require explicit region or fail
-- [ ] Improve `ToolDiscovery.find_tools_for_task()` — currently keyword matching only, consider semantic matching
+- [x] Remove hardcoded `"eu-west-1"` default from `client.py:83` — require explicit region or fail
+- [x] Remove hardcoded `"eu-west-1"` default from `target_registry.py:79` — require explicit region or fail
+- [x] Improve `ToolDiscovery.find_tools_for_task()` — currently keyword matching only, consider semantic matching
 
 ---
 
