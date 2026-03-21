@@ -1,4 +1,5 @@
 """Agent Core -- Blueprint Engine, Execution Modes, Hooks, Schemas, Observability, Runtime."""
+
 from __future__ import annotations
 
 __version__ = "0.7.0"
@@ -9,7 +10,11 @@ from agent_core.blueprints.loader import BlueprintLoader, BlueprintLoadError
 from agent_core.blueprints.session import AgentSession
 from agent_core.blueprints.workflow import WorkflowBlueprint
 from agent_core.blueprints.workflow_executor import WorkflowExecutor
-from agent_core.execution.mode import ExecutionMode, get_execution_mode, validate_agent_mode
+from agent_core.execution.mode import (
+    ExecutionMode,
+    get_execution_mode,
+    validate_agent_mode,
+)
 from agent_core.hooks.observability import ObservabilityHook
 from agent_core.hooks.observability_hooks import (
     CompositeObservabilityHook,
@@ -25,7 +30,12 @@ from agent_core.observability import (
     XRayTracer,
 )
 from agent_core.prompt.client import PromptRegistryClient, PromptResolutionError
-from agent_core.runtime.adapter import AgentPayload, AgentResult, InvocationContext, normalize_payload
+from agent_core.runtime.adapter import (
+    AgentPayload,
+    AgentResult,
+    InvocationContext,
+    normalize_payload,
+)
 from agent_core.runtime.agent_config import AgentConfig, AgentConfigRegistry
 from agent_core.runtime.config_gen import generate_agentcore_config, generate_dockerfile
 from agent_core.runtime.entrypoint import AgentCoreApp
@@ -38,8 +48,16 @@ from agent_core.tools.mcp_factory import create_mcp_client
 
 from agent_core.gateway import GatewayClient, ToolDiscovery
 from agent_core.identity import CredentialCache, CredentialError, IdentityWiring
+from agent_core.memory import MemoryHookProvider, MemoryManager, MemoryWiring
 
-from agent_core.mcp import BaseMCPServer, VersionedS3Store, cache_get, cache_set, resolve_provider
+from agent_core.mcp import (
+    BaseMCPServer,
+    VersionedS3Store,
+    cache_get,
+    cache_set,
+    resolve_provider,
+)
+
 __all__ = [
     "AgentBlueprint",
     "AgentConfig",
@@ -60,6 +78,9 @@ __all__ = [
     "GraphNodeConfig",
     "IdempotencyStore",
     "IdentityWiring",
+    "MemoryHookProvider",
+    "MemoryManager",
+    "MemoryWiring",
     "InvocationContext",
     "LangfuseHook",
     "LogSchema",

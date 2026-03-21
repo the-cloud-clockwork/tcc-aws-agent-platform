@@ -1,3 +1,13 @@
-"""AgentCore Memory — session management with short-term, long-term, and episodic tiers."""
+"""AgentCore Memory — persistence across sessions."""
 
-__all__: list[str] = []
+from agent_core.memory.branching import MemoryBranchManager
+from agent_core.memory.hook_provider import MemoryHookProvider
+from agent_core.memory.manager import MemoryManager
+from agent_core.memory.wiring import MemoryWiring
+
+__all__ = [
+    "MemoryBranchManager",
+    "MemoryHookProvider",
+    "MemoryManager",
+    "MemoryWiring",
+]

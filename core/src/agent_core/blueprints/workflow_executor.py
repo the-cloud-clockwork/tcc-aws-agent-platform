@@ -68,8 +68,12 @@ class WorkflowExecutionResult:
 class WorkflowExecutor:
     """Executes WorkflowBlueprint state machines in-process for testing."""
 
-    def __init__(self, task_handler: Callable[..., dict[str, Any]] | None = None) -> None:
-        self._task_handler = task_handler or (lambda state_id, lambda_ref, input_data: {})
+    def __init__(
+        self, task_handler: Callable[..., dict[str, Any]] | None = None
+    ) -> None:
+        self._task_handler = task_handler or (
+            lambda state_id, lambda_ref, input_data: {}
+        )
 
     def execute(
         self, blueprint: WorkflowBlueprint, initial_input: dict[str, Any]
@@ -119,7 +123,9 @@ class WorkflowExecutor:
 
             if state.type == "task":
                 lambda_ref = state.lambda_ref or state.id
-                task_output = self._task_handler(current_id, lambda_ref, copy.deepcopy(data))
+                task_output = self._task_handler(
+                    current_id, lambda_ref, copy.deepcopy(data)
+                )
                 outputs[current_id] = task_output
 
                 # Apply result_path if specified
