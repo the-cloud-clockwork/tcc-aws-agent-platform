@@ -52,7 +52,7 @@
 
 **Files:** `core/src/agent_core/tools/code_interpreter.py`, `browser.py`, `wiring.py`
 
-- [ ] Route builtin tools (CodeInterpreter, Browser) through Gateway as targets instead of direct Strands instantiation — current code creates local providers, vision says they should be Gateway-mediated like all other tools
+- [x] Route builtin tools (CodeInterpreter, Browser) through Gateway as targets instead of direct Strands instantiation — current code creates local providers, vision says they should be Gateway-mediated like all other tools
 
 ---
 

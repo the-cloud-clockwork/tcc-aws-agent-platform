@@ -397,19 +397,15 @@ class BlueprintLoader:
                 client = GatewayClient.from_config(blueprint.gateway)
                 providers.append(client.as_tool_provider())
 
-        # Builtin tools (Code Interpreter, Browser)
+        # Builtin tools (Code Interpreter, Browser) — Gateway-mediated
         builtin_configs = [
             t for t in blueprint.tools if isinstance(t, BuiltinToolConfig)
         ]
         if builtin_configs:
             from agent_core.tools.wiring import BuiltinToolWiring
 
-            region = (
-                blueprint.gateway.region
-                if blueprint.gateway.region
-                else os.environ.get("AWS_DEFAULT_REGION", "")
-            )
-            wiring = BuiltinToolWiring(configs=builtin_configs, region=region)
+            gw = self._gateway_client or GatewayClient.from_config(blueprint.gateway)
+            wiring = BuiltinToolWiring(configs=builtin_configs, gateway_client=gw)
             providers.extend(wiring.tool_providers)
             # Store wiring reference for lifecycle management
             self._last_builtin_wiring = wiring
