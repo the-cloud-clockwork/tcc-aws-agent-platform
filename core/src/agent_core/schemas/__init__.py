@@ -2,6 +2,14 @@
 
 from __future__ import annotations
 
+from agent_core.schemas.evaluation_config import (
+    BuiltinEvaluator,
+    CustomEvaluatorConfig,
+    EvaluationConfig,
+    EvaluatorLevel,
+    OnlineEvaluationConfig,
+    RatingScaleEntry,
+)
 from agent_core.schemas.gateway_config import GatewayAuthType, GatewayConfig
 from agent_core.schemas.identity_config import (
     AuthFlow,
@@ -29,10 +37,14 @@ __all__ = [
     "AuthFlow",
     "AuthorizerConfig",
     "AuthorizerType",
+    "BuiltinEvaluator",
     "BuiltinToolConfig",
     "BuiltinToolType",
     "CredentialConfig",
     "CredentialType",
+    "CustomEvaluatorConfig",
+    "EvaluationConfig",
+    "EvaluatorLevel",
     "GatewayAuthType",
     "GatewayConfig",
     "IdentityConfig",
@@ -40,6 +52,8 @@ __all__ = [
     "MemoryConfig",
     "MemoryStrategyConfig",
     "MemoryStrategyType",
+    "OnlineEvaluationConfig",
+    "RatingScaleEntry",
     "RetrievalConfig",
     "ToolConfig",
     "ToolDeclaration",

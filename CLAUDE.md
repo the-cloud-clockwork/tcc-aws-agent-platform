@@ -214,6 +214,7 @@ Config: `ruff.toml` — Python 3.12, line-length 120, isort with known-first-par
 7. **Published packages** — `agent-core` and `prompt-registry` on CodeArtifact for domain consumption
 8. **Multi-tenant ready** — Memory branching + tenant isolation in agent-core
 9. **Observability first** — Langfuse, X-Ray, CloudWatch, structured logging, audit log
+10. **No hardcoded defaults** — Never hardcode model names, model IDs, sampling rates, temperature, or any value that varies by deployment. All such values must come from blueprint YAML, environment variables, or config templates. Platform code must not assume any specific model or default value — the consumer decides.
 
 ---
 

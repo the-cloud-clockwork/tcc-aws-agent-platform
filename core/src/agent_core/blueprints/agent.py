@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agent_core.schemas.execution_modes import ExecutionModes
+from agent_core.schemas.evaluation_config import EvaluationConfig
 from agent_core.schemas.gateway_config import GatewayConfig
 from agent_core.schemas.identity_config import IdentityConfig
 from agent_core.schemas.memory_config import MemoryConfig
@@ -120,6 +121,7 @@ class AgentBlueprint(BaseModel):
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
+    evaluation: EvaluationConfig = Field(default_factory=EvaluationConfig)
     execution_modes: ExecutionModes = Field(default_factory=ExecutionModes)
     output_schema: str | None = Field(
         default=None,
