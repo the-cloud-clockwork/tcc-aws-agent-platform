@@ -38,9 +38,9 @@ class GatewayConfig(BaseModel):
         default=None,
         description="Env var name holding the JWT for CUSTOM_JWT auth.",
     )
-    region: str = Field(
-        default="eu-west-1",
-        description="AWS region for SigV4 signing.",
+    region: str | None = Field(
+        default=None,
+        description="AWS region for SigV4 signing. Resolved from AWS_REGION env var when None.",
     )
     service_name: str = Field(
         default="bedrock-agentcore",

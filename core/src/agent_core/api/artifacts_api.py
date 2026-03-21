@@ -43,9 +43,12 @@ def handler(event: dict, context) -> dict:
             return _get_run(execution_id)
         else:
             return _response(404, {"error": "Not found"})
-    except Exception as e:
-        logger.exception("API error")
-        return _response(500, {"error": str(e)})
+    except (KeyError, ValueError, IndexError) as exc:
+        logger.warning("Bad request: %s", exc)
+        return _response(400, {"error": str(exc)})
+    except Exception as exc:
+        logger.exception("Unhandled API error")
+        return _response(500, {"error": str(exc)})
 
 
 def _list_artifacts(params: dict) -> dict:
@@ -125,8 +128,12 @@ def _get_run(execution_id: str) -> dict:
     try:
         obj = s3.get_object(Bucket=bucket, Key=item["s3_key"])
         item["manifest"] = json.loads(obj["Body"].read().decode("utf-8"))
-    except Exception:
-        pass
+    except s3.exceptions.NoSuchKey:
+        logger.warning("Manifest S3 key not found: %s", item.get("s3_key"))
+    except json.JSONDecodeError as exc:
+        logger.warning("Invalid manifest JSON for %s: %s", item.get("s3_key"), exc)
+    except Exception as exc:
+        logger.warning("Failed to fetch manifest for %s: %s", item.get("s3_key"), exc)
     return _response(200, item)
 
 

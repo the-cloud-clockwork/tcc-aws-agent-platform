@@ -116,10 +116,10 @@ No remaining issues.
 
 **Files:** `core/src/agent_core/schemas/model_config.py`, `gateway_config.py`; `cli/src/agent_cli/`
 
-- [ ] Remove hardcoded `temperature=0.2` default from `schemas/model_config.py:19` — make required or None
-- [ ] Remove hardcoded `max_tokens=4096` default from `schemas/model_config.py:20` — make required or None
-- [ ] Remove hardcoded `"eu-west-1"` default from `schemas/gateway_config.py:42`
-- [ ] Implement `agentcli blueprint lint` CLI command — validates agent/strategy/workflow YAML against Pydantic schemas
+- [x] Remove hardcoded `temperature=0.2` default from `schemas/model_config.py:19` — make required or None
+- [x] Remove hardcoded `max_tokens=4096` default from `schemas/model_config.py:20` — make required or None
+- [x] Remove hardcoded `"eu-west-1"` default from `schemas/gateway_config.py:42`
+- [x] Implement `agentcli blueprint lint` CLI command — validates agent/strategy/workflow YAML against Pydantic schemas
 
 ---
 
@@ -127,13 +127,13 @@ No remaining issues.
 
 **Files:** `core/src/agent_core/api/artifacts_api.py`
 
-- [ ] Fix silent error swallowing at `artifacts_api.py:128-130` — `except Exception: pass` on S3 get_object
-- [ ] Fix overly broad exception at `artifacts_api.py:46-49` — catch specific exceptions, not `Exception`
+- [x] Fix silent error swallowing at `artifacts_api.py:128-130` — `except Exception: pass` on S3 get_object
+- [x] Fix overly broad exception at `artifacts_api.py:46-49` — catch specific exceptions, not `Exception`
 
 ---
 
 ## Block 14: Test Coverage — Critical Gaps
 
-- [ ] Runtime module tests (`core/tests/test_runtime_*.py`) — currently 0% coverage
-- [ ] Memory module tests (`core/tests/test_memory_*.py`) — currently 0% coverage
-- [ ] Gateway module tests (`core/tests/test_gateway_*.py`) — currently ~5% coverage
+- [x] Runtime module tests (`core/tests/test_runtime_*.py`) — currently 0% coverage
+- [x] Memory module tests (`core/tests/test_memory_*.py`) — currently 0% coverage
+- [x] Gateway module tests (`core/tests/test_gateway_*.py`) — currently ~5% coverage
