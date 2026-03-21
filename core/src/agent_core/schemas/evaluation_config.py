@@ -99,6 +99,27 @@ class OnlineEvaluationConfig(BaseModel):
     )
 
 
+class EvaluationPersistenceConfig(BaseModel):
+    """DynamoDB persistence for evaluation results."""
+
+    model_config = ConfigDict(frozen=True)
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable DynamoDB persistence for evaluation scores.",
+    )
+    table_env: str = Field(
+        ...,
+        description="Environment variable holding the DynamoDB table name.",
+    )
+    retention_days: int = Field(
+        default=90,
+        ge=1,
+        le=3650,
+        description="Retention period for evaluation results in days.",
+    )
+
+
 class EvaluationConfig(BaseModel):
     """Top-level ``evaluation:`` block in an agent blueprint.
 
@@ -116,4 +137,8 @@ class EvaluationConfig(BaseModel):
     custom_evaluators: list[CustomEvaluatorConfig] = Field(
         default_factory=list,
         description="Custom LLM-as-judge evaluators to create.",
+    )
+    persistence: EvaluationPersistenceConfig | None = Field(
+        default=None,
+        description="DynamoDB persistence for evaluation results. None disables persistence.",
     )

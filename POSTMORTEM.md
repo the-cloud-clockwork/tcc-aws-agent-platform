@@ -72,9 +72,9 @@
 
 **Files:** `core/src/agent_core/evaluation/client.py`, `evaluators.py`
 
-- [ ] Create `evaluation/wiring.py` — bridge blueprint `EvaluationConfig` to `EvaluationClient` (auto-create custom evaluators, enable online evaluation from YAML)
-- [ ] Wire `evaluation/wiring.py` into `BlueprintLoader.build_agent_session()`
-- [ ] Add evaluation result persistence (store scores to DynamoDB or similar)
+- [x] Create `evaluation/wiring.py` — bridge blueprint `EvaluationConfig` to `EvaluationClient` (auto-create custom evaluators, enable online evaluation from YAML)
+- [x] Wire `evaluation/wiring.py` into `BlueprintLoader.build_agent_session()`
+- [x] Add evaluation result persistence (store scores to DynamoDB or similar)
 
 ---
 

@@ -14,6 +14,11 @@ def __getattr__(name: str):  # noqa: N807
 
         return EvaluationClient
 
+    if name == "EvaluationWiring":
+        from agent_core.evaluation.wiring import EvaluationWiring
+
+        return EvaluationWiring
+
     if name in ("EvaluationResult", "EvaluationScore"):
         from agent_core.evaluation import results as _results
 
@@ -39,6 +44,7 @@ __all__ = [
     "EvaluationError",
     "EvaluationResult",
     "EvaluationScore",
+    "EvaluationWiring",
     "EvaluatorInfo",
     "EvaluatorNotFoundError",
     "resolve_evaluator_ids",
