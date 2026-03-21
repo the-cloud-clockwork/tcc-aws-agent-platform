@@ -27,8 +27,23 @@ class MemoryManager:
     - ``create_memory_and_wait`` — extract and store a memory with a strategy
     """
 
-    def __init__(self, region: str | None = None) -> None:
-        self._region = region or os.environ.get("AWS_REGION", "eu-west-1")
+    def __init__(
+        self,
+        region: str | None = None,
+        memory_id: str | None = None,
+        actor_id: str | None = None,
+    ) -> None:
+        self._region = (
+            region
+            or os.environ.get("AWS_DEFAULT_REGION")
+            or os.environ.get("AWS_REGION")
+        )
+        if not self._region:
+            raise RuntimeError(
+                "No AWS region configured.  Pass region= or export AWS_DEFAULT_REGION."
+            )
+        self._memory_id = memory_id or os.environ.get("AGENTCORE_MEMORY_ID", "")
+        self._actor_id = actor_id or os.environ.get("AGENTCORE_ACTOR_ID", "system")
         self._client = MemoryClient(region_name=self._region)
 
     @property
@@ -176,3 +191,90 @@ class MemoryManager:
             namespace,
         )
         return response
+
+    # ------------------------------------------------------------------
+    # Session-oriented convenience methods (used by runtime/session.py)
+    # ------------------------------------------------------------------
+
+    def get_session_memory(self, session_id: str) -> dict[str, Any] | None:
+        """Retrieve recent conversation context for a session.
+
+        Returns a dict with ``turns`` and ``session_id``, or ``None``
+        if no history exists.
+        """
+        if not self._memory_id:
+            logger.warning("No memory_id configured — cannot retrieve session memory")
+            return None
+
+        turns = self.get_last_k_turns(
+            memory_id=self._memory_id,
+            actor_id=self._actor_id,
+            session_id=session_id,
+        )
+        if not turns:
+            return None
+        return {"session_id": session_id, "turns": turns}
+
+    def update_session_memory(
+        self,
+        session_id: str,
+        agent_id: str,
+        updates: dict[str, Any],
+    ) -> None:
+        """Persist memory updates for a session.
+
+        Converts the *updates* dict into a single event message.
+        """
+        if not self._memory_id:
+            logger.warning("No memory_id configured — cannot persist session memory")
+            return
+
+        import json
+
+        self.create_event(
+            memory_id=self._memory_id,
+            actor_id=agent_id,
+            session_id=session_id,
+            messages=[(json.dumps(updates), "assistant")],
+        )
+
+    def semantic_search(
+        self,
+        session_id: str,
+        query: str,
+        max_results: int = 5,
+    ) -> list[dict[str, Any]]:
+        """Semantic search across extracted memories for a session.
+
+        Uses the ``session_id`` as the namespace for scoping.
+        """
+        if not self._memory_id:
+            logger.warning("No memory_id configured — cannot search memories")
+            return []
+
+        return self.retrieve_memories(
+            memory_id=self._memory_id,
+            namespace=session_id,
+            query=query,
+            top_k=max_results,
+        )
+
+
+def get_memory_manager() -> MemoryManager:
+    """Factory function for creating a session-ready ``MemoryManager``.
+
+    Reads configuration from environment variables:
+      - ``AGENTCORE_MEMORY_ID`` (required)
+      - ``AWS_DEFAULT_REGION`` / ``AWS_REGION``
+      - ``AGENTCORE_ACTOR_ID`` (optional, defaults to ``"system"``)
+
+    Raises:
+        RuntimeError: If ``AGENTCORE_MEMORY_ID`` is not set.
+    """
+    memory_id = os.environ.get("AGENTCORE_MEMORY_ID", "")
+    if not memory_id:
+        raise RuntimeError(
+            "AGENTCORE_MEMORY_ID env var is not set.  "
+            "Configure memory.memory_id in blueprint YAML."
+        )
+    return MemoryManager(memory_id=memory_id)

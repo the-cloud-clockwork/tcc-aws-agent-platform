@@ -70,7 +70,11 @@ def session_id_to_sfn_execution_arn(
     Returns:
         Full SFN execution ARN.
     """
-    region = region or os.getenv("AWS_REGION", "eu-west-1")
+    region = region or os.getenv("AWS_DEFAULT_REGION") or os.getenv("AWS_REGION") or ""
+    if not region:
+        raise ValueError(
+            "No AWS region configured.  Pass region= or export AWS_DEFAULT_REGION."
+        )
     account_id = account_id or os.getenv("AWS_ACCOUNT_ID", "")
     return (
         f"arn:aws:states:{region}:{account_id}:"

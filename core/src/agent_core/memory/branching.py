@@ -27,7 +27,15 @@ class MemoryBranchManager:
         memory_id: str,
         region: str | None = None,
     ) -> None:
-        self._region = region or os.environ.get("AWS_REGION", "eu-west-1")
+        self._region = (
+            region
+            or os.environ.get("AWS_DEFAULT_REGION")
+            or os.environ.get("AWS_REGION")
+        )
+        if not self._region:
+            raise RuntimeError(
+                "No AWS region configured.  Pass region= or export AWS_DEFAULT_REGION."
+            )
         self._memory_id = memory_id
         self._manager = MemorySessionManager(
             memory_id=memory_id,
