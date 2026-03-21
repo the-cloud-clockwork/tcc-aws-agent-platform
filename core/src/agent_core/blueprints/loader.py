@@ -22,10 +22,7 @@ from agent_core.execution.mode import (
 from agent_core.prompt.client import PromptRegistryClient
 from agent_core.schemas.model_config import ModelConfig
 
-try:
-    from strands import Agent  # type: ignore[import-untyped]
-except ImportError:  # pragma: no cover
-    Agent = None  # type: ignore[assignment,misc]
+from strands import Agent  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 

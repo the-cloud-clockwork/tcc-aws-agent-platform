@@ -109,7 +109,7 @@ class AlertPublisher:
             logger.warning("No SNS topic ARN configured -- alert not sent: %s", title)
             return None
 
-        mode = os.getenv("EXECUTION_MODE", "simulation")
+        mode = os.getenv("EXECUTION_MODE", "")
         payload = {
             "alert_type": alert_type,
             "level": level.value,

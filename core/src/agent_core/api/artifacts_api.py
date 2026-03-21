@@ -8,6 +8,7 @@ Routes:
   GET /api/runs/{execution_id}           — Get manifest
   GET /api/runs/{execution_id}/{agent}   — Get agent artifact from run
 """
+
 import json
 import logging
 import os
@@ -71,7 +72,9 @@ def _list_artifacts(params: dict) -> dict:
         kwargs["ExpressionAttributeNames"] = names
 
     result = table.scan(**kwargs)
-    return _response(200, {"artifacts": result.get("Items", []), "count": result.get("Count", 0)})
+    return _response(
+        200, {"artifacts": result.get("Items", []), "count": result.get("Count", 0)}
+    )
 
 
 def _get_artifact(artifact_id: str) -> dict:
@@ -107,7 +110,9 @@ def _list_runs(params: dict) -> dict:
         ExpressionAttributeValues={":t": "pipeline_run"},
         Limit=int(params.get("limit", "20")),
     )
-    items = sorted(result.get("Items", []), key=lambda x: x.get("created_at", ""), reverse=True)
+    items = sorted(
+        result.get("Items", []), key=lambda x: x.get("created_at", ""), reverse=True
+    )
     return _response(200, {"runs": items, "count": len(items)})
 
 
@@ -153,7 +158,7 @@ def _get_run_agent(execution_id: str, agent_id: str) -> dict:
 
 def _get_table():
     dynamodb = boto3.resource("dynamodb")
-    return dynamodb.Table(os.environ.get("ARTIFACTS_TABLE", "mcp_artifacts"))
+    return dynamodb.Table(os.environ["ARTIFACTS_TABLE"])
 
 
 def _get_signed_url(s3_key: str) -> str:

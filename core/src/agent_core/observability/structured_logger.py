@@ -83,9 +83,9 @@ class StructuredLogger:
 
     def __init__(
         self,
-        agent_id: str = "unknown",
+        agent_id: str = "",
         execution_mode: str | None = None,
-        prompt_version: str = "unknown",
+        prompt_version: str = "",
         trace_id: str | None = None,
         execution_id: str | None = None,
         logger_name: str = "agent_core.structured",

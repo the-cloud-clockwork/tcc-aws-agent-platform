@@ -61,7 +61,7 @@ def _get_langfuse_client() -> Any:
         _langfuse_client = Langfuse(
             public_key=os.getenv("LANGFUSE_PUBLIC_KEY", ""),
             secret_key=os.getenv("LANGFUSE_SECRET_KEY", ""),
-            host=os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com"),
+            host=os.environ["LANGFUSE_HOST"],
         )
         logger.info("Langfuse client initialized")
         return _langfuse_client
@@ -102,10 +102,10 @@ class LangfuseHook:
         Target entity being processed (optional).
     """
 
-    agent_id: str = "unknown"
-    prompt_id: str = "unknown"
-    prompt_version: str = "unknown"
-    execution_mode: str = "simulation"
+    agent_id: str = ""
+    prompt_id: str = ""
+    prompt_version: str = ""
+    execution_mode: str = ""
     target: str = ""
 
     pii_filter: Callable[[str], str] | None = None

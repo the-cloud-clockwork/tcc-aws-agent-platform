@@ -75,7 +75,7 @@ class AuditLogWriter:
     def log(
         self,
         event_type: str,
-        agent_id: str = "unknown",
+        agent_id: str = "",
         execution_mode: str | None = None,
         payload: dict[str, Any] | None = None,
         idempotency_key: str | None = None,
@@ -102,7 +102,7 @@ class AuditLogWriter:
         -------
         The complete item dict that was written.
         """
-        mode = execution_mode or os.getenv("EXECUTION_MODE", "simulation")
+        mode = execution_mode or os.getenv("EXECUTION_MODE", "")
         payload = payload or {}
 
         now_ms = int(time.time() * 1000)
