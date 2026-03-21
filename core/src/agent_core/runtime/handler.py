@@ -1,4 +1,5 @@
 """Generic agent handler — one handler renders any blueprint."""
+
 from __future__ import annotations
 
 import logging
@@ -6,7 +7,7 @@ import os
 from typing import Any
 
 from agent_core.blueprints.loader import BlueprintLoader
-from agent_core.runtime.adapter import AgentResult, normalize_payload
+from agent_core.runtime.adapter import AgentResult, InvocationContext, normalize_payload
 from agent_core.runtime.agent_config import AgentConfigRegistry
 from agent_core.runtime.idempotency import IdempotencyStore, generate_idempotency_key
 from agent_core.runtime.marshal import marshal_output
@@ -34,10 +35,12 @@ class GenericHandler:
         self._idempotency = idempotency_store
         self._session_manager = session_manager
 
-    def handle(self, event: dict[str, Any], context: Any = None) -> dict[str, Any]:
-        """Handle a Lambda or AgentCore event."""
+    def handle(
+        self, payload_data: dict[str, Any], context: InvocationContext | None = None
+    ) -> dict[str, Any]:
+        """Handle an AgentCore Runtime invocation."""
         # 1. Normalize payload
-        payload = normalize_payload(event)
+        payload = normalize_payload(payload_data)
         agent_id = payload.agent_id
         if agent_id == "unknown":
             agent_id = os.environ.get("AGENT_ID", "unknown")
@@ -48,9 +51,11 @@ class GenericHandler:
         config = self._configs.get(agent_id)
         if config is None:
             return AgentResult(
-                status="error", agent_id=agent_id, session_id=session_id,
+                status="error",
+                agent_id=agent_id,
+                session_id=session_id,
                 error=f"Unknown agent: {agent_id}. Registered: {self._configs.list_agents()}",
-            ).to_lambda_response()
+            ).to_response()
 
         # 3. Apply defaults
         for k, v in config.defaults.items():
@@ -60,23 +65,30 @@ class GenericHandler:
         for field_name in config.required_fields:
             if field_name not in params or params[field_name] is None:
                 return AgentResult(
-                    status="error", agent_id=agent_id, session_id=session_id,
+                    status="error",
+                    agent_id=agent_id,
+                    session_id=session_id,
                     error=f"Missing required field: {field_name}",
-                ).to_lambda_response()
+                ).to_response()
 
         # 5. Idempotency check
         idem_key = generate_idempotency_key(
             agent_id=agent_id,
             operation=config.operation_name,
-            params={k: params[k] for k in sorted(config.required_fields) if k in params},
+            params={
+                k: params[k] for k in sorted(config.required_fields) if k in params
+            },
         )
         if self._idempotency:
             cached = self._idempotency.check(idem_key)
             if cached is not None:
                 logger.info("Idempotency hit for %s: %s", agent_id, idem_key)
                 return AgentResult(
-                    status="success", agent_id=agent_id, session_id=session_id, output=cached,
-                ).to_lambda_response()
+                    status="success",
+                    agent_id=agent_id,
+                    session_id=session_id,
+                    output=cached,
+                ).to_response()
 
         # 6. Build prompt and run agent
         try:
@@ -101,7 +113,9 @@ class GenericHandler:
                 artifact_tier = blueprint.artifacts.tier
                 artifact_kms = blueprint.artifacts.kms_key_alias
             except Exception as bp_err:
-                logger.warning("Could not load blueprint for artifact config: %s", bp_err)
+                logger.warning(
+                    "Could not load blueprint for artifact config: %s", bp_err
+                )
 
             # Resolve KMS alias to ARN if available
             if artifact_kms:
@@ -136,18 +150,22 @@ class GenericHandler:
                 self._idempotency.store(idem_key, output)
 
             return AgentResult(
-                status="success", agent_id=agent_id, session_id=session_id,
+                status="success",
+                agent_id=agent_id,
+                session_id=session_id,
                 output=output.get("output", output),
                 claim_check=output.get("claim_check", False),
                 artifact_id=output.get("artifact_id", ""),
                 s3_key=output.get("s3_key", ""),
                 tier=output.get("tier", artifact_tier),
-            ).to_lambda_response()
+            ).to_response()
 
         except Exception as exc:
             logger.exception("Agent '%s' failed", agent_id)
             # Do NOT persist session on error — avoid storing partial state
             return AgentResult(
-                status="error", agent_id=agent_id, session_id=session_id,
+                status="error",
+                agent_id=agent_id,
+                session_id=session_id,
                 error=str(exc),
-            ).to_lambda_response()
+            ).to_response()
