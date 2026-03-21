@@ -41,10 +41,10 @@
 
 **Files:** `core/src/agent_core/memory/__init__.py`, `manager.py`, `session_bridge.py`, `branching.py`
 
-- [ ] Implement `get_memory_manager()` factory function — `runtime/session.py:181` calls it but it doesn't exist anywhere
-- [ ] Remove hardcoded `"eu-west-1"` default from `memory/manager.py:31`
-- [ ] Remove hardcoded `"eu-west-1"` default from `memory/session_bridge.py:73`
-- [ ] Remove hardcoded `"eu-west-1"` default from `memory/branching.py:30`
+- [x] Implement `get_memory_manager()` factory function — `runtime/session.py:181` calls it but it doesn't exist anywhere
+- [x] Remove hardcoded `"eu-west-1"` default from `memory/manager.py:31`
+- [x] Remove hardcoded `"eu-west-1"` default from `memory/session_bridge.py:73`
+- [x] Remove hardcoded `"eu-west-1"` default from `memory/branching.py:30`
 
 ---
 
