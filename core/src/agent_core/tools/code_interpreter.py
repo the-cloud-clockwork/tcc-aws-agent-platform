@@ -1,130 +1,74 @@
-"""Code Interpreter provider — wraps AgentCore Code Interpreter as Strands tools."""
+"""Code Interpreter provider — Gateway-mediated builtin tool.
+
+All builtin tools are registered as Gateway targets.  The Gateway proxies
+calls to the managed Code Interpreter service, so there is no local SDK
+instantiation.  This provider discovers Code Interpreter tools from the
+Gateway and exposes them for the agent.
+"""
 
 from __future__ import annotations
 
-import json
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from strands import tool
+if TYPE_CHECKING:
+    from agent_core.gateway.client import GatewayClient
 
 logger = logging.getLogger(__name__)
 
+# Gateway target name for the managed Code Interpreter service.
+CODE_INTERPRETER_TARGET = "code-interpreter"
+
 
 class CodeInterpreterProvider:
-    """Managed provider for the AgentCore Code Interpreter sandbox.
+    """Gateway-backed provider for the AgentCore Code Interpreter.
 
-    Wraps ``bedrock_agentcore.tools.code_interpreter_client.CodeInterpreter``
-    and exposes its five sandbox operations as Strands ``@tool`` callables.
+    Discovers Code Interpreter tools from the Gateway rather than creating
+    a local SDK client.  The Gateway manages sandbox lifecycle.
 
     Parameters
     ----------
-    region:
-        AWS region where the Code Interpreter is provisioned.
-    network_mode:
-        ``"PUBLIC"`` or ``"PRIVATE"`` sandbox networking.
+    gateway_client:
+        Active ``GatewayClient`` connected to the AgentCore Gateway.
     """
 
-    def __init__(self, *, region: str, network_mode: str = "PUBLIC") -> None:
-        from bedrock_agentcore.tools.code_interpreter_client import CodeInterpreter
-
-        self._region = region
-        self._network_mode = network_mode
-        self._client = CodeInterpreter(region)
-        self._started = False
+    def __init__(self, *, gateway_client: GatewayClient) -> None:
+        self._gateway = gateway_client
+        self._cached_tools: list[Any] | None = None
 
     def start(self) -> None:
-        """Provision the sandbox session."""
-        if not self._started:
-            self._client.start()
-            self._started = True
-            logger.info("Code Interpreter started (region=%s)", self._region)
+        """No-op — Gateway manages Code Interpreter lifecycle."""
 
     def stop(self) -> None:
-        """Tear down the sandbox session."""
-        if self._started:
-            try:
-                self._client.stop()
-            except Exception:
-                logger.exception("Error stopping Code Interpreter")
-            finally:
-                self._started = False
+        """No-op — Gateway manages Code Interpreter lifecycle."""
 
     @property
     def tools(self) -> list[Any]:
-        """Return Strands-compatible tool callables for the sandbox."""
-        client = self._client
+        """Return Code Interpreter tools discovered from the Gateway.
 
-        @tool
-        def execute_code(code: str, language: str = "python") -> str:
-            """Execute code in the sandboxed Code Interpreter.
+        Tools are cached after first discovery to avoid repeated
+        round-trips to the Gateway.
+        """
+        if self._cached_tools is not None:
+            return self._cached_tools
 
-            Args:
-                code: Source code to execute.
-                language: Programming language (default: python).
+        all_tools = self._gateway.list_tools_sync()
+        ci_tools = [
+            t for t in all_tools if _tool_matches_target(t, CODE_INTERPRETER_TARGET)
+        ]
+        self._cached_tools = ci_tools
+        logger.info(
+            "Discovered %d Code Interpreter tool(s) from Gateway",
+            len(ci_tools),
+        )
+        return ci_tools
 
-            Returns:
-                JSON string with stdout, stderr, and exit code.
-            """
-            response = client.invoke(
-                "executeCode",
-                {"code": code, "language": language, "clearContext": False},
-            )
-            for event in response.get("stream", [response]):
-                if "result" in event:
-                    return json.dumps(event["result"])
-            return json.dumps({"error": "no result returned"})
 
-        @tool
-        def execute_command(command: str) -> str:
-            """Execute a shell command in the sandboxed Code Interpreter.
-
-            Args:
-                command: Shell command to run.
-
-            Returns:
-                JSON string with stdout, stderr, and exit code.
-            """
-            response = client.invoke("executeCommand", {"command": command})
-            for event in response.get("stream", [response]):
-                if "result" in event:
-                    return json.dumps(event["result"])
-            return json.dumps({"error": "no result returned"})
-
-        @tool
-        def write_files(files: list[dict]) -> str:
-            """Write files into the Code Interpreter sandbox.
-
-            Args:
-                files: List of dicts with 'path' and 'text' keys.
-
-            Returns:
-                JSON confirmation of written files.
-            """
-            response = client.invoke("writeFiles", {"content": files})
-            return json.dumps(response)
-
-        @tool
-        def list_files() -> str:
-            """List files available in the Code Interpreter sandbox.
-
-            Returns:
-                JSON list of file paths.
-            """
-            response = client.invoke("listFiles", {})
-            return json.dumps(response)
-
-        @tool
-        def read_file(path: str) -> str:
-            """Read a file from the Code Interpreter sandbox.
-
-            Args:
-                path: File path within the sandbox.
-
-            Returns:
-                File contents as a string.
-            """
-            response = client.invoke("readFile", {"path": path})
-            return json.dumps(response)
-
-        return [execute_code, execute_command, write_files, list_files, read_file]
+def _tool_matches_target(tool: Any, target: str) -> bool:
+    """Check whether a Gateway tool belongs to the given target namespace."""
+    name = (
+        getattr(tool, "name", "")
+        if not isinstance(tool, dict)
+        else tool.get("name", "")
+    )
+    return name.startswith(f"{target}::")
