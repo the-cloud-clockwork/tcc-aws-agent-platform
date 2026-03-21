@@ -31,11 +31,13 @@ gateway:
   auth_type: aws_iam
 
 observability:
+  enabled: true
   trace_attributes:
     team: platform
     tier: production
     component: analysis
   langfuse:
+    enabled: true
     tags:
       - analysis
       - production

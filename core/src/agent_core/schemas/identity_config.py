@@ -1,15 +1,17 @@
 """Pydantic models for the ``identity:`` block in agent blueprints."""
+
 from __future__ import annotations
 
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class AuthorizerType(str, Enum):
     """Inbound authorizer type for validating callers."""
 
     CUSTOM_JWT = "custom_jwt"
+    COGNITO_JWT = "cognito_jwt"
     AWS_IAM = "aws_iam"
 
 
@@ -34,6 +36,25 @@ class AuthorizerConfig(BaseModel):
         default_factory=list,
         description="Allowed OAuth2 client IDs (audience values).",
     )
+    user_pool_id: str | None = Field(
+        default=None,
+        description="Cognito User Pool ID. Required when type is cognito_jwt.",
+    )
+    client_id: str | None = Field(
+        default=None,
+        description="Cognito App Client ID. Required when type is cognito_jwt.",
+    )
+
+    @model_validator(mode="after")
+    def _validate_cognito(self) -> AuthorizerConfig:
+        if self.type == AuthorizerType.COGNITO_JWT:
+            if not self.user_pool_id:
+                msg = "user_pool_id is required when authorizer type is cognito_jwt."
+                raise ValueError(msg)
+            if not self.client_id:
+                msg = "client_id is required when authorizer type is cognito_jwt."
+                raise ValueError(msg)
+        return self
 
 
 class AuthFlow(str, Enum):

@@ -158,12 +158,8 @@ class EvaluationClient:
                         "instructions": config.instructions,
                         "ratingScale": {
                             "numerical": [
-                                {
-                                    "value": entry.value,
-                                    "label": entry.label,
-                                    "definition": entry.definition,
-                                }
-                                for entry in config.rating_scale
+                                val
+                                for val in range(config.scale[0], config.scale[1] + 1)
                             ]
                         },
                     }

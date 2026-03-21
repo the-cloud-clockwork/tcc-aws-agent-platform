@@ -14,6 +14,10 @@ class LangfuseConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
+    enabled: bool = Field(
+        default=True,
+        description="Enable Langfuse tracing for this agent.",
+    )
     public_key_env: str = Field(
         default="LANGFUSE_PUBLIC_KEY",
         description="Environment variable holding the Langfuse public key.",
@@ -37,6 +41,10 @@ class AuditLogConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
+    enabled: bool = Field(
+        default=True,
+        description="Enable DynamoDB audit logging for this agent.",
+    )
     ttl_days: int = Field(
         default=1825,
         ge=1,
@@ -108,6 +116,10 @@ class ObservabilityConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
+    enabled: bool = Field(
+        default=True,
+        description="Master toggle for all observability features on this agent.",
+    )
     trace_attributes: dict[str, str] = Field(
         default_factory=dict,
         description="Static key-value pairs attached to every OTEL span via Strands Agent.",

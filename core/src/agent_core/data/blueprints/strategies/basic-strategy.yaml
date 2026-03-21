@@ -1,0 +1,71 @@
+# Basic Strategy Blueprint
+# Demonstrates: required_agents, required_signals, parameters, conditions
+# Blocks: 12 (Blueprints)
+
+id: basic-strategy
+name: Basic Threshold Strategy
+version: "1.0.0"
+description: >
+  Domain-agnostic strategy that activates when a confidence score
+  exceeds a configurable threshold and deactivates when it drops below
+  a separate floor value.
+
+required_agents:
+  - data-collector
+  - analyzer
+
+required_mcps:
+  - data-source-mcp
+
+required_signals:
+  - confidence_score
+  - risk_level
+
+parameters:
+  - name: activation_threshold
+    type: float
+    default: 0.8
+    description: Minimum confidence score to activate the strategy.
+    min_value: 0.0
+    max_value: 1.0
+  - name: deactivation_floor
+    type: float
+    default: 0.3
+    description: Score below which the strategy deactivates.
+    min_value: 0.0
+    max_value: 1.0
+  - name: max_active_items
+    type: int
+    default: 5
+    description: Maximum concurrent active items.
+    min_value: 1
+    max_value: 100
+
+entry_conditions:
+  logic: and
+  conditions:
+    - field: confidence_score
+      operator: gte
+      value: 0.8
+    - field: risk_level
+      operator: lt
+      value: 0.5
+
+exit_conditions:
+  logic: or
+  conditions:
+    - field: confidence_score
+      operator: lt
+      value: 0.3
+    - field: risk_level
+      operator: gte
+      value: 0.9
+
+execution_modes:
+  simulation: true
+  staging: true
+  production: true
+
+tags:
+  category: threshold
+  complexity: basic

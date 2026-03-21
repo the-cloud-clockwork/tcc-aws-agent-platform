@@ -1,0 +1,96 @@
+# Multi-Signal Strategy Blueprint
+# Demonstrates: multiple signal sources, AND/OR condition groups, complex parameters
+# Blocks: 12 (Blueprints)
+
+id: multi-signal-strategy
+name: Multi-Signal Composite Strategy
+version: "1.0.0"
+description: >
+  Composite strategy that combines signals from three independent
+  analysis agents. Entry requires all primary signals to align (AND),
+  exit triggers on any warning signal (OR).
+
+required_agents:
+  - data-collector
+  - analyzer
+  - validator
+
+required_mcps:
+  - data-source-mcp
+  - external-api-mcp
+
+required_signals:
+  - primary_score
+  - secondary_score
+  - validation_result
+  - anomaly_flag
+  - quality_index
+
+parameters:
+  - name: primary_weight
+    type: float
+    default: 0.6
+    description: Weight assigned to primary analysis score.
+    min_value: 0.0
+    max_value: 1.0
+  - name: secondary_weight
+    type: float
+    default: 0.4
+    description: Weight assigned to secondary analysis score.
+    min_value: 0.0
+    max_value: 1.0
+  - name: quality_threshold
+    type: float
+    default: 0.7
+    description: Minimum quality index for data acceptance.
+    min_value: 0.0
+    max_value: 1.0
+  - name: lookback_window
+    type: int
+    default: 30
+    description: Number of historical data points to consider.
+    min_value: 1
+    max_value: 365
+  - name: categories
+    type: list
+    default: null
+    description: Target categories to evaluate (empty means all).
+
+entry_conditions:
+  logic: and
+  conditions:
+    - field: primary_score
+      operator: gte
+      value: 0.75
+    - field: secondary_score
+      operator: gte
+      value: 0.6
+    - field: validation_result
+      operator: eq
+      value: true
+    - field: quality_index
+      operator: gte
+      value: 0.7
+
+exit_conditions:
+  logic: or
+  conditions:
+    - field: anomaly_flag
+      operator: eq
+      value: true
+    - field: primary_score
+      operator: lt
+      value: 0.4
+    - field: quality_index
+      operator: lt
+      value: 0.3
+
+execution_modes:
+  simulation: true
+  staging: true
+  production: false
+
+tags:
+  category: composite
+  complexity: advanced
+  signal_count: "5"
