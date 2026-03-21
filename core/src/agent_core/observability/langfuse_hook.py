@@ -20,6 +20,7 @@ Environment variables:
 - ``LANGFUSE_HOST`` -- Langfuse host URL (default: https://cloud.langfuse.com)
 - ``LANGFUSE_ENABLED`` -- set to ``false`` to disable (default: ``true``)
 """
+
 from __future__ import annotations
 
 import logging
@@ -28,6 +29,8 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
+
+from collections.abc import Callable
 
 from agent_core.observability.cost_tracker import CostTracker
 
@@ -105,13 +108,17 @@ class LangfuseHook:
     execution_mode: str = "simulation"
     target: str = ""
 
+    pii_filter: Callable[[str], str] | None = None
+
     _trace: Any = field(default=None, init=False, repr=False)
     _generation_count: int = field(default=0, init=False, repr=False)
     _total_input_tokens: int = field(default=0, init=False, repr=False)
     _total_output_tokens: int = field(default=0, init=False, repr=False)
     _total_cost_usd: float = field(default=0.0, init=False, repr=False)
     _start_time: float = field(default=0.0, init=False, repr=False)
-    _cost_tracker: CostTracker = field(default_factory=CostTracker, init=False, repr=False)
+    _cost_tracker: CostTracker = field(
+        default_factory=CostTracker, init=False, repr=False
+    )
     _trace_id: str = field(default="", init=False, repr=False)
 
     def _tags(self) -> dict[str, str]:
@@ -192,23 +199,38 @@ class LangfuseHook:
         if self._trace is None:
             return
 
+        # Apply PII filter to any text content before sending to Langfuse
+        input_text = kwargs.get("input_text", "")
+        output_text = kwargs.get("output_text", "")
+        if self.pii_filter is not None:
+            if input_text:
+                input_text = self.pii_filter(input_text)
+            if output_text:
+                output_text = self.pii_filter(output_text)
+
+        gen_kwargs: dict[str, Any] = {
+            "name": f"generation-{self._generation_count}",
+            "model": model_id,
+            "model_parameters": {"stop_reason": stop_reason},
+            "usage": {
+                "input": input_tokens,
+                "output": output_tokens,
+                "total": input_tokens + output_tokens,
+                "unit": "TOKENS",
+            },
+            "metadata": {
+                **self._tags(),
+                "cost_usd": cost.total_usd,
+                "generation_number": self._generation_count,
+            },
+        }
+        if input_text:
+            gen_kwargs["input"] = input_text
+        if output_text:
+            gen_kwargs["output"] = output_text
+
         try:
-            self._trace.generation(
-                name=f"generation-{self._generation_count}",
-                model=model_id,
-                model_parameters={"stop_reason": stop_reason},
-                usage={
-                    "input": input_tokens,
-                    "output": output_tokens,
-                    "total": input_tokens + output_tokens,
-                    "unit": "TOKENS",
-                },
-                metadata={
-                    **self._tags(),
-                    "cost_usd": cost.total_usd,
-                    "generation_number": self._generation_count,
-                },
-            )
+            self._trace.generation(**gen_kwargs)
         except Exception:
             logger.exception("Failed to log Langfuse generation")
 
