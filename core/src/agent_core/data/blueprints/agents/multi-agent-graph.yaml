@@ -1,0 +1,65 @@
+# Multi-agent graph — Block 1 + Block 2 + multi-agent orchestration
+#
+# Demonstrates the Graph pattern: a coordinator agent that orchestrates
+# specialist agents via graph-based routing.
+#
+# The coordinator has its own model/tools and references specialist blueprints
+# via `nodes[].agent_ref`. Each specialist is loaded from its own YAML.
+# Edges define the execution flow.
+
+id: coordinator-agent
+name: Analysis Coordinator
+version: "1.0.0"
+description: Graph-based coordinator orchestrating specialist agents.
+
+model:
+  provider: bedrock
+  model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
+  max_tokens: 8192
+  temperature: 0.1
+
+prompt_ref: coordinator-system-v1
+
+tools:
+  - mcp: artifacts-mcp
+    tools:
+      - create_artifact
+      - get_artifact
+
+gateway:
+  auth_type: aws_iam
+
+runtime:
+  type: agentcore
+  max_iterations: 10
+  idle_timeout_minutes: 30
+  network_mode: PRIVATE
+  protocol: HTTP
+
+execution_modes:
+  simulation: true
+  staging: true
+  production: false
+
+hooks:
+  - observability
+
+multi_agent:
+  pattern: graph
+  execution_timeout: 180
+  node_timeout: 60
+  max_handoffs: 10
+  max_iterations: 30
+  entry_point: data_collection
+  nodes:
+    - agent_ref: simple-agent
+      node_id: data_collection
+    - agent_ref: builtin-tools-agent
+      node_id: deep_analysis
+  edges:
+    - from_node: data_collection
+      to_node: deep_analysis
+
+artifacts:
+  tier: platform
+  type: analysis_result

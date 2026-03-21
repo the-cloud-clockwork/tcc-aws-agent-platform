@@ -1,0 +1,72 @@
+# Authenticated agent — Block 1 + Block 2 + Block 3 (Identity)
+#
+# Demonstrates all four auth patterns:
+#   - Inbound: JWT authorizer (Cognito) on the Runtime
+#   - Outbound: 3LO OAuth (user federation) + M2M + API key credentials
+
+id: authenticated-agent
+name: Authenticated Agent
+version: "1.0.0"
+description: Agent with full identity wiring — JWT inbound, OAuth/M2M/API key outbound.
+
+model:
+  provider: bedrock
+  model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
+  max_tokens: 4096
+  temperature: 0.1
+
+prompt_ref: authenticated-agent-system-v1
+
+tools:
+  - mcp: external-api-mcp
+    tools:
+      - fetch_records
+      - update_record
+  - mcp: artifacts-mcp
+    tools:
+      - create_artifact
+
+gateway:
+  auth_type: custom_jwt
+  jwt_env_var: USER_JWT_TOKEN
+
+identity:
+  authorizer:
+    type: custom_jwt
+    discovery_url: https://cognito-idp.${AWS_REGION}.amazonaws.com/${USER_POOL_ID}/.well-known/openid-configuration
+    allowed_clients:
+      - ${COGNITO_CLIENT_ID}
+  credentials:
+    - name: external_oauth
+      type: oauth2
+      provider: ExternalOAuthProvider
+      scopes:
+        - read
+        - write
+      auth_flow: user_federation
+    - name: analytics_service
+      type: oauth2
+      provider: AnalyticsM2MProvider
+      auth_flow: m2m
+    - name: third_party_api_key
+      type: api_key
+      provider: ThirdPartyAPIKey
+
+runtime:
+  type: agentcore
+  max_iterations: 10
+  idle_timeout_minutes: 15
+  network_mode: PRIVATE
+  protocol: HTTP
+
+execution_modes:
+  simulation: true
+  staging: true
+  production: true
+
+hooks:
+  - observability
+
+artifacts:
+  tier: platform
+  type: analysis_result

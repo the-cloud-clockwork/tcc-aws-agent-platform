@@ -234,6 +234,29 @@ The reference implementation (`/home/iamroot/dev/tccw-qitp/agents/`) shows where
 
 ---
 
+## Blueprint Examples
+
+Example blueprints live in `core/src/agent_core/data/blueprints/agents/` and are **distributed with the pip package**. They serve as reference patterns for domain repos consuming this platform.
+
+**Rules:**
+- When a new block is implemented (checked off in `PROGRESS.md`), update existing examples or add new ones to demonstrate the feature
+- Examples must be **domain-agnostic** — use generic names like `data-source-mcp`, `external-api-mcp`, never domain terms
+- Each example should document which blocks it demonstrates via comments at the top
+- The consumer repo (`/home/iamroot/dev/tccw-qitp/agents/blueprints/agents/`) shows real-world patterns — use it as structural reference but strip all domain content
+
+**Current examples:**
+
+| File | Blocks Demonstrated |
+|------|-------------------|
+| `simple-agent.yaml` | 1 (Runtime) + 2 (Gateway) |
+| `authenticated-agent.yaml` | 1 + 2 + 3 (Identity) |
+| `memory-agent.yaml` | 1 + 2 + 4 (Memory) |
+| `builtin-tools-agent.yaml` | 1 + 2 + 5 (Tools) |
+| `full-stack-agent.yaml` | 1 + 2 + 3 + 4 + 5 (all implemented) |
+| `multi-agent-graph.yaml` | 1 + 2 + multi-agent graph orchestration |
+
+---
+
 ## Constraints
 
 - **Never import domain packages** — No `qitp_*`, no domain-specific logic
