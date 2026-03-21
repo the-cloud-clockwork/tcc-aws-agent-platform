@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from strands import Agent
 
+    from agent_core.evaluation.wiring import EvaluationWiring
     from agent_core.hooks.observability_hooks import CompositeObservabilityHook
     from agent_core.identity.wiring import IdentityWiring
     from agent_core.memory.wiring import MemoryWiring
@@ -52,6 +53,7 @@ class AgentSession:
         identity_wiring: IdentityWiring | None = None,
         memory_wiring: MemoryWiring | None = None,
         builtin_wiring: BuiltinToolWiring | None = None,
+        evaluation_wiring: EvaluationWiring | None = None,
         session_bridge: StrandsSessionBridge | None = None,
         observability_hook: CompositeObservabilityHook | None = None,
     ) -> None:
@@ -62,6 +64,7 @@ class AgentSession:
         self._identity_wiring = identity_wiring
         self._memory_wiring = memory_wiring
         self._builtin_wiring = builtin_wiring
+        self._evaluation_wiring = evaluation_wiring
         self._session_bridge = session_bridge
         self._observability_hook = observability_hook
         self._exit_stack = ExitStack()
@@ -80,6 +83,11 @@ class AgentSession:
     def builtin(self) -> BuiltinToolWiring | None:
         """Access builtin tool wiring for Code Interpreter / Browser."""
         return self._builtin_wiring
+
+    @property
+    def evaluation(self) -> EvaluationWiring | None:
+        """Access evaluation wiring for on-demand scoring and result queries."""
+        return self._evaluation_wiring
 
     @property
     def observability(self) -> CompositeObservabilityHook | None:

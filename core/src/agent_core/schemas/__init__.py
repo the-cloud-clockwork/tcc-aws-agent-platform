@@ -6,6 +6,7 @@ from agent_core.schemas.evaluation_config import (
     BuiltinEvaluator,
     CustomEvaluatorConfig,
     EvaluationConfig,
+    EvaluationPersistenceConfig,
     EvaluatorLevel,
     OnlineEvaluationConfig,
 )
@@ -44,6 +45,7 @@ __all__ = [
     "CredentialType",
     "CustomEvaluatorConfig",
     "EvaluationConfig",
+    "EvaluationPersistenceConfig",
     "EvaluatorLevel",
     "GatewayAuthType",
     "GatewayConfig",

@@ -570,33 +570,23 @@ class BlueprintLoader:
             )
 
         # -- wire evaluation --
-        evaluation_ids: dict[str, str] = {}
+        evaluation_wiring = None
         if blueprint.evaluation.custom_evaluators or blueprint.evaluation.online:
-            from agent_core.evaluation.client import EvaluationClient
+            from agent_core.evaluation.wiring import EvaluationWiring
 
-            eval_client = EvaluationClient()
+            eval_table = None
+            if (
+                blueprint.evaluation.persistence is not None
+                and blueprint.evaluation.persistence.enabled
+            ):
+                eval_table = os.environ.get(blueprint.evaluation.persistence.table_env)
 
-            for custom_cfg in blueprint.evaluation.custom_evaluators:
-                eid = eval_client.create_evaluator(custom_cfg)
-                evaluation_ids[custom_cfg.name] = eid
-                logger.info(
-                    "Created custom evaluator '%s' -> %s for %s",
-                    custom_cfg.name,
-                    eid,
-                    agent_id,
-                )
-
-            if blueprint.evaluation.online:
-                eval_client.create_online_config(
-                    agent_id=agent_id,
-                    config_name=f"{agent_id}_online_eval",
-                    config=blueprint.evaluation.online,
-                )
-                logger.info(
-                    "Wired online evaluation for %s (sampling=%d%%)",
-                    agent_id,
-                    blueprint.evaluation.online.sampling_rate,
-                )
+            evaluation_wiring = EvaluationWiring(
+                config=blueprint.evaluation,
+                agent_id=agent_id,
+                results_table_name=eval_table,
+            )
+            logger.info("Wired evaluation for %s", agent_id)
 
         # -- wire policy (Cedar rules → Gateway policy engine) --
         if blueprint.policy and blueprint.policy.rules:
@@ -654,6 +644,7 @@ class BlueprintLoader:
                     agent_id,
                     mcp_clients,
                     current_mode,
+                    evaluation_wiring=evaluation_wiring,
                 )
 
             # Single-node path (Phase 4 backward compat)
@@ -675,6 +666,7 @@ class BlueprintLoader:
                     identity_wiring=identity_wiring,
                     memory_wiring=memory_wiring,
                     builtin_wiring=builtin_wiring,
+                    evaluation_wiring=evaluation_wiring,
                     session_bridge=session_bridge,
                     observability_hook=obs_hook,
                 )
@@ -697,6 +689,7 @@ class BlueprintLoader:
                     identity_wiring=identity_wiring,
                     memory_wiring=memory_wiring,
                     builtin_wiring=builtin_wiring,
+                    evaluation_wiring=evaluation_wiring,
                     session_bridge=session_bridge,
                     observability_hook=obs_hook,
                 )
@@ -712,6 +705,7 @@ class BlueprintLoader:
             identity_wiring=identity_wiring,
             memory_wiring=memory_wiring,
             builtin_wiring=builtin_wiring,
+            evaluation_wiring=evaluation_wiring,
             session_bridge=session_bridge,
             observability_hook=obs_hook,
         )
@@ -812,6 +806,7 @@ class BlueprintLoader:
         primary_id: str,
         primary_mcp_clients: list[Any],
         current_mode: ExecutionMode,
+        evaluation_wiring: Any = None,
     ) -> AgentSession:
         """Build a multi-node Swarm or Graph session from node configs.
 
@@ -886,6 +881,7 @@ class BlueprintLoader:
                 mcp_clients=all_mcp_clients,
                 multi_agent=swarm,
                 pattern="swarm",
+                evaluation_wiring=evaluation_wiring,
             )
 
         elif ma.pattern == "graph":
@@ -926,6 +922,7 @@ class BlueprintLoader:
                 mcp_clients=all_mcp_clients,
                 multi_agent=graph,
                 pattern="graph",
+                evaluation_wiring=evaluation_wiring,
             )
 
         raise BlueprintLoadError(f"Unknown multi-agent pattern: {ma.pattern}")
