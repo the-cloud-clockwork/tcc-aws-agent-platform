@@ -185,18 +185,18 @@
 - [x] `blueprints/session.py` — Agent session management
 - [x] `blueprints/condition_parser.py` — Condition evaluation for choice states
 - [x] `blueprints/workflow_executor.py` — Workflow state machine execution
-- [ ] Extend `build_agent_session()` to wire all 12 blocks from blueprint:
-  - [ ] `BedrockModel` from `model:` block (native Bedrock Converse API)
-  - [ ] Gateway tools via `MCPClient` from `tools:` block
-  - [ ] Memory `HookProvider` from `memory:` block
-  - [ ] Identity decorators from `identity:` block
-  - [ ] `trace_attributes` from `observability:` block
-  - [ ] Wrap in `@app.entrypoint` for AgentCore Runtime
-- [ ] Support tool mixing: local `@tool` + Gateway MCP + builtin tools in single agent
-- [ ] Add streaming agent support (`agent.stream_async()` with SSE)
-- [ ] Add multi-turn conversation support within a session
-- [ ] Add Strands `HookProvider` and `HookRegistry` integration
-- [ ] Export `AgentBlueprint`, `BlueprintLoader`, `WorkflowBlueprint` from `blueprints/__init__.py` (currently empty)
+- [x] Extend `build_agent_session()` to wire all 12 blocks from blueprint:
+  - [x] `BedrockModel` from `model:` block (native Bedrock Converse API)
+  - [x] Gateway tools via `MCPClient` from `tools:` block
+  - [x] Memory `HookProvider` from `memory:` block
+  - [x] Identity decorators from `identity:` block
+  - [x] `trace_attributes` from `observability:` block
+  - [x] Wrap in `@app.entrypoint` for AgentCore Runtime
+- [x] Support tool mixing: local `@tool` + Gateway MCP + builtin tools in single agent
+- [x] Add streaming agent support (`agent.stream_async()` with SSE)
+- [x] Add multi-turn conversation support within a session
+- [x] Add Strands `HookProvider` and `HookRegistry` integration
+- [x] Export `AgentBlueprint`, `BlueprintLoader`, `WorkflowBlueprint` from `blueprints/__init__.py` (currently empty)
 
 ---
 
