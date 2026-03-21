@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from strands import Agent
 
     from agent_core.evaluation.wiring import EvaluationWiring
+    from agent_core.policy.wiring import PolicyWiring
     from agent_core.hooks.observability_hooks import CompositeObservabilityHook
     from agent_core.identity.wiring import IdentityWiring
     from agent_core.memory.wiring import MemoryWiring
@@ -54,6 +55,7 @@ class AgentSession:
         memory_wiring: MemoryWiring | None = None,
         builtin_wiring: BuiltinToolWiring | None = None,
         evaluation_wiring: EvaluationWiring | None = None,
+        policy_wiring: PolicyWiring | None = None,
         session_bridge: StrandsSessionBridge | None = None,
         observability_hook: CompositeObservabilityHook | None = None,
     ) -> None:
@@ -65,6 +67,7 @@ class AgentSession:
         self._memory_wiring = memory_wiring
         self._builtin_wiring = builtin_wiring
         self._evaluation_wiring = evaluation_wiring
+        self._policy_wiring = policy_wiring
         self._session_bridge = session_bridge
         self._observability_hook = observability_hook
         self._exit_stack = ExitStack()
@@ -88,6 +91,11 @@ class AgentSession:
     def evaluation(self) -> EvaluationWiring | None:
         """Access evaluation wiring for on-demand scoring and result queries."""
         return self._evaluation_wiring
+
+    @property
+    def policy(self) -> PolicyWiring | None:
+        """Access policy wiring for versioning and rollback."""
+        return self._policy_wiring
 
     @property
     def observability(self) -> CompositeObservabilityHook | None:

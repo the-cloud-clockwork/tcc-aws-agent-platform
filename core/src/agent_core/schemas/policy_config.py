@@ -65,6 +65,27 @@ class PolicyRuleConfig(BaseModel):
         return self
 
 
+class PolicyVersioningConfig(BaseModel):
+    """DynamoDB versioning for deployed policy sets."""
+
+    model_config = ConfigDict(frozen=True)
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable DynamoDB versioning for policy deployments.",
+    )
+    table_env: str = Field(
+        ...,
+        description="Environment variable holding the DynamoDB table name.",
+    )
+    max_versions: int = Field(
+        default=10,
+        ge=1,
+        le=100,
+        description="Maximum number of versions to retain per agent.",
+    )
+
+
 class PolicyConfig(BaseModel):
     """Top-level ``policy:`` block in an agent blueprint.
 
@@ -107,4 +128,8 @@ class PolicyConfig(BaseModel):
             "Gateway target prefix for action names. When set, actions "
             "become '{prefix}___{tool_name}' (e.g. 'OrderTarget___process_refund')."
         ),
+    )
+    versioning: PolicyVersioningConfig | None = Field(
+        default=None,
+        description="DynamoDB versioning for policy deployments. None disables versioning.",
     )
