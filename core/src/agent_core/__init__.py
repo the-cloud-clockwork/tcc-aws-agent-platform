@@ -70,6 +70,9 @@ __all__ = [
     "AgentPayload",
     "AgentResult",
     "AgentSession",
+    "A2AClient",
+    "A2AServerWrapper",
+    "A2AWiring",
     "AlertPublisher",
     "AuditLogWriter",
     "BlueprintLoadError",
@@ -125,5 +128,6 @@ __all__ = [
     "VersionedS3Store",
     "cache_get",
     "cache_set",
+    "remote_agent_tool",
     "resolve_provider",
 ]

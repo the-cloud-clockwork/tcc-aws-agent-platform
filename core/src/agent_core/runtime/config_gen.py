@@ -148,6 +148,14 @@ def generate_dockerfile(
     else:
         cmd = 'CMD ["python", "-m", "app"]'
 
+    a2a_expose = ""
+    if (
+        blueprint.multi_agent is not None
+        and blueprint.multi_agent.role == "specialist"
+        and blueprint.runtime.a2a_port
+    ):
+        a2a_expose = f"\nEXPOSE {blueprint.runtime.a2a_port}"
+
     dockerfile = textwrap.dedent(f"""\
         FROM {base_image}
 
@@ -158,7 +166,7 @@ def generate_dockerfile(
         {otel_install}
         COPY . .
 
-        EXPOSE {port}
+        EXPOSE {port}{a2a_expose}
 
         HEALTHCHECK --interval=30s --timeout=5s --retries=3 \\
             CMD curl -f http://localhost:{port}/ping || exit 1
@@ -184,9 +192,7 @@ def generate_otel_env(blueprint: AgentBlueprint) -> dict[str, str]:
     if not blueprint.runtime.observability_enabled:
         return {}
 
-    log_group = (
-        f"{blueprint.observability.dashboard.log_group_prefix}{blueprint.id}"
-    )
+    log_group = f"{blueprint.observability.dashboard.log_group_prefix}{blueprint.id}"
     return {
         "OTEL_PYTHON_DISTRO": "aws_distro",
         "OTEL_PYTHON_CONFIGURATOR": "aws_configurator",

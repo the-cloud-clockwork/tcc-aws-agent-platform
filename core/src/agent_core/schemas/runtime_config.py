@@ -1,9 +1,10 @@
 """RuntimeConfig schema -- agent runtime settings for AgentCore Runtime."""
+
 from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class RuntimeConfig(BaseModel):
@@ -41,6 +42,12 @@ class RuntimeConfig(BaseModel):
         le=65535,
         description="Container listen port for /invocations and /ping.",
     )
+    a2a_port: int = Field(
+        default=0,
+        ge=0,
+        le=65535,
+        description="A2A server port. 0 = disabled. Only used when multi_agent.role=specialist.",
+    )
     platform: Literal["linux/arm64", "linux/amd64"] = Field(
         default="linux/arm64",
         description="Container build architecture. ARM64 (Graviton) is required for AgentCore.",
@@ -49,3 +56,10 @@ class RuntimeConfig(BaseModel):
         default=True,
         description="Enable OTEL auto-instrumentation via opentelemetry-instrument wrapper.",
     )
+
+    @model_validator(mode="after")
+    def _validate_ports(self) -> RuntimeConfig:
+        if self.a2a_port != 0 and self.a2a_port == self.port:
+            msg = f"a2a_port ({self.a2a_port}) must differ from port ({self.port})"
+            raise ValueError(msg)
+        return self

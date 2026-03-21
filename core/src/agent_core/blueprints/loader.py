@@ -740,6 +740,26 @@ class BlueprintLoader:
             finally:
                 detach_session_baggage(token)
 
+        # Launch A2A server for specialist agents
+        blueprint = self.load_agent(agent_id)
+        if (
+            blueprint.multi_agent is not None
+            and blueprint.multi_agent.role == "specialist"
+            and blueprint.runtime.a2a_port
+        ):
+            from agent_core.a2a.server import A2AServerWrapper
+
+            a2a_server = A2AServerWrapper.from_blueprint(
+                agent=session.agent, blueprint=blueprint
+            )
+            a2a_app = a2a_server.to_starlette_app()
+            app.mount_a2a(a2a_app, a2a_server.port)
+            logger.info(
+                "Mounted A2A server for specialist '%s' on port %d",
+                agent_id,
+                a2a_server.port,
+            )
+
         return app
 
     # ------------------------------------------------------------------
@@ -762,7 +782,17 @@ class BlueprintLoader:
         all_mcp_clients = list(primary_mcp_clients)
         node_agents: dict[str, Any] = {}
 
+        remote_tools: list[Any] = []
+
         for node_cfg in ma.nodes:
+            # Remote nodes: create @tool wrappers instead of loading blueprints
+            if self._is_remote_node(node_cfg):
+                tool_fn = self._build_remote_node_tool(node_cfg)
+                remote_tools.append(tool_fn)
+                logger.info("Built remote node tool 'call_%s'", node_cfg.node_id)
+                continue
+
+            # In-process nodes: load blueprint and build agent
             node_bp = self.load_agent(node_cfg.agent_ref)
 
             if not validate_agent_mode(node_bp.execution_modes, current_mode):
@@ -781,6 +811,19 @@ class BlueprintLoader:
                 "Built node agent '%s' (blueprint=%s)",
                 node_cfg.node_id,
                 node_cfg.agent_ref,
+            )
+
+        # Inject remote tools into the primary agent if any
+        if remote_tools:
+            existing = (
+                list(primary_agent.tool_registry.get_all_tools_config().keys())
+                if hasattr(primary_agent, "tool_registry")
+                else []
+            )
+            logger.info(
+                "Injecting %d remote agent tools into coordinator (existing tools: %d)",
+                len(remote_tools),
+                len(existing),
             )
 
         if ma.pattern == "swarm":
@@ -847,3 +890,41 @@ class BlueprintLoader:
             )
 
         raise BlueprintLoadError(f"Unknown multi-agent pattern: {ma.pattern}")
+
+    @staticmethod
+    def _is_remote_node(node_cfg: Any) -> bool:
+        """Check if a node config specifies a remote agent."""
+        return bool(
+            node_cfg.a2a_url
+            or node_cfg.a2a_url_env
+            or node_cfg.runtime_arn
+            or node_cfg.runtime_arn_env
+        )
+
+    def _build_remote_node_tool(self, node_cfg: Any) -> Any:
+        """Build a @tool function for a remote agent node."""
+        from agent_core.a2a.tools import remote_agent_tool
+        from agent_core.a2a.client import A2AClient
+
+        a2a_url = (
+            node_cfg.a2a_url or os.environ.get(node_cfg.a2a_url_env, "")
+            if node_cfg.a2a_url_env
+            else node_cfg.a2a_url
+        )
+        runtime_arn = (
+            node_cfg.runtime_arn or os.environ.get(node_cfg.runtime_arn_env, "")
+            if node_cfg.runtime_arn_env
+            else node_cfg.runtime_arn
+        )
+
+        if not hasattr(self, "_a2a_client") or self._a2a_client is None:
+            self._a2a_client = A2AClient()
+
+        return remote_agent_tool(
+            node_id=node_cfg.node_id,
+            name=f"call_{node_cfg.node_id}",
+            description=f"Call the {node_cfg.node_id} agent",
+            a2a_client=self._a2a_client,
+            a2a_url=a2a_url,
+            runtime_arn=runtime_arn,
+        )

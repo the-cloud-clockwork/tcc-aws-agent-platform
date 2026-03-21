@@ -205,20 +205,20 @@
 **Vision:** Agents discover and call each other via A2A protocol on port 9000. Agent cards at `/.well-known/agent-card.json`. M2M OAuth for cross-agent auth.
 
 - [x] `blueprints/agent.py` — `MultiAgentConfig` with swarm/graph types, `GraphNodeConfig`, `GraphEdgeConfig`
-- [ ] Create `a2a/` subsystem directory
-- [ ] Implement `A2AServer` wrapper (Strands `A2AServer` on port 9000)
-- [ ] Implement agent card generation from blueprint metadata
-- [ ] Implement `A2AClient` for calling remote agents
-  - [ ] `A2ACardResolver` for agent discovery
-  - [ ] `ClientFactory` from agent card
-  - [ ] `send_message()` with streaming support
-- [ ] Wrap remote agent calls as Strands `@tool` functions (coordinator sees specialists as tools)
-- [ ] Wire M2M credential providers for cross-agent auth
-- [ ] Support direct `invoke_agent_runtime()` fallback (simple cases without A2A)
-- [ ] Add `multi_agent.role: coordinator | specialist` to blueprint
-- [ ] Add `multi_agent.nodes[].a2a_url` for remote agent endpoints
-- [ ] Generate A2A server in Dockerfile (expose port 9000)
-- [ ] Blueprint → A2AServer generation in `BlueprintLoader`
+- [x] Create `a2a/` subsystem directory
+- [x] Implement `A2AServer` wrapper (Strands `A2AServer` on port 9000)
+- [x] Implement agent card generation from blueprint metadata
+- [x] Implement `A2AClient` for calling remote agents
+  - [x] `A2ACardResolver` for agent discovery
+  - [x] `ClientFactory` from agent card
+  - [x] `send_message()` with streaming support
+- [x] Wrap remote agent calls as Strands `@tool` functions (coordinator sees specialists as tools)
+- [x] Wire M2M credential providers for cross-agent auth
+- [x] Support direct `invoke_agent_runtime()` fallback (simple cases without A2A)
+- [x] Add `multi_agent.role: coordinator | specialist` to blueprint
+- [x] Add `multi_agent.nodes[].a2a_url` for remote agent endpoints
+- [x] Generate A2A server in Dockerfile (expose port 9000)
+- [x] Blueprint → A2AServer generation in `BlueprintLoader`
 
 ---
 
