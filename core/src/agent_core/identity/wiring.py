@@ -4,6 +4,7 @@
 and provides decorator factories so domain tool functions get the correct
 tokens injected at runtime.
 """
+
 from __future__ import annotations
 
 import logging

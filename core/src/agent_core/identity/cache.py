@@ -1,4 +1,5 @@
 """In-memory credential cache with TTL-based expiration."""
+
 from __future__ import annotations
 
 import logging

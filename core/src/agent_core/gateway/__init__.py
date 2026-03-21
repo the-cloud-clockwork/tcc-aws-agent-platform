@@ -1,5 +1,11 @@
 """Gateway subsystem — universal tool bridge via AgentCore Gateway."""
-from agent_core.gateway.client import GatewayClient, GatewayConfigError, GatewayError, GatewayPolicyDeniedError
+
+from agent_core.gateway.client import (
+    GatewayClient,
+    GatewayConfigError,
+    GatewayError,
+    GatewayPolicyDeniedError,
+)
 from agent_core.gateway.target_registry import (
     GatewayTarget,
     OutboundAuthType,

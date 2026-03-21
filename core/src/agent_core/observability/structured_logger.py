@@ -13,6 +13,7 @@ Usage::
     logger.info("Analysis started", target="ENTITY-1")
     logger.error("MCP timeout", tool="data-mcp", elapsed_ms=30000)
 """
+
 from __future__ import annotations
 
 import json
@@ -90,10 +91,14 @@ class StructuredLogger:
         logger_name: str = "agent_core.structured",
     ) -> None:
         self.agent_id = agent_id
-        self.execution_mode = execution_mode or os.getenv("EXECUTION_MODE", "simulation")
+        self.execution_mode = execution_mode or os.getenv(
+            "EXECUTION_MODE", "simulation"
+        )
         self.prompt_version = prompt_version
         self.trace_id = trace_id or os.getenv("_X_AMZN_TRACE_ID", str(uuid.uuid4()))
-        self.execution_id = execution_id or os.getenv("SFN_EXECUTION_ID", str(uuid.uuid4()))
+        self.execution_id = execution_id or os.getenv(
+            "SFN_EXECUTION_ID", str(uuid.uuid4())
+        )
         self._logger = logging.getLogger(logger_name)
 
     def _build_record(self, level: str, message: str, **extra: Any) -> LogSchema:

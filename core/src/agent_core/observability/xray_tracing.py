@@ -21,6 +21,7 @@ Environment variables:
 - ``AWS_XRAY_SDK_ENABLED`` -- set to ``false`` to disable (default: ``true``)
 - ``_X_AMZN_TRACE_ID`` -- trace ID injected by Lambda/API Gateway
 """
+
 from __future__ import annotations
 
 import functools
@@ -71,20 +72,20 @@ def reset_recorder() -> None:
 class _NoOpSubsegment:
     """Dummy subsegment when X-Ray is disabled."""
 
-    def put_annotation(self, key: str, value: Any) -> None:
-        ...  # No-op: X-Ray disabled
+    def put_annotation(self, key: str, value: Any) -> None: ...  # No-op: X-Ray disabled
 
-    def put_metadata(self, key: str, value: Any, namespace: str = "default") -> None:
-        ...  # No-op: X-Ray disabled
+    def put_metadata(
+        self, key: str, value: Any, namespace: str = "default"
+    ) -> None: ...  # No-op: X-Ray disabled
 
-    def add_exception(self, exception: Exception, stack: Any = None) -> None:
-        ...  # No-op: X-Ray disabled
+    def add_exception(
+        self, exception: Exception, stack: Any = None
+    ) -> None: ...  # No-op: X-Ray disabled
 
     def __enter__(self) -> _NoOpSubsegment:
         return self
 
-    def __exit__(self, *args: Any) -> None:
-        ...  # No-op: X-Ray disabled
+    def __exit__(self, *args: Any) -> None: ...  # No-op: X-Ray disabled
 
 
 class XRayTracer:
