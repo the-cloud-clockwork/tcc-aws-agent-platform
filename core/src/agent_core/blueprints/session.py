@@ -1,4 +1,5 @@
 """Agent session — lifecycle manager for Strands Agent + MCP clients."""
+
 from __future__ import annotations
 
 from contextlib import ExitStack
@@ -8,6 +9,7 @@ if TYPE_CHECKING:
     from strands import Agent
 
     from agent_core.identity.wiring import IdentityWiring
+    from agent_core.memory.wiring import MemoryWiring
 
 
 class AgentSession:
@@ -29,18 +31,25 @@ class AgentSession:
         multi_agent: Any = None,
         pattern: str = "single",
         identity_wiring: IdentityWiring | None = None,
+        memory_wiring: MemoryWiring | None = None,
     ) -> None:
         self.agent = agent
         self._mcp_clients = mcp_clients
         self.multi_agent = multi_agent
         self.pattern = pattern
         self._identity_wiring = identity_wiring
+        self._memory_wiring = memory_wiring
         self._exit_stack = ExitStack()
 
     @property
     def identity(self) -> IdentityWiring | None:
         """Access identity wiring for credential decoration."""
         return self._identity_wiring
+
+    @property
+    def memory(self) -> MemoryWiring | None:
+        """Access memory wiring for direct memory operations and branching."""
+        return self._memory_wiring
 
     def run(self, prompt: str) -> Any:
         """Execute via the appropriate pattern (single, swarm, or graph)."""

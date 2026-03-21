@@ -75,21 +75,21 @@
 
 - [x] `memory/manager.py` — `MemoryManager` with three tiers (short/long/episodic), semantic search
 - [x] `memory/session_bridge.py` — SFN execution ID ↔ session ID mapping
-- [x] `agentcore/memory_branching.py` — `MemoryBranchManager` (in-memory POC)
-- [ ] Replace in-memory fallback with AgentCore Memory client (`bedrock_agentcore.memory.MemoryClient`)
-- [ ] Implement Strands `HookProvider` pattern for memory (not custom hooks)
-  - [ ] `on_agent_initialized` → load last K turns + retrieve semantic memories → inject into system prompt
-  - [ ] `on_message_added` → persist each turn via `create_event()`
-- [ ] Implement `create_memory_and_wait()` with strategy configuration
-- [ ] Support 4 strategy types: `USER_PREFERENCE`, `SEMANTIC`, `SUMMARY`, `EPISODIC`
-- [ ] Support namespace templates with `{actorId}` and `{sessionId}` placeholders
-- [ ] Implement memory branching via `MemorySessionManager` (replace in-memory POC)
-  - [ ] `fork_conversation()` for sub-agent branches
-  - [ ] `list_branches()` for coordinator reads
-- [ ] Implement `AgentCoreMemoryToolProvider` (memory as agent-callable tools)
-- [ ] Add `memory:` block to `AgentBlueprint` Pydantic schema
-- [ ] Wire `event_expiry_days`, `short_term_k` from blueprint config
-- [ ] Export `MemoryManager` from `memory/__init__.py` (currently empty)
+- [x] `memory/branching.py` — `MemoryBranchManager` wrapping `MemorySessionManager`
+- [x] Replace in-memory fallback with AgentCore Memory client (`bedrock_agentcore.memory.MemoryClient`)
+- [x] Implement Strands `HookProvider` pattern for memory (not custom hooks)
+  - [x] `on_agent_initialized` → load last K turns + retrieve semantic memories → inject into system prompt
+  - [x] `on_message_added` → persist each turn via `create_event()`
+- [x] Implement `create_memory_and_wait()` with strategy configuration
+- [x] Support 4 strategy types: `USER_PREFERENCE`, `SEMANTIC`, `SUMMARY`, `EPISODIC`
+- [x] Support namespace templates with `{actorId}` and `{sessionId}` placeholders
+- [x] Implement memory branching via `MemorySessionManager` (replace in-memory POC)
+  - [x] `fork_conversation()` for sub-agent branches
+  - [x] `list_branches()` for coordinator reads
+- [x] Implement `AgentCoreMemoryToolProvider` (memory as agent-callable tools)
+- [x] Add `memory:` block to `AgentBlueprint` Pydantic schema
+- [x] Wire `event_expiry_days`, `short_term_k` from blueprint config
+- [x] Export `MemoryManager` from `memory/__init__.py` (currently empty)
 
 ---
 
@@ -271,10 +271,9 @@
 - [ ] Add `identity:` block to AgentBlueprint schema
   - [ ] `authorizer` (type, user_pool_id, client_id)
   - [ ] `credentials[]` (name, type, provider, scopes)
-- [ ] Add `memory:` block to AgentBlueprint schema
-  - [ ] `mode` (MANAGED / NO_MEMORY)
-  - [ ] `strategies[]` (type, name, namespace)
-  - [ ] `event_expiry_days`, `short_term_k`
+- [x] Add `memory:` block to AgentBlueprint schema
+  - [x] `strategies[]` (type, name, namespace)
+  - [x] `event_expiry_days`, `short_term_k`
 - [ ] Add `observability:` block to AgentBlueprint schema
   - [ ] `trace_attributes`, `langfuse.enabled`, `audit_log.enabled`
 - [ ] Add `evaluation:` block to AgentBlueprint schema

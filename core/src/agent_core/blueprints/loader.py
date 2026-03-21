@@ -1,4 +1,5 @@
 """BlueprintLoader -- YAML -> Pydantic -> (optionally) Strands Agent."""
+
 from __future__ import annotations
 
 import logging
@@ -12,7 +13,11 @@ from pydantic import BaseModel
 from agent_core.blueprints.agent import AgentBlueprint
 from agent_core.blueprints.session import AgentSession
 from agent_core.blueprints.workflow import WorkflowBlueprint
-from agent_core.execution.mode import ExecutionMode, get_execution_mode, validate_agent_mode
+from agent_core.execution.mode import (
+    ExecutionMode,
+    get_execution_mode,
+    validate_agent_mode,
+)
 from agent_core.prompt.client import PromptRegistryClient
 from agent_core.schemas.model_config import ModelConfig
 
@@ -109,7 +114,9 @@ class BlueprintLoader:
         with path.open() as fh:
             data = yaml.safe_load(fh)
         if not isinstance(data, dict):
-            raise BlueprintLoadError(f"Expected a mapping in {path}, got {type(data).__name__}")
+            raise BlueprintLoadError(
+                f"Expected a mapping in {path}, got {type(data).__name__}"
+            )
         return data
 
     # ------------------------------------------------------------------
@@ -123,8 +130,9 @@ class BlueprintLoader:
         try:
             return AgentBlueprint(**data)
         except Exception as exc:
-            raise BlueprintLoadError(f"Validation failed for agent '{agent_id}': {exc}") from exc
-
+            raise BlueprintLoadError(
+                f"Validation failed for agent '{agent_id}': {exc}"
+            ) from exc
 
     def load_workflow(self, workflow_id: str) -> WorkflowBlueprint:
         """Load a workflow blueprint YAML and return a validated Pydantic model."""
@@ -144,7 +152,6 @@ class BlueprintLoader:
             return AgentBlueprint(**data)
         except Exception as exc:
             raise BlueprintLoadError(f"Validation failed for {path}: {exc}") from exc
-
 
     # ------------------------------------------------------------------
     # Strands Agent builder -- helpers
@@ -259,6 +266,7 @@ class BlueprintLoader:
         # Use BEDROCK_REGION env var if set, otherwise default to us-west-2
         bedrock_region = os.environ.get("BEDROCK_REGION", "us-west-2")
         from strands.models import BedrockModel
+
         bedrock_model = BedrockModel(
             model_id=model.model_id,
             region_name=bedrock_region,
@@ -356,11 +364,18 @@ class BlueprintLoader:
         self,
         blueprint: AgentBlueprint,
         mcp_clients: list[Any],
+        *,
+        memory_wiring: Any = None,
     ) -> dict[str, Any]:
         """Build common Agent constructor kwargs."""
         system_prompt = self._resolve_prompt(blueprint.prompt_ref)
         hooks = self._resolve_hooks(blueprint.hooks)
         structured_output_model = self._resolve_output_schema(blueprint.output_schema)
+
+        # Inject memory hook provider into hooks list
+        if memory_wiring is not None:
+            hooks = list(hooks) if hooks else []
+            hooks.append(memory_wiring.hook_provider)
 
         kwargs: dict[str, Any] = {
             "system_prompt": system_prompt,
@@ -434,11 +449,41 @@ class BlueprintLoader:
                 agent_id,
             )
 
+        # -- wire memory --
+        memory_wiring = None
+        if blueprint.memory.strategies:
+            from agent_core.memory.wiring import MemoryWiring
+
+            memory_id = os.environ.get("AGENTCORE_MEMORY_ID", "")
+            if not memory_id:
+                raise BlueprintLoadError(
+                    f"Agent '{agent_id}' declares memory strategies but "
+                    "AGENTCORE_MEMORY_ID env var is not set."
+                )
+
+            memory_wiring = MemoryWiring(
+                config=blueprint.memory,
+                memory_id=memory_id,
+            )
+            logger.info(
+                "Wired %d memory strategies for %s (memory_id=%s)",
+                len(blueprint.memory.strategies),
+                agent_id,
+                memory_id,
+            )
+
         # -- build agent kwargs --
-        agent_kwargs = self._build_agent_kwargs(blueprint, mcp_clients)
+        agent_kwargs = self._build_agent_kwargs(
+            blueprint, mcp_clients, memory_wiring=memory_wiring
+        )
 
         agent = Agent(**agent_kwargs)
-        logger.info("Built Agent Session '%s' (mode=%s, mcps=%d)", agent_id, current_mode.value, len(mcp_clients))
+        logger.info(
+            "Built Agent Session '%s' (mode=%s, mcps=%d)",
+            agent_id,
+            current_mode.value,
+            len(mcp_clients),
+        )
 
         # -- multi-agent orchestration --
         ma = blueprint.multi_agent
@@ -446,7 +491,11 @@ class BlueprintLoader:
             # Multi-node path: ma.nodes is non-empty
             if ma.nodes:
                 return self._build_multi_node_session(
-                    ma, agent, agent_id, mcp_clients, current_mode,
+                    ma,
+                    agent,
+                    agent_id,
+                    mcp_clients,
+                    current_mode,
                 )
 
             # Single-node path (Phase 4 backward compat)
@@ -461,9 +510,12 @@ class BlueprintLoader:
                 )
                 logger.info("Built Swarm session '%s' (1 node)", agent_id)
                 return AgentSession(
-                    agent=agent, mcp_clients=mcp_clients,
-                    multi_agent=swarm, pattern="swarm",
+                    agent=agent,
+                    mcp_clients=mcp_clients,
+                    multi_agent=swarm,
+                    pattern="swarm",
                     identity_wiring=identity_wiring,
+                    memory_wiring=memory_wiring,
                 )
 
             elif ma.pattern == "graph":
@@ -477,15 +529,25 @@ class BlueprintLoader:
                 graph = builder.build()
                 logger.info("Built Graph session '%s' (1 node)", agent_id)
                 return AgentSession(
-                    agent=agent, mcp_clients=mcp_clients,
-                    multi_agent=graph, pattern="graph",
+                    agent=agent,
+                    mcp_clients=mcp_clients,
+                    multi_agent=graph,
+                    pattern="graph",
                     identity_wiring=identity_wiring,
+                    memory_wiring=memory_wiring,
                 )
 
             else:
-                logger.warning("Unknown pattern '%s', falling back to single", ma.pattern)
+                logger.warning(
+                    "Unknown pattern '%s', falling back to single", ma.pattern
+                )
 
-        return AgentSession(agent=agent, mcp_clients=mcp_clients, identity_wiring=identity_wiring)
+        return AgentSession(
+            agent=agent,
+            mcp_clients=mcp_clients,
+            identity_wiring=identity_wiring,
+            memory_wiring=memory_wiring,
+        )
 
     # ------------------------------------------------------------------
     # Multi-node session builder
@@ -522,7 +584,11 @@ class BlueprintLoader:
             node_kwargs = self._build_agent_kwargs(node_bp, node_mcp_clients)
             node_agent = Agent(**node_kwargs)
             node_agents[node_cfg.node_id] = node_agent
-            logger.info("Built node agent '%s' (blueprint=%s)", node_cfg.node_id, node_cfg.agent_ref)
+            logger.info(
+                "Built node agent '%s' (blueprint=%s)",
+                node_cfg.node_id,
+                node_cfg.agent_ref,
+            )
 
         if ma.pattern == "swarm":
             from strands.multiagent.swarm import Swarm
@@ -537,7 +603,9 @@ class BlueprintLoader:
                 execution_timeout=float(ma.execution_timeout),
                 node_timeout=float(ma.node_timeout),
             )
-            logger.info("Built multi-node Swarm '%s' (%d nodes)", primary_id, len(agent_list))
+            logger.info(
+                "Built multi-node Swarm '%s' (%d nodes)", primary_id, len(agent_list)
+            )
             return AgentSession(
                 agent=primary_agent,
                 mcp_clients=all_mcp_clients,
@@ -555,6 +623,7 @@ class BlueprintLoader:
             for edge in ma.edges:
                 if edge.condition is not None:
                     from agent_core.blueprints.condition_parser import parse_condition
+
                     cond_fn = parse_condition(edge.condition)
                     builder.add_edge(edge.from_node, edge.to_node, condition=cond_fn)
                 else:
@@ -571,8 +640,12 @@ class BlueprintLoader:
                 builder.set_max_node_executions(ma.max_node_executions)
 
             graph = builder.build()
-            logger.info("Built multi-node Graph '%s' (%d nodes, %d edges)",
-                        primary_id, len(node_agents), len(ma.edges))
+            logger.info(
+                "Built multi-node Graph '%s' (%d nodes, %d edges)",
+                primary_id,
+                len(node_agents),
+                len(ma.edges),
+            )
             return AgentSession(
                 agent=primary_agent,
                 mcp_clients=all_mcp_clients,

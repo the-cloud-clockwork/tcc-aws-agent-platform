@@ -1,4 +1,5 @@
 """AgentBlueprint Pydantic model."""
+
 from __future__ import annotations
 
 from typing import Literal
@@ -8,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from agent_core.schemas.execution_modes import ExecutionModes
 from agent_core.schemas.gateway_config import GatewayConfig
 from agent_core.schemas.identity_config import IdentityConfig
+from agent_core.schemas.memory_config import MemoryConfig
 from agent_core.schemas.model_config import ModelConfig
 from agent_core.schemas.runtime_config import RuntimeConfig
 from agent_core.schemas.tool_config import ToolConfig
@@ -114,6 +116,7 @@ class AgentBlueprint(BaseModel):
     tools: list[ToolConfig] = Field(default_factory=list)
     gateway: GatewayConfig = Field(default_factory=GatewayConfig)
     identity: IdentityConfig = Field(default_factory=IdentityConfig)
+    memory: MemoryConfig = Field(default_factory=MemoryConfig)
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     execution_modes: ExecutionModes = Field(default_factory=ExecutionModes)
     output_schema: str | None = Field(
