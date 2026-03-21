@@ -3,6 +3,7 @@
 Thin wrappers around ``bedrock_agentcore.identity.auth`` that add
 structured logging and integrate with the platform's credential cache.
 """
+
 from __future__ import annotations
 
 import functools

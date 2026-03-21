@@ -28,6 +28,7 @@ Environment variables:
 - ``ALERT_TOPIC_ARN`` -- SNS topic ARN
 - ``EXECUTION_MODE`` -- current execution mode
 """
+
 from __future__ import annotations
 
 import json
@@ -137,7 +138,12 @@ class AlertPublisher:
                 },
             )
             msg_id = response.get("MessageId", "unknown")
-            logger.info("Alert published: type=%s level=%s msg_id=%s", alert_type, level.value, msg_id)
+            logger.info(
+                "Alert published: type=%s level=%s msg_id=%s",
+                alert_type,
+                level.value,
+                msg_id,
+            )
             return msg_id
         except Exception:
             logger.exception("Failed to publish alert: %s", title)

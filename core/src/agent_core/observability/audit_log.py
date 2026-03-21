@@ -22,6 +22,7 @@ Environment variables:
 - ``AUDIT_TABLE`` -- DynamoDB table name override
 - ``EXECUTION_MODE`` -- default execution mode if not provided per call
 """
+
 from __future__ import annotations
 
 import logging
@@ -110,9 +111,13 @@ class AuditLogWriter:
 
         item: dict[str, Any] = {
             "event_id": event_id,
-            "event_type": event_type if isinstance(event_type, str) else event_type.value,
+            "event_type": event_type
+            if isinstance(event_type, str)
+            else event_type.value,
             "timestamp_ms": now_ms,
-            "timestamp_iso": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(now_ms / 1000)),
+            "timestamp_iso": time.strftime(
+                "%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(now_ms / 1000)
+            ),
             "agent_id": agent_id,
             "execution_mode": mode,
             "execution_id": execution_id or os.getenv("SFN_EXECUTION_ID", "unknown"),
@@ -139,7 +144,10 @@ class AuditLogWriter:
         except Exception as exc:
             # ClientError for ConditionalCheckFailedException means duplicate -- that's OK
             exc_name = type(exc).__name__
-            if "ConditionalCheckFailed" in str(exc) or "ConditionalCheckFailed" in exc_name:
+            if (
+                "ConditionalCheckFailed" in str(exc)
+                or "ConditionalCheckFailed" in exc_name
+            ):
                 logger.warning("Duplicate audit event ignored: %s", event_id)
             else:
                 logger.error("Failed to write audit event: %s", exc)

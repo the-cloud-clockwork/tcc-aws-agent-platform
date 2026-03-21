@@ -1,4 +1,5 @@
 """Microsoft Entra ID (Azure AD) identity provider."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
