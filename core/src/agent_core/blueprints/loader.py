@@ -178,11 +178,17 @@ class BlueprintLoader:
         mcp_clients: McpClientMap | None,
     ) -> list[Any]:
         """Resolve MCP tools declared in the blueprint."""
+        from agent_core.schemas.tool_config import McpToolConfig
+
         if not mcp_clients:
             return []
 
         tools: list[Any] = []
         for tool_cfg in blueprint.tools:
+            # Only process MCP tool declarations here; builtins are
+            # handled separately via BuiltinToolWiring.
+            if not isinstance(tool_cfg, McpToolConfig):
+                continue
             client = mcp_clients.get(tool_cfg.mcp)
             if client is None:
                 logger.warning(
@@ -346,19 +352,45 @@ class BlueprintLoader:
     # Agent Session builder -- single-node helpers
     # ------------------------------------------------------------------
 
-    def _create_mcp_clients(self, blueprint: AgentBlueprint) -> list[Any]:
-        """Create a GatewayClient as the sole tool provider.
+    def _create_tool_providers(self, blueprint: AgentBlueprint) -> list[Any]:
+        """Create tool providers from the blueprint.
 
-        All tool access goes through the AgentCore Gateway.  The Gateway
-        auto-generates MCP interfaces from registered targets.
+        MCP tools go through the AgentCore Gateway.  Builtin tools (Code
+        Interpreter, Browser) are injected as direct Strands tool callables
+        alongside the Gateway's MCPClient.
         """
         from agent_core.gateway.client import GatewayClient
+        from agent_core.schemas.tool_config import BuiltinToolConfig, McpToolConfig
 
-        if self._gateway_client is not None:
-            return [self._gateway_client.as_tool_provider()]
+        providers: list[Any] = []
 
-        client = GatewayClient.from_config(blueprint.gateway)
-        return [client.as_tool_provider()]
+        # Gateway tools (MCP endpoints)
+        has_mcp_tools = any(isinstance(t, McpToolConfig) for t in blueprint.tools)
+        if has_mcp_tools or not blueprint.tools:
+            if self._gateway_client is not None:
+                providers.append(self._gateway_client.as_tool_provider())
+            else:
+                client = GatewayClient.from_config(blueprint.gateway)
+                providers.append(client.as_tool_provider())
+
+        # Builtin tools (Code Interpreter, Browser)
+        builtin_configs = [
+            t for t in blueprint.tools if isinstance(t, BuiltinToolConfig)
+        ]
+        if builtin_configs:
+            from agent_core.tools.wiring import BuiltinToolWiring
+
+            region = (
+                blueprint.gateway.region
+                if blueprint.gateway.region
+                else os.environ.get("AWS_DEFAULT_REGION", "")
+            )
+            wiring = BuiltinToolWiring(configs=builtin_configs, region=region)
+            providers.extend(wiring.tool_providers)
+            # Store wiring reference for lifecycle management
+            self._last_builtin_wiring = wiring
+
+        return providers
 
     def _build_agent_kwargs(
         self,
@@ -430,8 +462,10 @@ class BlueprintLoader:
         system_prompt = self._resolve_prompt(blueprint.prompt_ref)
         logger.info("Resolved prompt for %s (%d chars)", agent_id, len(system_prompt))
 
-        # -- create MCP clients via factory --
-        mcp_clients = self._create_mcp_clients(blueprint)
+        # -- create tool providers (Gateway + builtins) --
+        self._last_builtin_wiring = None
+        mcp_clients = self._create_tool_providers(blueprint)
+        builtin_wiring = self._last_builtin_wiring
 
         # -- wire identity --
         identity_wiring = None
@@ -516,6 +550,7 @@ class BlueprintLoader:
                     pattern="swarm",
                     identity_wiring=identity_wiring,
                     memory_wiring=memory_wiring,
+                    builtin_wiring=builtin_wiring,
                 )
 
             elif ma.pattern == "graph":
@@ -535,6 +570,7 @@ class BlueprintLoader:
                     pattern="graph",
                     identity_wiring=identity_wiring,
                     memory_wiring=memory_wiring,
+                    builtin_wiring=builtin_wiring,
                 )
 
             else:
@@ -547,6 +583,7 @@ class BlueprintLoader:
             mcp_clients=mcp_clients,
             identity_wiring=identity_wiring,
             memory_wiring=memory_wiring,
+            builtin_wiring=builtin_wiring,
         )
 
     # ------------------------------------------------------------------
@@ -578,7 +615,7 @@ class BlueprintLoader:
                     f"mode '{current_mode.value}'."
                 )
 
-            node_mcp_clients = self._create_mcp_clients(node_bp)
+            node_mcp_clients = self._create_tool_providers(node_bp)
             all_mcp_clients.extend(node_mcp_clients)
 
             node_kwargs = self._build_agent_kwargs(node_bp, node_mcp_clients)

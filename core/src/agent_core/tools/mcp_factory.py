@@ -49,5 +49,7 @@ def create_mcp_client(
         lambda mcp_url=mcp_url: streamablehttp_client(mcp_url),  # type: ignore[misc]
         **kwargs,
     )
-    logger.debug("Created MCP client '%s' -> %s (tools=%s)", name, mcp_url, tool_filter or "all")
+    logger.debug(
+        "Created MCP client '%s' -> %s (tools=%s)", name, mcp_url, tool_filter or "all"
+    )
     return client

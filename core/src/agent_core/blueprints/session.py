@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
     from agent_core.identity.wiring import IdentityWiring
     from agent_core.memory.wiring import MemoryWiring
+    from agent_core.tools.wiring import BuiltinToolWiring
 
 
 class AgentSession:
@@ -32,6 +33,7 @@ class AgentSession:
         pattern: str = "single",
         identity_wiring: IdentityWiring | None = None,
         memory_wiring: MemoryWiring | None = None,
+        builtin_wiring: BuiltinToolWiring | None = None,
     ) -> None:
         self.agent = agent
         self._mcp_clients = mcp_clients
@@ -39,6 +41,7 @@ class AgentSession:
         self.pattern = pattern
         self._identity_wiring = identity_wiring
         self._memory_wiring = memory_wiring
+        self._builtin_wiring = builtin_wiring
         self._exit_stack = ExitStack()
 
     @property
@@ -51,6 +54,11 @@ class AgentSession:
         """Access memory wiring for direct memory operations and branching."""
         return self._memory_wiring
 
+    @property
+    def builtin(self) -> BuiltinToolWiring | None:
+        """Access builtin tool wiring for Code Interpreter / Browser."""
+        return self._builtin_wiring
+
     def run(self, prompt: str) -> Any:
         """Execute via the appropriate pattern (single, swarm, or graph)."""
         if self.multi_agent is not None:
@@ -58,12 +66,21 @@ class AgentSession:
         return self.agent(prompt)
 
     def __enter__(self) -> AgentSession:
+        # Start builtin tool providers that need explicit lifecycle
+        if self._builtin_wiring is not None:
+            self._builtin_wiring.start()
         # Strands MCPClient is lazily started on first tool call via the Agent.
         # We do NOT enter the MCP clients here — the Agent manages their lifecycle.
         # We only track them for cleanup in __exit__.
         return self
 
     def __exit__(self, *exc: Any) -> bool:
+        # Stop builtin tool providers first
+        if self._builtin_wiring is not None:
+            try:
+                self._builtin_wiring.stop()
+            except Exception:
+                pass
         # Clean up any MCP clients that were started by the Agent
         for client in self._mcp_clients:
             if getattr(client, "_tool_provider_started", False):

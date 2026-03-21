@@ -44,7 +44,9 @@ from agent_core.runtime.idempotency import IdempotencyStore, generate_idempotenc
 from agent_core.runtime.marshal import marshal_output
 from agent_core.runtime.session import SessionManager, SessionState
 from agent_core.runtime.strands_session_bridge import StrandsSessionBridge
+from agent_core.schemas.tool_config import BuiltinToolConfig, BuiltinToolType
 from agent_core.tools.mcp_factory import create_mcp_client
+from agent_core.tools.wiring import BuiltinToolWiring
 
 from agent_core.gateway import GatewayClient, ToolDiscovery
 from agent_core.identity import CredentialCache, CredentialError, IdentityWiring
@@ -70,6 +72,9 @@ __all__ = [
     "AuditLogWriter",
     "BlueprintLoadError",
     "BlueprintLoader",
+    "BuiltinToolConfig",
+    "BuiltinToolType",
+    "BuiltinToolWiring",
     "CompositeObservabilityHook",
     "CostTracker",
     "ExecutionMode",
