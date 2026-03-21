@@ -116,16 +116,49 @@ class AgentCoreApp:
             middleware=middleware,
         )
 
+    def mount_a2a(self, a2a_app: Any, a2a_port: int) -> None:
+        """Register an A2A Starlette app to start alongside the main runtime.
+
+        The A2A server runs in a background daemon thread on the specified port.
+        Call this before ``run()`` — it will be started when ``run()`` is called.
+
+        Args:
+            a2a_app: A Starlette ASGI application for the A2A server.
+            a2a_port: Port number for the A2A server.
+        """
+        self._a2a_app = a2a_app
+        self._a2a_port = a2a_port
+        logger.info("A2A server mounted (will start on port %d)", a2a_port)
+
     def run(self) -> None:
         """Start the AgentCore Runtime server.
 
         Starts the HTTP server on port 8080, serving POST /invocations
-        and GET /ping. Blocks until the server is stopped.
+        and GET /ping. If an A2A app was mounted via ``mount_a2a()``,
+        it runs in a background thread first. Blocks until the server
+        is stopped.
         """
         if self._entrypoint_fn is None:
             raise RuntimeError(
                 "No entrypoint registered. Use @app.entrypoint to register a handler."
             )
+
+        # Start A2A server in background thread if mounted
+        if hasattr(self, "_a2a_app") and self._a2a_app is not None:
+            import threading
+
+            import uvicorn
+
+            a2a_app = self._a2a_app
+            a2a_port = self._a2a_port
+
+            def _run_a2a() -> None:
+                uvicorn.run(a2a_app, host="0.0.0.0", port=a2a_port)
+
+            thread = threading.Thread(target=_run_a2a, daemon=True, name="a2a-server")
+            thread.start()
+            logger.info("A2A server started on port %d (background thread)", a2a_port)
+
         logger.info("Starting AgentCore Runtime server")
         self._sdk_app.run()
 

@@ -1,0 +1,64 @@
+# A2A Coordinator — Block 10 (Agent-to-Agent Communication)
+#
+# Coordinator agent that discovers and calls specialist agents via A2A
+# protocol. Remote agents appear as @tool functions to the coordinator.
+# Uses M2M OAuth for cross-agent authentication.
+#
+# Blocks demonstrated: 1 (Runtime) + 2 (Gateway) + 3 (Identity) + 10 (A2A)
+
+id: a2a-coordinator
+name: Analysis Coordinator
+version: "1.0.0"
+description: Coordinator that orchestrates remote specialist agents via A2A.
+
+model:
+  provider: bedrock
+  model_id: ${MODEL_ID}
+  max_tokens: 8192
+  temperature: 0.1
+
+prompt_ref: coordinator-system-v1
+
+tools:
+  - mcp: artifacts-mcp
+    tools:
+      - create_artifact
+      - get_artifact
+
+gateway:
+  auth_type: aws_iam
+
+identity:
+  credentials:
+    - name: agent-m2m
+      type: oauth2
+      provider: agentcore-m2m
+      auth_flow: M2M
+      scopes:
+        - agent:invoke
+
+runtime:
+  type: agentcore
+  protocol: HTTP
+
+multi_agent:
+  role: coordinator
+  pattern: graph
+  execution_timeout: 180
+  node_timeout: 60
+  entry_point: data_analysis
+  nodes:
+    - agent_ref: a2a-specialist
+      node_id: data_analysis
+      a2a_url_env: DATA_ANALYSIS_A2A_URL
+    - agent_ref: a2a-specialist
+      node_id: summarizer
+      runtime_arn_env: SUMMARIZER_RUNTIME_ARN
+  edges:
+    - from_node: data_analysis
+      to_node: summarizer
+
+execution_modes:
+  simulation: true
+  staging: true
+  production: false

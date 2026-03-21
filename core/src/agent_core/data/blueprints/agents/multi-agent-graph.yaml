@@ -1,7 +1,11 @@
-# Multi-agent graph — Block 1 + Block 2 + multi-agent orchestration
+# Multi-agent graph — Block 9 (In-Process Multi-Agent Orchestration)
 #
 # Demonstrates the Graph pattern: a coordinator agent that orchestrates
-# specialist agents via graph-based routing.
+# specialist agents via graph-based routing. All agents run IN-PROCESS
+# within a single runtime (no network calls).
+#
+# For cross-runtime A2A communication, see a2a-coordinator.yaml and
+# a2a-specialist.yaml (Block 10).
 #
 # The coordinator has its own model/tools and references specialist blueprints
 # via `nodes[].agent_ref`. Each specialist is loaded from its own YAML.

@@ -19,12 +19,32 @@ from agent_core.schemas.tool_config import ToolDeclaration
 
 
 class GraphNodeConfig(BaseModel):
-    """A node in a multi-blueprint graph, referencing another agent blueprint."""
+    """A node in a multi-blueprint graph, referencing another agent blueprint.
+
+    For in-process nodes: only agent_ref and node_id are needed.
+    For remote nodes: set a2a_url/a2a_url_env or runtime_arn/runtime_arn_env.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     agent_ref: str = Field(..., description="Blueprint ID to load for this node.")
     node_id: str = Field(..., description="Unique node identifier within the graph.")
+    a2a_url: str = Field(
+        default="",
+        description="A2A protocol URL for remote agent. Empty = in-process node.",
+    )
+    a2a_url_env: str = Field(
+        default="",
+        description="Env var name holding the A2A URL.",
+    )
+    runtime_arn: str = Field(
+        default="",
+        description="AgentCore Runtime ARN for direct invoke.",
+    )
+    runtime_arn_env: str = Field(
+        default="",
+        description="Env var name holding the runtime ARN.",
+    )
 
 
 class GraphEdgeConfig(BaseModel):
@@ -45,6 +65,13 @@ class MultiAgentConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
+    role: Literal["coordinator", "specialist", "standalone"] = Field(
+        default="standalone",
+        description=(
+            "coordinator calls remote agents, specialist exposes A2A server, "
+            "standalone is in-process only."
+        ),
+    )
     pattern: Literal["swarm", "graph"] = Field(
         default="swarm",
         description="Orchestration pattern: 'swarm' or 'graph'.",

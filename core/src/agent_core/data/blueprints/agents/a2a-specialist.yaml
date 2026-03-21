@@ -1,0 +1,50 @@
+# A2A Specialist — Block 10 (Agent-to-Agent Communication)
+#
+# Agent that exposes an A2A server on port 9000 for cross-runtime
+# discovery and invocation by coordinator agents. The agent card
+# is published at /.well-known/agent.json.
+#
+# Blocks demonstrated: 1 (Runtime) + 2 (Gateway) + 3 (Identity) + 10 (A2A)
+
+id: a2a-specialist
+name: Data Analysis Specialist
+version: "1.0.0"
+description: Specialist agent for data analysis, discoverable via A2A protocol.
+
+model:
+  provider: bedrock
+  model_id: ${MODEL_ID}
+  max_tokens: 4096
+  temperature: 0.2
+
+prompt_ref: specialist-system-v1
+
+tools:
+  - mcp: data-source-mcp
+    tools:
+      - query_data
+      - aggregate_data
+
+gateway:
+  auth_type: aws_iam
+
+identity:
+  authorizer:
+    type: custom_jwt
+    discovery_url: ${OIDC_DISCOVERY_URL}
+    allowed_clients:
+      - ${COORDINATOR_CLIENT_ID}
+
+runtime:
+  type: agentcore
+  protocol: HTTP
+  network_mode: PUBLIC
+  a2a_port: 9000
+
+multi_agent:
+  role: specialist
+
+execution_modes:
+  simulation: true
+  staging: true
+  production: true
