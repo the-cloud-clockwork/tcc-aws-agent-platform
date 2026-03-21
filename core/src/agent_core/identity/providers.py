@@ -1,26 +1,29 @@
 """AgentCore Identity credential providers.
 
-Manages credential resolution for external services.
-In AgentCore mode, Identity handles token refresh automatically.
-In Lambda mode, tokens are managed via environment variables.
+Manages credential resolution for external services via AgentCore Identity.
+All credential resolution flows through the AgentCore Identity service —
+there is no Lambda/env-var fallback.
 
-Provides the abstract IdentityProvider base class and a ProviderRegistry
+Provides the abstract ``IdentityProvider`` base class and a ``ProviderRegistry``
 for registering and looking up concrete providers at runtime.
 """
-
 from __future__ import annotations
 
 import logging
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from agent_core.identity.cache import CredentialCache
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class Credential:
-    """A resolved credential from AgentCore Identity or environment.
+    """A resolved credential from AgentCore Identity.
 
     Attributes:
         provider: Provider name string.
@@ -37,17 +40,28 @@ class Credential:
     scopes: list[str] | None = None
 
 
+class CredentialError(Exception):
+    """Error resolving a credential."""
+
+
 class IdentityProvider(ABC):
     """Base class for identity providers.
 
-    Provides a uniform interface for credential resolution.
-    In Lambda mode: reads from environment variables.
-    In AgentCore mode: uses AgentCore Identity service.
+    All credential resolution goes through AgentCore Identity service.
+    Subclasses implement ``get_credential`` and ``refresh_credential``
+    using ``_get_from_agentcore`` as the underlying resolution mechanism.
     """
 
-    def __init__(self, provider_name: str) -> None:
+    def __init__(
+        self,
+        provider_name: str,
+        *,
+        credential_id: str | None = None,
+        cache: CredentialCache | None = None,
+    ) -> None:
         self.provider_name = provider_name
-        self.runtime_mode = os.environ.get("RUNTIME_MODE", "lambda")
+        self.credential_id = credential_id or provider_name
+        self._cache = cache
 
     @abstractmethod
     def get_credential(self) -> Credential:
@@ -70,23 +84,33 @@ class IdentityProvider(ABC):
         """
         ...
 
-    def _get_from_agentcore(self, credential_id: str) -> Credential:
+    def _get_from_agentcore(self, credential_id: str | None = None) -> Credential:
         """Resolve credential via AgentCore Identity service.
 
         Args:
             credential_id: AgentCore credential reference ID.
+                Falls back to ``self.credential_id``.
 
         Returns:
             Resolved Credential.
-        """
-        try:
-            from bedrock_agentcore.identity import AgentCoreIdentityClient
 
+        Raises:
+            CredentialError: On SDK import failure or missing fields.
+        """
+        cred_id = credential_id or self.credential_id
+        from bedrock_agentcore.identity import AgentCoreIdentityClient
+
+        try:
             client = AgentCoreIdentityClient(
                 region=os.environ.get("AWS_REGION", "eu-west-1"),
             )
-            token = client.get_credential(credential_id)
+            token: dict[str, Any] = client.get_credential(cred_id)
+        except Exception as exc:
+            raise CredentialError(
+                f"AgentCore Identity resolution failed for '{cred_id}': {exc}"
+            ) from exc
 
+        try:
             return Credential(
                 provider=self.provider_name,
                 token_type=token.get("token_type", "bearer"),
@@ -94,28 +118,40 @@ class IdentityProvider(ABC):
                 expires_at=token.get("expires_at"),
                 scopes=token.get("scopes"),
             )
-        except ImportError:
+        except KeyError as exc:
             raise CredentialError(
-                f"bedrock-agentcore-identity not installed for provider {self.provider_name}"
-            )
-        except KeyError as e:
-            raise CredentialError(
-                f"AgentCore Identity returned incomplete credential: {e}"
-            )
+                f"AgentCore Identity returned incomplete credential: {exc}"
+            ) from exc
 
+    def _cached_get(self, auth_flow: str = "") -> Credential:
+        """Resolve credential with cache-first strategy."""
+        if self._cache is not None:
+            cached = self._cache.get(self.provider_name, auth_flow)
+            if cached is not None:
+                return cached
 
-class CredentialError(Exception):
-    """Error resolving a credential."""
+        credential = self._get_from_agentcore()
 
-    pass
+        if self._cache is not None:
+            self._cache.put(self.provider_name, credential, auth_flow)
+
+        return credential
+
+    def _cached_refresh(self, auth_flow: str = "") -> Credential:
+        """Force-refresh: invalidate cache, then resolve fresh."""
+        if self._cache is not None:
+            self._cache.invalidate(self.provider_name, auth_flow)
+        credential = self._get_from_agentcore()
+        if self._cache is not None:
+            self._cache.put(self.provider_name, credential, auth_flow)
+        return credential
 
 
 class ProviderRegistry:
     """Registry for identity providers.
 
-    Allows registering provider classes by name and looking them up at runtime.
+    Usage::
 
-    Usage:
         registry = ProviderRegistry()
         registry.register("my_service", MyServiceProvider)
         provider = registry.get("my_service")
@@ -126,23 +162,12 @@ class ProviderRegistry:
         self._providers: dict[str, type[IdentityProvider]] = {}
 
     def register(self, name: str, provider_cls: type[IdentityProvider]) -> None:
-        """Register a provider class by name.
-
-        Args:
-            name: Provider name (e.g., "external", "webhook").
-            provider_cls: IdentityProvider subclass.
-        """
+        """Register a provider class by name."""
         self._providers[name] = provider_cls
         logger.info("Registered identity provider: %s", name)
 
     def get(self, name: str) -> IdentityProvider:
         """Get a provider instance by name.
-
-        Args:
-            name: Registered provider name.
-
-        Returns:
-            IdentityProvider instance.
 
         Raises:
             ValueError: If provider name is not registered.
@@ -151,9 +176,9 @@ class ProviderRegistry:
         if provider_cls is None:
             raise ValueError(
                 f"Unknown provider: {name}. "
-                f"Registered providers: {list(self._providers.keys())}"
+                f"Registered: {list(self._providers.keys())}"
             )
-        return provider_cls()
+        return provider_cls(provider_name=name)
 
     @property
     def registered_names(self) -> list[str]:

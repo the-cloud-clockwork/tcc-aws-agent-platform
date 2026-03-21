@@ -55,17 +55,17 @@
 
 - [x] `identity/providers.py` — `IdentityProvider` ABC, `Credential` dataclass, `ProviderRegistry`
 - [x] `identity/__init__.py` — Exports `Credential`, `CredentialError`, `IdentityProvider`, `ProviderRegistry`
-- [ ] Implement concrete `IdentityProvider` subclasses (Cognito, Okta, Entra)
-- [ ] Implement `@requires_access_token` decorator (3LO OAuth + M2M patterns)
-- [ ] Implement `@requires_api_key` decorator (Secrets Manager retrieval)
-- [ ] Add `IdentityClient` wrapper for AgentCore Identity service CRUD
-- [ ] Wire inbound JWT validation into Runtime configuration (`authorizer_configuration`)
-- [ ] Wire outbound credential providers from blueprint `identity.credentials[]`
-- [ ] Support `auth_flow: USER_FEDERATION` (3LO) and `auth_flow: M2M` patterns
-- [ ] Add `on_auth_url` callback for user consent flow
-- [ ] Add credential caching layer (avoid repeated Secrets Manager calls)
-- [ ] Add `identity:` block to `AgentBlueprint` Pydantic schema
-- [ ] Blueprint → decorator injection in `BlueprintLoader.build_agent_session()`
+- [x] Implement concrete `IdentityProvider` subclasses (Cognito, Okta, Entra)
+- [x] Implement `@requires_access_token` decorator (3LO OAuth + M2M patterns)
+- [x] Implement `@requires_api_key` decorator (Secrets Manager retrieval)
+- [x] Add `IdentityClient` wrapper for AgentCore Identity service CRUD
+- [x] Wire inbound JWT validation into Runtime configuration (`authorizer_configuration`)
+- [x] Wire outbound credential providers from blueprint `identity.credentials[]`
+- [x] Support `auth_flow: USER_FEDERATION` (3LO) and `auth_flow: M2M` patterns
+- [x] Add `on_auth_url` callback for user consent flow
+- [x] Add credential caching layer (avoid repeated Secrets Manager calls)
+- [x] Add `identity:` block to `AgentBlueprint` Pydantic schema
+- [x] Blueprint → decorator injection in `BlueprintLoader.build_agent_session()`
 
 ---
 

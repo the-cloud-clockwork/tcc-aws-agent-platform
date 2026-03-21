@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from strands import Agent
 
+    from agent_core.identity.wiring import IdentityWiring
+
 
 class AgentSession:
     """Context manager wrapping an Agent + its MCP clients.
@@ -26,12 +28,19 @@ class AgentSession:
         *,
         multi_agent: Any = None,
         pattern: str = "single",
+        identity_wiring: IdentityWiring | None = None,
     ) -> None:
         self.agent = agent
         self._mcp_clients = mcp_clients
         self.multi_agent = multi_agent
         self.pattern = pattern
+        self._identity_wiring = identity_wiring
         self._exit_stack = ExitStack()
+
+    @property
+    def identity(self) -> IdentityWiring | None:
+        """Access identity wiring for credential decoration."""
+        return self._identity_wiring
 
     def run(self, prompt: str) -> Any:
         """Execute via the appropriate pattern (single, swarm, or graph)."""
