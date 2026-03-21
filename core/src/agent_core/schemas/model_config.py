@@ -16,8 +16,8 @@ class ModelConfig(BaseModel):
         ...,
         description="Fully qualified model identifier, e.g. us.anthropic.claude-sonnet-4-20250514-v1:0",
     )
-    temperature: float = Field(default=0.2, ge=0.0, le=1.0)
-    max_tokens: int = Field(default=4096, gt=0)
+    temperature: float = Field(..., ge=0.0, le=1.0, description="Sampling temperature.")
+    max_tokens: int = Field(..., gt=0, description="Maximum output tokens.")
     cache_prompt: str | None = Field(
         default="default",
         description="Prompt caching policy: 'default', 'none', or custom key.",
