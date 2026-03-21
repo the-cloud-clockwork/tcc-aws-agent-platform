@@ -1,4 +1,4 @@
-# Full-stack agent — Blocks 1-5 combined
+# Full-stack agent — Blocks 1-6 combined
 #
 # Demonstrates every implemented block wired together:
 #   Block 1: AgentCore Runtime (microVM, port 8080, @app.entrypoint)
@@ -6,6 +6,7 @@
 #   Block 3: Identity (JWT inbound, OAuth outbound)
 #   Block 4: Memory (short-term + long-term with strategies)
 #   Block 5: Tools (Code Interpreter + Browser + Gateway MCP)
+#   Block 6: Observability (OTEL, Langfuse, audit, dashboard, data protection)
 #
 # Extended thinking enabled for complex reasoning tasks.
 
@@ -75,6 +76,24 @@ memory:
     - namespace: "user/{actorId}/facts/"
       top_k: 5
       relevance_score: 0.3
+
+observability:
+  trace_attributes:
+    team: platform
+    tier: production
+  langfuse:
+    tags:
+      - full-stack
+      - production
+  audit_log:
+    ttl_days: 1825
+  dashboard:
+    metric_namespace: AgentPlatform
+  data_protection:
+    cloudwatch_masking_identifiers:
+      - EmailAddress
+      - CreditCardNumber
+      - USPhoneNumber
 
 runtime:
   type: agentcore

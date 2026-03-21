@@ -122,15 +122,15 @@
 - [x] `observability/alerts.py` — SNS alert publishing
 - [x] `hooks/observability.py` — `ObservabilityHook` Strands callback (lifecycle events)
 - [x] `hooks/observability_hooks.py` — `CompositeObservabilityHook`
-- [ ] Add OTEL auto-instrumentation support (`aws-opentelemetry-distro`)
-- [ ] Generate Dockerfile with `opentelemetry-instrument` wrapper
-- [ ] Add `trace_attributes` support on Strands `Agent` constructor
-- [ ] Support OTEL baggage for session correlation (`session.id`, `user.id`)
-- [ ] Support custom span creation via `opentelemetry.trace.get_tracer()`
-- [ ] Add CloudWatch GenAI Observability dashboard generation
-- [ ] Add data protection layer (Bedrock Guardrails PII anonymization + CloudWatch masking)
-- [ ] Add `observability:` block to `AgentBlueprint` Pydantic schema
-- [ ] Wire `trace_attributes`, `langfuse.enabled`, `audit_log.ttl_years` from blueprint config
+- [x] Add OTEL auto-instrumentation support (`aws-opentelemetry-distro`)
+- [x] Generate Dockerfile with `opentelemetry-instrument` wrapper
+- [x] Add `trace_attributes` support on Strands `Agent` constructor
+- [x] Support OTEL baggage for session correlation (`session.id`, `user.id`)
+- [x] Support custom span creation via `opentelemetry.trace.get_tracer()`
+- [x] Add CloudWatch GenAI Observability dashboard generation
+- [x] Add data protection layer (Bedrock Guardrails PII anonymization + CloudWatch masking)
+- [x] Add `observability:` block to `AgentBlueprint` Pydantic schema
+- [x] Wire `trace_attributes`, `langfuse.enabled`, `audit_log.ttl_years` from blueprint config
 
 ---
 

@@ -166,3 +166,37 @@ def generate_dockerfile(
         {cmd}
     """)
     return dockerfile
+
+
+def generate_otel_env(blueprint: AgentBlueprint) -> dict[str, str]:
+    """Generate OTEL environment variables from blueprint config.
+
+    These env vars configure the aws-opentelemetry-distro auto-instrumentation
+    for CloudWatch GenAI Observability. Only generated when
+    runtime.observability_enabled is True.
+
+    Args:
+        blueprint: Loaded AgentBlueprint instance.
+
+    Returns:
+        Dict of env var name -> value for OTEL configuration.
+    """
+    if not blueprint.runtime.observability_enabled:
+        return {}
+
+    log_group = (
+        f"{blueprint.observability.dashboard.log_group_prefix}{blueprint.id}"
+    )
+    return {
+        "OTEL_PYTHON_DISTRO": "aws_distro",
+        "OTEL_PYTHON_CONFIGURATOR": "aws_configurator",
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+        "OTEL_TRACES_EXPORTER": "otlp",
+        "OTEL_EXPORTER_OTLP_LOGS_HEADERS": (
+            f"x-aws-log-group={log_group},"
+            f"x-aws-log-stream=default,"
+            f"x-aws-metric-namespace={blueprint.observability.dashboard.metric_namespace}"
+        ),
+        "OTEL_RESOURCE_ATTRIBUTES": f"service.name={blueprint.id}",
+        "AGENT_OBSERVABILITY_ENABLED": "true",
+    }
