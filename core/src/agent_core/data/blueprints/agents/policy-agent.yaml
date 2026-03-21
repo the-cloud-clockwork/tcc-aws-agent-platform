@@ -1,0 +1,54 @@
+# Policy-controlled agent — Blocks 1 + 2 + 8
+#
+# Demonstrates Cedar access control on Gateway tools:
+#   Block 1: AgentCore Runtime (microVM, port 8080)
+#   Block 2: Gateway (MCP tools via single Gateway URL)
+#   Block 8: Policy (Cedar rules — allow/deny with conditions)
+#
+# The policy engine attaches to the Gateway and enforces Cedar rules
+# on every tool invocation. Default is DENY — rules explicitly permit.
+
+id: policy-agent
+name: Policy-Controlled Agent
+version: "1.0.0"
+description: Agent with Cedar access control on Gateway tools.
+
+model:
+  provider: bedrock
+  model_id: ${MODEL_ID}
+  max_tokens: 4096
+
+prompt_ref: policy-agent-system-v1
+
+tools:
+  - mcp: data-service-mcp
+    tools:
+      - query_data
+      - update_record
+      - delete_record
+
+gateway:
+  auth_type: custom_jwt
+
+policy:
+  engine: DataServicePolicies
+  mode: ENFORCE
+  target_prefix: DataServiceTarget
+  rules:
+    # Anyone can query data
+    - name: allow_query
+      allow: query_data
+
+    # Updates limited to 100 records per call
+    - name: limit_updates
+      allow: update_record
+      when: "context.input.record_count <= 100"
+
+    # Only admins can delete
+    - name: admins_only_delete
+      deny: delete_record
+      unless: "principal.scope.contains('group:Admins')"
+
+runtime:
+  type: agentcore
+  network_mode: PRIVATE

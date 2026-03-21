@@ -160,18 +160,18 @@
 **Vision:** Cedar policies on Gateway control per-tool, per-user, per-parameter access. Simplified YAML rules → Cedar generation → Gateway attachment.
 
 - [x] `policy/cedar_policies.py` — `CedarPolicy` dataclass, `CedarPolicyBuilder`, `PolicyEffect`/`PolicyAction` enums
-- [ ] Implement `PolicyClient` wrapper for AgentCore Policy Engine CRUD
-- [ ] Implement Gateway policy engine attachment (`update_gateway_policy_engine()`)
-- [ ] Support `ENFORCE` and `LOG_ONLY` modes
-- [ ] Implement simplified YAML → Cedar translation
-  - [ ] `allow` / `deny` rules with `when` / `unless` conditions
-  - [ ] Principal group matching from JWT claims
-  - [ ] Parameter constraints (`context.input.*`)
-- [ ] Implement NL2Cedar wrapper (`generate_policy()` from natural language)
-- [ ] Add `policy:` block to `AgentBlueprint` Pydantic schema
-- [ ] Wire policy rules from blueprint config → CedarPolicyBuilder → Gateway attachment
-- [ ] Export `CedarPolicy`, `CedarPolicyBuilder` from `policy/__init__.py` (currently empty)
-- [ ] Add `agentcli policy lint` CLI command for Cedar validation
+- [x] Implement `PolicyClient` wrapper for AgentCore Policy Engine CRUD
+- [x] Implement Gateway policy engine attachment (`update_gateway_policy_engine()`)
+- [x] Support `ENFORCE` and `LOG_ONLY` modes
+- [x] Implement simplified YAML → Cedar translation
+  - [x] `allow` / `deny` rules with `when` / `unless` conditions
+  - [x] Principal group matching from JWT claims
+  - [x] Parameter constraints (`context.input.*`)
+- [x] Implement NL2Cedar wrapper (`generate_policy()` from natural language)
+- [x] Add `policy:` block to `AgentBlueprint` Pydantic schema
+- [x] Wire policy rules from blueprint config → CedarPolicyBuilder → Gateway attachment
+- [x] Export `CedarPolicy`, `CedarPolicyBuilder` from `policy/__init__.py` (currently empty)
+- [x] Add `agentcli policy lint` CLI command for Cedar validation
 
 ---
 

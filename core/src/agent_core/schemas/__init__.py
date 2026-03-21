@@ -19,6 +19,7 @@ from agent_core.schemas.identity_config import (
     CredentialType,
     IdentityConfig,
 )
+from agent_core.schemas.policy_config import PolicyConfig, PolicyRuleConfig
 from agent_core.schemas.memory_config import (
     MemoryConfig,
     MemoryStrategyConfig,
@@ -53,6 +54,8 @@ __all__ = [
     "MemoryStrategyConfig",
     "MemoryStrategyType",
     "OnlineEvaluationConfig",
+    "PolicyConfig",
+    "PolicyRuleConfig",
     "RatingScaleEntry",
     "RetrievalConfig",
     "ToolConfig",

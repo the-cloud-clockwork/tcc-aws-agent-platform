@@ -4,6 +4,7 @@ import typer
 
 from agent_cli.blueprint import blueprint_app
 from agent_cli.evaluation import eval_app
+from agent_cli.policy import policy_app
 from agent_cli.generate import generate_app
 from agent_cli.graph import graph_app
 from agent_cli.prompt import prompt_app
@@ -21,6 +22,7 @@ app.add_typer(
     generate_app, name="generate", help="Generate runtime configs and Dockerfiles"
 )
 app.add_typer(eval_app, name="eval", help="Agent evaluation operations")
+app.add_typer(policy_app, name="policy", help="Cedar policy operations")
 
 
 @app.callback()

@@ -52,6 +52,7 @@ from agent_core.gateway import GatewayClient, ToolDiscovery
 from agent_core.identity import CredentialCache, CredentialError, IdentityWiring
 from agent_core.memory import MemoryHookProvider, MemoryManager, MemoryWiring
 from agent_core.evaluation import EvaluationClient, EvaluationResult, EvaluationScore
+from agent_core.policy import CedarPolicy, CedarPolicyBuilder, PolicyClient, PolicyMode
 
 from agent_core.mcp import (
     BaseMCPServer,
@@ -82,6 +83,10 @@ __all__ = [
     "EvaluationClient",
     "EvaluationResult",
     "EvaluationScore",
+    "PolicyClient",
+    "PolicyMode",
+    "CedarPolicy",
+    "CedarPolicyBuilder",
     "GenericHandler",
     "GraphEdgeConfig",
     "GraphNodeConfig",
