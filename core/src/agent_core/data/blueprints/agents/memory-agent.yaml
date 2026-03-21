@@ -1,0 +1,74 @@
+# Memory agent — Block 1 + Block 2 + Block 4 (Memory)
+#
+# Demonstrates AgentCore Memory integration:
+#   - Short-term: last K turns loaded on init, each turn persisted
+#   - Long-term: semantic extraction via strategies (USER_PREFERENCE, SEMANTIC, SUMMARY)
+#   - Memory tool provider: agent can explicitly store/retrieve memories
+#   - Namespace templates with {actorId} and {sessionId} placeholders
+
+id: memory-agent
+name: Memory-Enabled Agent
+version: "1.0.0"
+description: Agent with three-tier memory — short-term turns, long-term strategies, and memory-as-tools.
+
+model:
+  provider: bedrock
+  model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
+  max_tokens: 8192
+  temperature: 0.2
+
+prompt_ref: memory-agent-system-v1
+
+tools:
+  - mcp: knowledge-base-mcp
+    tools:
+      - search_documents
+      - get_document
+  - mcp: artifacts-mcp
+    tools:
+      - create_artifact
+
+gateway:
+  auth_type: aws_iam
+
+memory:
+  mode: MANAGED
+  strategies:
+    - type: USER_PREFERENCE
+      name: PreferenceLearner
+      namespace: "user/{actorId}/preferences/"
+    - type: SEMANTIC
+      name: FactExtractor
+      namespace: "user/{actorId}/facts/"
+    - type: SUMMARY
+      name: SessionSummarizer
+      namespace: "user/{actorId}/{sessionId}/summaries/"
+  event_expiry_days: 30
+  short_term_k: 5
+  enable_tool_provider: true
+  retrieval:
+    - namespace: "user/{actorId}/preferences/"
+      top_k: 3
+      relevance_score: 0.3
+    - namespace: "user/{actorId}/facts/"
+      top_k: 5
+      relevance_score: 0.2
+
+runtime:
+  type: agentcore
+  max_iterations: 10
+  idle_timeout_minutes: 15
+  network_mode: PRIVATE
+  protocol: HTTP
+
+execution_modes:
+  simulation: true
+  staging: true
+  production: true
+
+hooks:
+  - observability
+
+artifacts:
+  tier: platform
+  type: report

@@ -1,0 +1,55 @@
+# Builtin tools agent — Block 5 (Tools) + Block 1 + Block 2
+#
+# Demonstrates tool mixing: Code Interpreter + Browser + Gateway MCP tools
+# in a single agent. The agent treats all tools uniformly.
+#
+# Code Interpreter: sandboxed Python/Shell for data processing
+# Browser: hosted Chromium for web scraping and interaction
+# MCP tools: domain tools accessed via Gateway
+
+id: builtin-tools-agent
+name: Research Agent with Code & Browser
+version: "1.0.0"
+description: Agent mixing builtin tools (Code Interpreter, Browser) with Gateway MCP tools.
+
+model:
+  provider: bedrock
+  model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
+  max_tokens: 8192
+  temperature: 0.2
+
+prompt_ref: research-agent-system-v1
+
+tools:
+  - builtin: code_interpreter
+  - builtin: browser
+  - mcp: data-source-mcp
+    tools:
+      - query_data
+      - list_datasets
+  - mcp: artifacts-mcp
+    tools:
+      - create_artifact
+      - get_artifact
+
+gateway:
+  auth_type: aws_iam
+
+runtime:
+  type: agentcore
+  max_iterations: 15
+  idle_timeout_minutes: 30
+  network_mode: PUBLIC
+  protocol: HTTP
+
+execution_modes:
+  simulation: true
+  staging: true
+  production: false
+
+hooks:
+  - observability
+
+artifacts:
+  tier: platform
+  type: data_export

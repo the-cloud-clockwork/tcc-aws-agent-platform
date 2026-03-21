@@ -1,0 +1,49 @@
+# Simple agent — Block 1 (Runtime) + Block 2 (Gateway)
+#
+# Minimal agent running on AgentCore Runtime with Gateway tools.
+# This is the baseline pattern: model + prompt + MCP tools via Gateway.
+
+id: simple-agent
+name: Simple Analysis Agent
+version: "1.0.0"
+description: Minimal agent demonstrating Runtime + Gateway integration.
+
+model:
+  provider: bedrock
+  model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
+  max_tokens: 4096
+  temperature: 0.1
+
+prompt_ref: simple-agent-system-v1
+
+tools:
+  - mcp: data-source-mcp
+    tools:
+      - query_data
+      - list_datasets
+  - mcp: artifacts-mcp
+    tools:
+      - create_artifact
+      - get_artifact
+
+gateway:
+  auth_type: aws_iam
+
+runtime:
+  type: agentcore
+  max_iterations: 5
+  idle_timeout_minutes: 15
+  network_mode: PUBLIC
+  protocol: HTTP
+
+execution_modes:
+  simulation: true
+  staging: true
+  production: false
+
+hooks:
+  - observability
+
+artifacts:
+  tier: platform
+  type: report
