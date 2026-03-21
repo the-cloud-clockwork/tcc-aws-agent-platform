@@ -1,71 +1,54 @@
 # AWS Agent Platform — Project Instructions
 
-> **This is a generic, domain-agnostic AI agent platform.**
-> It is analogous to AWS Bedrock AgentCore — a runtime, not a business application.
-> Domain-specific logic (trading agents, MCPs, risk engines, workflows) lives in separate repos that **consume** this platform via published packages.
+> **A configuration-driven, domain-agnostic runtime that lets you declare AI agents in YAML and deploy them on AWS — built as an abstraction layer over Strands Agents SDK and Amazon Bedrock AgentCore.**
 
 ---
 
 ## Session Protocol
 
-**Every task follows this exact sequence:**
+**Every task follows this sequence:**
 
-### Before writing code
-
-1. **Receive task** — The user submits a block or checkbox from `PROGRESS.md`
-2. **Analyze** — Understand what the task requires, which blocks it touches
-3. **Read `VISION.md`** — The 12 building blocks and what the platform is becoming
-4. **Read `resources/CONCEPTS.md`** — AgentCore concepts that our blocks must align to
-5. **Read `resources/TECHNICAL-GUIDE.md`** (relevant sections) — Deep technical patterns for the blocks this task touches
-6. **Read `PROGRESS.md`** — Current status: checked = done, unchecked = needed
-7. **Think and plan** — Map the task to blocks, identify what exists vs what's missing, propose the approach
-8. **Check reference implementation** — `/home/iamroot/dev/tccw-qitp/agents/` shows how a domain repo consumes this platform (YAML blueprints in `blueprints/agents/*.yaml`, prompt builders in `agent_configs.py`, MCP registry in `mcp_registry.py`, 5-line handler in `app.py`). When designing platform features, check how this consumer would use them.
-
-### After completing work
-
-9. **Update `PROGRESS.md`** — Check off any boxes completed during the session
-10. **Vision alignment check** — Ask yourself: does the delivered work align with `VISION.md`? If not, fix it before committing.
+1. **Receive task** — The user assigns a block from `POSTMORTEM.md`
+2. **Read `POSTMORTEM.md`** — Understand the specific issues, files, and line numbers for the assigned block
+3. **Read the affected files** — Understand existing code before modifying
+4. **Fix** — Address every checkbox in the assigned block
+5. **Verify** — Run `./scripts/domain-scan.sh` to confirm zero domain contamination
+6. **Update `POSTMORTEM.md`** — Check off completed items
+7. **Commit** — Descriptive message referencing the block
 
 ---
 
 ## What This Repo Is
 
-A monorepo providing the foundational runtime, tooling, and infrastructure for AI agent systems built on AWS Strands Agents SDK. It contains 4 independent Python modules plus Terraform infrastructure that together form a complete agent platform:
+A monorepo providing the foundational runtime, tooling, and infrastructure for AI agent systems on AWS. Four Python modules + Terraform infrastructure:
 
 | Module | Package | Purpose |
 |--------|---------|---------|
-| `core/` | `agent-core` (CodeArtifact) | Blueprint engine, execution modes, runtime handlers, hooks, schemas, observability, MCP base classes, session management, idempotency |
-| `prompts/` | `prompt-registry` (CodeArtifact) | Versioned prompt management — S3 storage + DynamoDB metadata + mode-gated resolution |
-| `artifacts/` | `mcp-artifacts` (Docker) | Universal artifact store MCP server — S3 + DynamoDB catalog + signed URLs + claim-check pattern |
-| `cli/` | `agent-cli` (pip) | CLI for blueprint validation, prompt management, strategy lifecycle, graph rendering |
-| `modules/` | Terraform IaC | 3 Terraform modules (platform, agents, workflows) — VPC, KMS, DynamoDB, S3, CloudFront, AgentCore Gateway/Memory/Runtime, API Gateway, Step Functions, CloudWatch |
+| `core/` | `agent-core` (CodeArtifact) | Blueprint engine, runtime, hooks, schemas, observability, gateway, memory, identity, policy, evaluation, A2A, MCP base classes |
+| `prompts/` | `prompt-registry` (CodeArtifact) | Versioned prompt management — S3 + DynamoDB + mode-gated resolution |
+| `artifacts/` | `mcp-artifacts` (Docker) | Artifact store MCP server — S3 + DynamoDB + signed URLs + claim-check pattern |
+| `cli/` | `agent-cli` (pip) | CLI for blueprint validation, prompt management, strategy lifecycle |
+| `modules/` | Terraform IaC | 3 Terraform modules (platform, agents, workflows) — all `aws_bedrockagentcore_*` resources |
 
 ### How Domain Repos Consume This Platform
 
 ```
-Domain repo (e.g., tccw-qitp)
+Domain repo
   └── agents/        → imports agent-core from CodeArtifact
   └── mcps/          → imports agent_core.mcp.* for base server, cache, routing
   └── infra/         → consumes modules/ via source = "git::repo.git//modules/platform"
 ```
 
-The platform deploys FIRST (base infrastructure). Domain repos deploy SECOND (domain resources plugged into platform infrastructure).
+Platform deploys FIRST. Domain repos deploy SECOND.
 
 ---
 
 ## The #1 Rule: ZERO Domain Contamination
 
-**`scripts/domain-scan.sh` must return ZERO hits.** No exceptions. No "INFRA-OK" tags.
+**`scripts/domain-scan.sh` must return ZERO hits.**
 
-This repo must never contain:
-- Domain-specific package names (`qitp_*`, `tccw_*`)
-- Broker references (`ibkr`, `interactive_brokers`)
-- Regulatory terms (`cnmv`, `esma`, `mifid`)
-- Trading terms (`ohlcv`, `trailing_stop`, `gap_pct`, `watchlist`)
-- Domain MCP names (`market-data-mcp`, `sentiment-mcp`, `backtest-mcp`, etc.)
-- Domain agent names (`gap-detector`, `sentiment-analyzer`, etc.)
+This repo must never contain domain-specific terms (trading, broker, regulatory, etc.).
 
-Run the scanner:
 ```bash
 ./scripts/domain-scan.sh          # HARD terms only (must be ZERO)
 ./scripts/domain-scan.sh --full   # HARD + SOFT terms (advisory)
@@ -73,65 +56,24 @@ Run the scanner:
 
 ---
 
-## Module Details
+## Core Architecture (12 Building Blocks)
 
-### `core/` — Agent Core (v0.7.0)
+| Block | Subsystem | Key Classes | Status |
+|-------|-----------|-------------|--------|
+| 1 | `runtime/` | `AgentCoreApp`, `GenericHandler`, `SessionManager` | 75% |
+| 2 | `gateway/` | `GatewayClient`, `TargetRegistry`, `ToolDiscovery` | 90% |
+| 3 | `identity/` | `IdentityProvider`, `IdentityClient`, `CredentialCache` | 88% |
+| 4 | `memory/` | `MemoryManager`, `MemoryHookProvider`, `MemoryBranchManager` | 80% |
+| 5 | `tools/` | `CodeInterpreterProvider`, `BrowserProvider`, `BuiltinToolWiring` | 90% |
+| 6 | `observability/` | `LangfuseHook`, `AuditLogWriter`, `XRayTracer`, `CostTracker` | 93% |
+| 7 | `evaluation/` | `EvaluationClient`, `BuiltinEvaluators` (13) | 85% |
+| 8 | `policy/` | `PolicyClient`, `CedarPolicyBuilder`, `PolicyTranslator` | 88% |
+| 9 | `blueprints/` | `BlueprintLoader`, `AgentSession`, `AgentBlueprint` | 95% |
+| 10 | `a2a/` | `A2AServerWrapper`, `A2AClient`, `A2AWiring` | 93% |
+| 11 | `modules/` | Terraform: platform, agents, workflows | 100% |
+| 12 | `blueprints/` | `AgentBlueprint`, `StrategyBlueprint`, `WorkflowBlueprint` | 98% |
 
-The SDK library that all agents import. 48 public exports organized into subsystems:
-
-| Subsystem | Key Classes | Purpose |
-|-----------|-------------|---------|
-| `blueprints/` | `AgentBlueprint`, `StrategyBlueprint`, `WorkflowBlueprint`, `BlueprintLoader` | YAML → Pydantic → configured agent |
-| `execution/` | `ExecutionMode`, `get_execution_mode()` | `EXECUTION_MODE=simulation\|staging\|production` routing |
-| `runtime/` | `GenericHandler`, `AgentConfig`, `SessionManager`, `IdempotencyStore` | Lambda handler, session lifecycle, idempotency |
-| `hooks/` | `ObservabilityHook`, `CompositeObservabilityHook` | Pluggable instrumentation |
-| `observability/` | `AuditLogWriter`, `LangfuseHook`, `XRayTracer`, `CostTracker`, `AlertPublisher` | Full observability stack |
-| `mcp/` | `BaseMCPServer`, `cache_get/set`, `resolve_provider`, `VersionedS3Store` | Shared MCP infrastructure (used by domain MCPs) |
-| `gateway/` | `GatewayClient`, `TargetRegistry`, `ToolDiscovery` | AgentCore Gateway integration |
-| `memory/` | `MemoryManager`, `SessionBridge` | Three-tier memory (short/long/episodic) |
-| `identity/` | `IdentityProvider` | OAuth/OIDC provider abstraction |
-| `policy/` | `CedarPolicyBuilder` | Cedar policy generation |
-| `prompt/` | `PromptRegistryClient` | HTTP client for prompt versioning |
-| `tools/` | `create_mcp_client()` | Dynamic MCP client factory |
-| `schemas/` | `ModelConfig`, `ToolConfig`, `RuntimeConfig` | Configuration dataclasses |
-
-### `prompts/` — Prompt Registry (v0.1.0)
-
-HTTP API for versioned prompt management. Enforces the "zero hardcoded prompts" rule.
-
-- **CRUD:** create, get, list versions, promote, rollback, diff
-- **Mode-gated:** production only sees STABLE; dev/simulation can use DRAFT
-- **Storage:** S3 for content, DynamoDB for metadata
-
-### `artifacts/` — Artifacts MCP Server (v0.1.0)
-
-MCP server implementing the claim-check pattern (Step Functions 256KB limit).
-
-- **4 tools:** `create_artifact`, `get_artifact`, `poll_artifact`, `list_artifacts`
-- **6 artifact types:** chart, report, analysis_result, recommendation, image, data_export
-- **Idempotency:** duplicate writes prevented via idempotency keys
-- **Runs on:** Docker/ECS Fargate (port 8080)
-
-### `cli/` — Agent CLI (v0.1.0)
-
-Developer tooling. Entry point: `agentcli`.
-
-- `agentcli blueprint lint` — Validate agent/strategy YAML
-- `agentcli prompt push/get/list/diff/promote/rollback` — Prompt Registry management
-- `agentcli strategy validate/list/promote` — Strategy lifecycle
-- `agentcli graph render` — Multi-agent topology visualization (ASCII diagrams)
-
-### `modules/` — Terraform Infrastructure
-
-Three Terraform modules consumed by domain repos via `source = "git::repo.git//modules/platform"`.
-
-| Module | Sub-modules / Resources |
-|--------|------------------------|
-| `modules/platform/` | network (VPC, subnets, NAT, SGs), security (5 KMS keys, WAF, VPC endpoints), data (5 DynamoDB tables, 3 S3 buckets, CloudFront, SQS), agentcore (Gateway, Memory, Browser, Code Interpreter, Cognito), observability (CloudWatch, X-Ray, SNS), api (API Gateway for artifacts) |
-| `modules/agents/` | Reads blueprint YAML via `yamldecode()`, creates ECR repos, CodeBuild ARM64 builds, `aws_bedrockagentcore_agent_runtime` per agent, Gateway targets, Memory strategies, Identity credential providers |
-| `modules/workflows/` | Reads workflow YAML, creates Step Functions state machines, EventBridge scheduled triggers |
-
-**SSM parameter namespace:** `/{prefix}/{env}/tables/*/name`, `/{prefix}/{env}/buckets/*/name`, `/{prefix}/{env}/agentcore/gateway-url`, `/{prefix}/{env}/agents/*/runtime-arn`, etc.
+**`POSTMORTEM.md` tracks all remaining issues with checkboxes per block.**
 
 ---
 
@@ -150,35 +92,22 @@ Three Terraform modules consumed by domain repos via `source = "git::repo.git//m
 
 ## Development Workflow
 
-### Per-Component Install
-
 ```bash
 pip install -e "core/[dev]"       # agent-core
 pip install -e "prompts/[dev]"    # prompt-registry
 pip install -e "artifacts/[dev]"  # mcp-artifacts
-pip install -e "cli/[dev]"        # agent-cli (depends on agent-core)
-# modules/ uses Terraform (no pip install needed)
-```
+pip install -e "cli/[dev]"        # agent-cli
 
-### Terraform Deploy
-
-```bash
 cd modules/platform
-terraform init
-terraform plan -var-file=envs/dev.tfvars
-terraform apply -var-file=envs/dev.tfvars
+terraform init && terraform plan -var-file=envs/dev.tfvars
 ```
-
-Environments: `dev` (on-demand, minimal), `staging` (provisioned, moderate), `production` (full HA, WAF, scaling).
 
 ### Linting
 
 ```bash
-ruff check .                  # All modules
-ruff format --check .         # Format check
+ruff check .
+ruff format --check .
 ```
-
-Config: `ruff.toml` — Python 3.12, line-length 120, isort with known-first-party modules.
 
 ---
 
@@ -190,105 +119,45 @@ Config: `ruff.toml` — Python 3.12, line-length 120, isort with known-first-par
 | `ci-prompts.yml` | `prompts/**` changes | pytest + ruff |
 | `ci-artifacts.yml` | `artifacts/**` changes | pytest + ruff |
 | `ci-cli.yml` | `cli/**` changes | pytest + ruff |
-| ~~`ci-infra.yml`~~ | ~~removed~~ | ~~CDK workflow deleted — Terraform modules validated via `terraform validate`~~ |
 | `publish.yml` | `v*` tags | Build + publish to CodeArtifact |
 | `sonar-scan.yml` | Push/PR to main | Multi-module SonarQube analysis |
 
 ---
 
-## Key Architectural Principles
+## Key Rules
 
-1. **Zero domain contamination** — `domain-scan.sh` HARD terms must return zero
-2. **Zero backward compatibility** — See dedicated section below
-3. **Configuration-driven** — All resource names from YAML config, not hardcoded
-4. **Claim-check pattern** — Large outputs in S3, only keys through Step Functions
-5. **Idempotency everywhere** — DynamoDB-backed idempotency keys on all writes
-6. **Execution mode routing** — `EXECUTION_MODE` env var drives all behavior
-7. **Published packages** — `agent-core` and `prompt-registry` on CodeArtifact for domain consumption
-8. **Multi-tenant ready** — Memory branching + tenant isolation in agent-core
-9. **Observability first** — Langfuse, X-Ray, CloudWatch, structured logging, audit log
-10. **No hardcoded defaults** — Never hardcode model names, model IDs, sampling rates, temperature, or any value that varies by deployment. All such values must come from blueprint YAML, environment variables, or config templates. Platform code must not assume any specific model or default value — the consumer decides.
-
----
-
-## Zero Backward Compatibility
-
-**Nothing is in production. This is development phase. Build for the vision, not for the past.**
-
-The reference implementation (`/home/iamroot/dev/tccw-qitp/agents/`) shows where the consumer model is heading — it already uses YAML blueprints, prompt builders, and MCP registries. But its current patterns (Lambda hosting, direct MCP connections, `mcp_factory`) are the **old** way. The platform must implement the **new** way as defined in VISION.md and CONCEPTS.md. The consumer repos will catch up.
-
-**Rules:**
-- **No `enabled` toggles** — Don't add `gateway.enabled`, `memory.enabled`, or any feature flag that preserves an old code path alongside the new one. Implement the vision path. Delete the old path.
-- **No fallback implementations** — `bedrock_agentcore` and `strands` are hard dependencies. No `try/except ImportError` with standalone alternatives. If the SDK is missing, fail loudly.
-- **No dual code paths** — When replacing a pattern (e.g., direct MCP → Gateway, Lambda hosting → AgentCore Runtime), remove the old path entirely. Don't keep it as a "just in case."
-- **No compatibility shims** — Don't wrap old interfaces to make them work with new code. Rewrite the consumer contract cleanly.
-- **Replace, don't extend** — When a module is rewritten (e.g., `GatewayClient` from httpx to MCPClient), replace the entire file. Don't layer the new pattern on top of the old one.
-
-**Why:** Every backward-compat toggle, fallback, or dual path doubles the code, doubles the bugs, and slows down reaching the vision. The consumer repos (`tccw-qitp/agents/`) will be updated to match when the platform stabilizes. Build the target state now.
+1. **Zero domain contamination** — `domain-scan.sh` must return zero
+2. **No hardcoded defaults** — No model names, regions, temperatures, sampling rates. Everything from blueprints/env/config
+3. **No backward compatibility** — Build for the vision. No fallbacks, no dual paths, no `try/except ImportError`
+4. **Hard dependencies** — `bedrock_agentcore` and `strands` are required. If missing, fail loudly
+5. **Configuration-driven** — All resource names from config, not hardcoded
+6. **Claim-check pattern** — Large outputs in S3, only keys through Step Functions
+7. **IaC: Terraform only** — `modules/` is the sole infrastructure source
+8. **Never run tests locally** — CI only
+9. **Commit directly to main** — No branches, no PRs
 
 ---
 
-## Blueprint Examples
-
-Example blueprints live in `core/src/agent_core/data/blueprints/agents/` and are **distributed with the pip package**. They serve as reference patterns for domain repos consuming this platform.
-
-**Rules:**
-- When a new block is implemented (checked off in `PROGRESS.md`), update existing examples or add new ones to demonstrate the feature
-- Examples must be **domain-agnostic** — use generic names like `data-source-mcp`, `external-api-mcp`, never domain terms
-- Each example should document which blocks it demonstrates via comments at the top
-- The consumer repo (`/home/iamroot/dev/tccw-qitp/agents/blueprints/agents/`) shows real-world patterns — use it as structural reference but strip all domain content
-
-**Current examples:**
-
-| File | Blocks Demonstrated |
-|------|-------------------|
-| `simple-agent.yaml` | 1 (Runtime) + 2 (Gateway) |
-| `authenticated-agent.yaml` | 1 + 2 + 3 (Identity) |
-| `memory-agent.yaml` | 1 + 2 + 4 (Memory) |
-| `builtin-tools-agent.yaml` | 1 + 2 + 5 (Tools) |
-| `full-stack-agent.yaml` | 1 + 2 + 3 + 4 + 5 (all implemented) |
-| `multi-agent-graph.yaml` | 1 + 2 + multi-agent graph orchestration |
-
----
-
-## Constraints
-
-- **Never import domain packages** — No `qitp_*`, no domain-specific logic
-- **Never hardcode resource names** — Everything from `config/{env}.yaml`
-- **Never run tests locally** — CI only (pytest hangs on this machine)
-- **Commit directly to main** — Scratch phase, no branches, no PRs
-- **IaC: Terraform** — `modules/` contains 3 Terraform modules (platform, agents, workflows). CDK has been removed.
-- **Tests are separate sessions** — Never interleave test runs with implementation work
-- **Always follow the Session Startup Protocol** — Read VISION → CONCEPTS → TECHNICAL-GUIDE → PROGRESS before any task
-
----
-
-## File Structure Reference
+## File Structure
 
 ```
 tccw-aws-agent-platform/
-├── core/                    # agent-core SDK (64 source files, 35+ test files)
+├── core/                    # agent-core SDK
 │   ├── src/agent_core/      # 15 subsystems
 │   └── tests/
 ├── prompts/                 # prompt-registry service
-│   ├── src/prompt_registry/
-│   └── tests/
 ├── artifacts/               # mcp-artifacts MCP server
-│   ├── src/mcp_artifacts/
-│   ├── Dockerfile
-│   └── tests/
-├── cli/                     # agent-cli developer tooling
-│   ├── src/agent_cli/
-│   └── tests/
+├── cli/                     # agent-cli tooling
 ├── modules/                 # Terraform infrastructure
-│   ├── platform/            # Core infra (network, security, data, agentcore, observability, api)
-│   ├── agents/              # Per-agent deployment (ECR, CodeBuild, Runtime, Gateway targets)
-│   └── workflows/           # Step Functions from workflow YAML
+│   ├── platform/            # Core infra (6 sub-modules)
+│   ├── agents/              # Per-agent deployment
+│   └── workflows/           # Step Functions from YAML
 ├── scripts/
-│   ├── domain-scan.sh       # Domain contamination scanner
-│   └── lock-deps.sh         # Dependency locking
-├── .github/workflows/       # 7 CI/CD workflows
-├── pyproject.toml            # Root workspace config
-├── ruff.toml                 # Linting config
-└── sonar-project.properties  # SonarQube multi-module config
+│   ├── domain-scan.sh
+│   └── lock-deps.sh
+├── .github/workflows/
+├── POSTMORTEM.md            # Remaining work — checkboxes per block
+├── pyproject.toml
+├── ruff.toml
+└── sonar-project.properties
 ```
