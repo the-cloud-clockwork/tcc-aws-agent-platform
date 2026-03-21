@@ -54,7 +54,7 @@ def detach_session_baggage(token: object) -> None:
     context.detach(token)
 
 
-def get_agent_tracer(agent_name: str, version: str = "1.0.0") -> trace.Tracer:
+def get_agent_tracer(agent_name: str, version: str = "") -> trace.Tracer:
     """Get an OTEL tracer scoped to an agent.
 
     Use this inside ``@tool`` functions for custom span creation::

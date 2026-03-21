@@ -1,4 +1,5 @@
 """DynamoDB-backed idempotency enforcement."""
+
 from __future__ import annotations
 
 import hashlib
@@ -39,16 +40,19 @@ class IdempotencyStore:
     """
 
     def __init__(self, table_name: str | None = None) -> None:
-        self._table_name = table_name or os.environ.get("IDEMPOTENCY_TABLE", "idempotency")
+        self._table_name = table_name or os.environ["IDEMPOTENCY_TABLE"]
         self._table = None
 
     def _get_table(self) -> Any:
         if self._table is None:
             try:
                 import boto3
+
                 self._table = boto3.resource("dynamodb").Table(self._table_name)
             except Exception:
-                logger.warning("Cannot connect to DynamoDB table '%s'", self._table_name)
+                logger.warning(
+                    "Cannot connect to DynamoDB table '%s'", self._table_name
+                )
         return self._table
 
     def check(self, key: str) -> dict[str, Any] | None:
@@ -67,7 +71,9 @@ class IdempotencyStore:
                 return result_json
             return None
         except Exception:
-            logger.warning("Idempotency check failed for '%s', proceeding", key, exc_info=True)
+            logger.warning(
+                "Idempotency check failed for '%s', proceeding", key, exc_info=True
+            )
             return None
 
     def store(self, key: str, result: dict[str, Any], ttl_hours: int = 24) -> None:

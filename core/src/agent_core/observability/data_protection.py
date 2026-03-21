@@ -38,7 +38,7 @@ def build_guardrail_model_kwargs(config: DataProtectionConfig) -> dict[str, str]
             f"Data protection requires env var {config.guardrail_id_env!r} "
             f"to be set with the Bedrock Guardrail ID."
         )
-    guardrail_version = os.environ.get(config.guardrail_version_env, "DRAFT")
+    guardrail_version = os.environ[config.guardrail_version_env]
     return {
         "guardrail_id": guardrail_id,
         "guardrail_version": guardrail_version,
@@ -166,7 +166,7 @@ def sanitize_text(
     if not guardrail_id:
         return text
 
-    guardrail_version = os.environ.get(config.guardrail_version_env, "DRAFT")
+    guardrail_version = os.environ[config.guardrail_version_env]
     resolved_region = (
         region or os.environ.get("AWS_DEFAULT_REGION") or os.environ.get("AWS_REGION")
     )

@@ -49,7 +49,12 @@ from agent_core.tools.mcp_factory import create_mcp_client
 from agent_core.tools.wiring import BuiltinToolWiring
 
 from agent_core.gateway import GatewayClient, ToolDiscovery
-from agent_core.identity import CredentialCache, CredentialError, IdentityWiring
+from agent_core.identity import (
+    CredentialCache,
+    CredentialError,
+    IdentityClient,
+    IdentityWiring,
+)
 from agent_core.memory import MemoryHookProvider, MemoryManager, MemoryWiring
 from agent_core.evaluation import EvaluationClient, EvaluationResult, EvaluationScore
 from agent_core.policy import CedarPolicy, CedarPolicyBuilder, PolicyClient, PolicyMode
@@ -95,6 +100,7 @@ __all__ = [
     "GraphEdgeConfig",
     "GraphNodeConfig",
     "IdempotencyStore",
+    "IdentityClient",
     "IdentityWiring",
     "MemoryHookProvider",
     "MemoryManager",

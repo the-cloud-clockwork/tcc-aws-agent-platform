@@ -19,7 +19,6 @@ def __getattr__(name: str):  # noqa: N807
         "PolicyConfigError",
         "PolicyEngineNotFoundError",
         "PolicyMode",
-        "PolicyWiring",
     ):
         from agent_core.policy import client as _client
 

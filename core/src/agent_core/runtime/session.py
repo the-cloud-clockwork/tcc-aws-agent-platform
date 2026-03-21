@@ -12,9 +12,7 @@ Design rule:
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass, field
-from datetime import UTC
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -76,15 +74,9 @@ class SessionState:
 
 
 class SessionManager:
-    """Manages agent session lifecycle.
+    """Manages agent session lifecycle via AgentCore Memory service."""
 
-    In Lambda mode: sessions are DynamoDB-backed.
-    In AgentCore mode: sessions are managed by AgentCore Memory service.
-
-    This class abstracts the difference so agent handlers don't care.
-    """
-
-    def __init__(self, runtime_mode: str = "lambda") -> None:
+    def __init__(self, runtime_mode: str = "agentcore") -> None:
         self.runtime_mode = runtime_mode
         self._agentcore_memory = None
 
@@ -127,10 +119,7 @@ class SessionManager:
         return session
 
     def persist_session(self, session: SessionState) -> None:
-        """Persist session memory updates.
-
-        In Lambda mode: writes to DynamoDB.
-        In AgentCore mode: writes to AgentCore Memory service.
+        """Persist session memory updates to AgentCore Memory.
 
         Args:
             session: Session with pending updates.
@@ -140,10 +129,7 @@ class SessionManager:
             logger.debug("Session %s: no updates to persist", session.session_id)
             return
 
-        if self.runtime_mode == "agentcore":
-            self._persist_agentcore_memory(session, updates)
-        else:
-            self._persist_dynamodb_memory(session, updates)
+        self._persist_agentcore_memory(session, updates)
 
         logger.info(
             "Session %s: persisted %d memory updates",
@@ -167,13 +153,10 @@ class SessionManager:
         Returns:
             Memory context dict.
         """
-        if self.runtime_mode == "agentcore" and query:
+        if query:
             return self._semantic_retrieve(session_id, query)
 
-        if self.runtime_mode == "agentcore":
-            return self._get_agentcore_memory(session_id)
-
-        return self._get_dynamodb_memory(session_id)
+        return self._get_agentcore_memory(session_id)
 
     def _init_agentcore_session(self, session: SessionState) -> None:
         """Initialize AgentCore Memory for this session."""
@@ -189,12 +172,12 @@ class SessionManager:
                     session.session_id,
                     len(existing),
                 )
-        except ImportError:
-            logger.warning("AgentCore Memory not available (agent_core.memory.manager not installed), falling back to local state")
         except Exception:
             logger.exception("Failed to initialize AgentCore Memory")
 
-    def _persist_agentcore_memory(self, session: SessionState, updates: dict[str, Any]) -> None:
+    def _persist_agentcore_memory(
+        self, session: SessionState, updates: dict[str, Any]
+    ) -> None:
         """Write memory updates to AgentCore Memory service."""
         if self._agentcore_memory is None:
             logger.warning("AgentCore Memory not initialized, skipping persist")
@@ -208,50 +191,6 @@ class SessionManager:
             )
         except Exception:
             logger.exception("Failed to persist to AgentCore Memory")
-
-    def _persist_dynamodb_memory(self, session: SessionState, updates: dict[str, Any]) -> None:
-        """Write memory updates to DynamoDB (Lambda mode fallback)."""
-        try:
-            from datetime import datetime
-
-            import boto3
-
-            table_name = os.environ.get("SESSION_TABLE", "run_history")
-            dynamodb = boto3.resource("dynamodb")
-            table = dynamodb.Table(table_name)
-
-            table.update_item(
-                Key={"session_id": session.session_id},
-                UpdateExpression="SET #mem = :mem, #ts = :ts, #agent = :agent",
-                ExpressionAttributeNames={
-                    "#mem": "memory_state",
-                    "#ts": "updated_at",
-                    "#agent": "last_agent_id",
-                },
-                ExpressionAttributeValues={
-                    ":mem": updates,
-                    ":ts": datetime.now(UTC).isoformat(),
-                    ":agent": session.agent_id,
-                },
-            )
-        except Exception:
-            logger.exception("Failed to persist to DynamoDB")
-
-    def _get_dynamodb_memory(self, session_id: str) -> dict[str, Any]:
-        """Retrieve memory from DynamoDB."""
-        try:
-            import boto3
-
-            table_name = os.environ.get("SESSION_TABLE", "run_history")
-            dynamodb = boto3.resource("dynamodb")
-            table = dynamodb.Table(table_name)
-
-            response = table.get_item(Key={"session_id": session_id})
-            item = response.get("Item", {})
-            return item.get("memory_state", {})
-        except Exception:
-            logger.exception("Failed to retrieve from DynamoDB")
-            return {}
 
     def _get_agentcore_memory(self, session_id: str) -> dict[str, Any]:
         """Retrieve memory from AgentCore Memory service."""

@@ -184,7 +184,7 @@ class XRayTracer:
         except Exception:
             logger.debug("Failed to add X-Ray annotation: %s=%s", key, value)
 
-    def add_metadata(self, key: str, value: Any, namespace: str = "agent-core") -> None:
+    def add_metadata(self, key: str, value: Any, namespace: str = "") -> None:
         """Add metadata to the current segment/subsegment."""
         recorder = _get_recorder()
         if recorder is None:
