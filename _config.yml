@@ -52,37 +52,30 @@ defaults:
       path: "docs/getting-started"
     values:
       parent: "Getting Started"
-      grand_parent: "Documentation"
   - scope:
       path: "docs/architecture"
     values:
       parent: "Architecture"
-      grand_parent: "Documentation"
   - scope:
       path: "docs/sdk"
     values:
       parent: "SDK Reference"
-      grand_parent: "Documentation"
   - scope:
       path: "docs/infrastructure"
     values:
       parent: "Infrastructure"
-      grand_parent: "Documentation"
   - scope:
       path: "docs/cli"
     values:
       parent: "CLI Reference"
-      grand_parent: "Documentation"
   - scope:
       path: "docs/blueprints"
     values:
       parent: "Blueprints"
-      grand_parent: "Documentation"
   - scope:
       path: "docs/concepts"
     values:
       parent: "Concepts"
-      grand_parent: "Documentation"
 
 exclude:
   - core/
