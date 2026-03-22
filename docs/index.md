@@ -1,7 +1,6 @@
 ---
 title: Documentation
-nav_order: 2
-has_children: true
+nav_exclude: true
 description: "Complete documentation for the AWS Agent Platform."
 ---
 
