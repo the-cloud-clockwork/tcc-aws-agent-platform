@@ -1,0 +1,135 @@
+// AWS Agent Platform brand colors
+$ap-teal: #00bcd4;
+$ap-amber: #ff9800;
+$ap-navy: #1a237e;
+$ap-emerald: #10b981;
+$ap-slate: #94a3b8;
+
+// Feature grid
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+  margin: 2rem 0;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.feature-card {
+  padding: 1.5rem;
+  border: 1px solid rgba(0, 188, 212, 0.3);
+  border-radius: 8px;
+  background: rgba(0, 188, 212, 0.05);
+  transition: border-color 0.2s ease;
+
+  &:hover {
+    border-color: $ap-teal;
+  }
+
+  h3 {
+    margin-top: 0.75rem;
+    margin-bottom: 0.5rem;
+    color: $ap-teal;
+  }
+
+  p {
+    margin-bottom: 0;
+    font-size: 0.9rem;
+    opacity: 0.85;
+  }
+}
+
+.feature-icon {
+  width: 48px;
+  height: 48px;
+}
+
+// Hero actions
+.hero-actions {
+  display: flex;
+  gap: 1rem;
+  margin: 1.5rem 0 2.5rem;
+  flex-wrap: wrap;
+
+  .btn {
+    display: inline-block;
+    padding: 0.6rem 1.5rem;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
+  }
+
+  .btn-primary {
+    background-color: $ap-teal;
+    color: #fff;
+
+    &:hover {
+      background-color: darken($ap-teal, 10%);
+      color: #fff;
+    }
+  }
+
+  .btn-outline {
+    border: 1px solid $ap-teal;
+    color: $ap-teal;
+
+    &:hover {
+      background-color: rgba(0, 188, 212, 0.1);
+    }
+  }
+}
+
+// Home content spacing
+.home-content {
+  max-width: 900px;
+  margin: 0 auto;
+
+  > h1:first-child {
+    margin-top: 2rem;
+  }
+}
+
+// FAQ details styling
+details {
+  margin-bottom: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(0, 188, 212, 0.2);
+  border-radius: 6px;
+
+  summary {
+    cursor: pointer;
+    font-weight: 600;
+
+    &:hover {
+      color: $ap-teal;
+    }
+  }
+
+  p {
+    margin-top: 0.75rem;
+  }
+}
+
+// Building blocks table
+.blocks-table {
+  th:first-child,
+  td:first-child {
+    font-weight: 600;
+    white-space: nowrap;
+  }
+}
+
+// Text center utility
+.text-center {
+  text-align: center;
+}
+
+// Subtitle styling
+.fs-6 {
+  font-size: 1.125rem !important;
+  opacity: 0.85;
+}

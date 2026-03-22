@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" fill="none">
+  <rect width="180" height="180" rx="20" fill="#1b1f23"/>
+  <rect x="30" y="50" width="120" height="80" rx="8" fill="none" stroke="#00bcd4" stroke-width="3"/>
+  <rect x="45" y="65" width="35" height="20" rx="4" fill="#00bcd4" opacity="0.3" stroke="#00bcd4" stroke-width="1.5"/>
+  <line x1="80" y1="75" x2="100" y2="75" stroke="#ff9800" stroke-width="2"/>
+  <polygon points="98,71 104,75 98,79" fill="#ff9800"/>
+  <rect x="104" y="65" width="35" height="20" rx="4" fill="#ff9800" opacity="0.3" stroke="#ff9800" stroke-width="1.5"/>
+  <rect x="60" y="95" width="60" height="20" rx="4" fill="#10b981" opacity="0.3" stroke="#10b981" stroke-width="1.5"/>
+  <text x="90" y="40" text-anchor="middle" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#e6edf3">AAP</text>
+  <text x="90" y="148" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#8b949e">Agent Platform</text>
+</svg>
