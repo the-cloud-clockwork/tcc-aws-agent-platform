@@ -50,23 +50,24 @@ resource "aws_sfn_state_machine" "workflows" {
           {
             Type     = "Task"
             Resource = "arn:aws:states:::aws-sdk:bedrockagentcore:invokeAgentRuntime"
-            Parameters = try(each.value.memory_branching.enabled, false) ? {
-              "AgentRuntimeArn" = try(
-                var.agent_runtime_arns[coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))],
-                "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))}"
-              )
-              "Payload" = {
-                "prompt.$"              = try(state.prompt, "$.prompt")
-                "memory_branch"         = replace(try(each.value.memory_branching.branch_namespace, "{sessionId}/branches/{stateId}"), "{stateId}", state.id)
-                "memory_merge_strategy" = try(each.value.memory_branching.merge_strategy, "union")
+            Parameters = merge(
+              {
+                "AgentRuntimeArn" = try(
+                  var.agent_runtime_arns[coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))],
+                  "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))}"
+                )
+              },
+              try(each.value.memory_branching.enabled, false) ? {
+                "Payload" = {
+                  "prompt.$"              = try(state.prompt, "$.prompt")
+                  "memory_branch"         = replace(try(each.value.memory_branching.branch_namespace, "{sessionId}/branches/{stateId}"), "{stateId}", state.id)
+                  "memory_merge_strategy" = try(each.value.memory_branching.merge_strategy, "union")
+                }
+              } : {},
+              try(each.value.memory_branching.enabled, false) ? {} : {
+                "Payload.$" = try(state.prompt, "$.prompt")
               }
-            } : {
-              "AgentRuntimeArn" = try(
-                var.agent_runtime_arns[coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))],
-                "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))}"
-              )
-              "Payload.$" = try(state.prompt, "$.prompt")
-            }
+            )
             ResultPath = try(state.result_path, "$.results.${coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))}")
             Retry = try(state.retry, null) != null ? [
               for r in state.retry : {
