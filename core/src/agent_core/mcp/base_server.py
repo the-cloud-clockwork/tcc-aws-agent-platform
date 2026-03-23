@@ -33,6 +33,8 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
+from agent_core.mcp.observability import MCPObservabilityHook, auto_hook
+
 logger = logging.getLogger(__name__)
 
 
@@ -53,6 +55,7 @@ class BaseMCPServer:
         name: str,
         *,
         default_port: int = 8080,
+        observability: MCPObservabilityHook | None = None,
     ) -> None:
         self.name = name
         self.default_port = default_port
@@ -60,6 +63,7 @@ class BaseMCPServer:
         self._tools: list[Tool] = []
         self._handlers: dict[str, Callable[..., Coroutine[Any, Any, Any]]] = {}
         self._background_tasks: list[Callable[[], Coroutine[Any, Any, None]]] = []
+        self._observability = observability if observability is not None else auto_hook(name)
 
         # Configure logging
         level = os.environ.get("LOG_LEVEL", "INFO").upper()
@@ -110,11 +114,17 @@ class BaseMCPServer:
         if handler is None:
             error = {"error": "ValueError", "message": f"Unknown tool: {name}"}
             return [TextContent(type="text", text=json.dumps(error))]
+
+        record = self._observability.on_tool_start(name) if self._observability else None
         try:
             result = await handler(arguments)
+            if record is not None:
+                self._observability.on_tool_end(record)
             return [TextContent(type="text", text=json.dumps(result, default=str))]
         except Exception as e:
             logger.error("Tool %s failed: %s", name, e)
+            if record is not None:
+                self._observability.on_tool_end(record, error=e)
             error_detail = {
                 "error": type(e).__name__,
                 "message": str(e),
