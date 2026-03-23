@@ -176,21 +176,21 @@ resource "aws_codebuild_project" "agent" {
     environment_variable {
       name  = "AWS_DEFAULT_REGION"
       value = data.aws_region.current.name
+    }
 
-      environment_variable {
-        name  = "AWS_ACCOUNT_ID"
-        value = data.aws_caller_identity.current.account_id
-      }
+    environment_variable {
+      name  = "AWS_ACCOUNT_ID"
+      value = data.aws_caller_identity.current.account_id
+    }
 
-      environment_variable {
-        name  = "CODEARTIFACT_DOMAIN"
-        value = var.codeartifact_domain
-      }
+    environment_variable {
+      name  = "CODEARTIFACT_DOMAIN"
+      value = var.codeartifact_domain
+    }
 
-      environment_variable {
-        name  = "CODEARTIFACT_REPO"
-        value = var.codeartifact_repo
-      }
+    environment_variable {
+      name  = "CODEARTIFACT_REPO"
+      value = var.codeartifact_repo
     }
   }
 
