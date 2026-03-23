@@ -44,7 +44,7 @@ resource "aws_sfn_state_machine" "workflows" {
       {
         for state in [
           for s in try(each.value.states, []) :
-          s if(try(s.type, null) == "task" || try(s.type, null) == null) && coalesce(try(s.agent_ref, null), try(s.agent, null), "") != "" && try(s.lambda_ref, null) == null
+          s if(try(s.type, null) == "task" || try(s.type, null) == null) && (try(s.agent_ref, null) != null || try(s.agent, null) != null) && try(s.lambda_ref, null) == null
         ] :
         state.id => merge(
           {
@@ -101,7 +101,7 @@ resource "aws_sfn_state_machine" "workflows" {
       {
         for state in [
           for s in try(each.value.states, []) :
-          s if(try(s.type, null) == "task" || try(s.type, null) == null) && coalesce(try(s.agent_ref, null), try(s.agent, null), "") != "" && try(s.lambda_ref, null) == null && try(s.catch, null) == null
+          s if(try(s.type, null) == "task" || try(s.type, null) == null) && (try(s.agent_ref, null) != null || try(s.agent, null) != null) && try(s.lambda_ref, null) == null && try(s.catch, null) == null
         ] :
         "${state.id}_Failed" => {
           Type  = "Fail"
@@ -116,7 +116,7 @@ resource "aws_sfn_state_machine" "workflows" {
       {
         for state in [
           for s in try(each.value.states, []) :
-          s if(try(s.type, null) == "task" || try(s.type, null) == null) && try(s.lambda_ref, null) != null && coalesce(try(s.agent_ref, null), try(s.agent, null), "") == ""
+          s if(try(s.type, null) == "task" || try(s.type, null) == null) && try(s.lambda_ref, null) != null && try(s.agent_ref, null) == null && try(s.agent, null) == null
         ] :
         state.id => merge(
           {
@@ -164,7 +164,7 @@ resource "aws_sfn_state_machine" "workflows" {
       {
         for state in [
           for s in try(each.value.states, []) :
-          s if(try(s.type, null) == "task" || try(s.type, null) == null) && try(s.lambda_ref, null) != null && coalesce(try(s.agent_ref, null), try(s.agent, null), "") == "" && try(s.catch, null) == null
+          s if(try(s.type, null) == "task" || try(s.type, null) == null) && try(s.lambda_ref, null) != null && try(s.agent_ref, null) == null && try(s.agent, null) == null && try(s.catch, null) == null
         ] :
         "${state.id}_Failed" => {
           Type  = "Fail"
