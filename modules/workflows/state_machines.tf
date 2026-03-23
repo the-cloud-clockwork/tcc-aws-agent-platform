@@ -296,30 +296,27 @@ resource "aws_sfn_state_machine" "workflows" {
                 States = {
                   for bs in branch.states :
                   bs.id => merge(
-                    try(bs.lambda_ref, null) != null ? {
+                    {
                       Type     = "Task"
-                      Resource = "arn:aws:states:::lambda:invoke"
-                      Parameters = {
-                        "FunctionName" = try(
-                          var.lambda_arns[bs.lambda_ref],
-                          "arn:aws:lambda:${local.region}:${local.account_id}:function:${local.name_prefix}-${bs.lambda_ref}"
-                        )
-                        "Payload.$" = "$"
-                      }
-                      ResultPath     = try(bs.result_path, "$.results.${bs.lambda_ref}")
-                      ResultSelector = { "body.$" = "$.Payload" }
-                    } : {
-                      Type     = "Task"
-                      Resource = "arn:aws:states:::aws-sdk:bedrockagentcore:invokeAgentRuntime"
-                      Parameters = {
-                        "AgentRuntimeArn" = try(
-                          var.agent_runtime_arns[coalesce(try(bs.agent_ref, null), try(bs.agent, null))],
-                          "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(bs.agent_ref, null), bs.agent)}"
-                        )
-                        "Payload.$" = try(bs.prompt, "$.prompt")
-                      }
-                      ResultPath = try(bs.result_path, "$.results.${coalesce(try(bs.agent_ref, null), bs.agent)}")
+                      Resource = try(bs.lambda_ref, null) != null ? "arn:aws:states:::lambda:invoke" : "arn:aws:states:::aws-sdk:bedrockagentcore:invokeAgentRuntime"
+                      Parameters = merge(
+                        try(bs.lambda_ref, null) != null ? {
+                          "FunctionName" = try(
+                            var.lambda_arns[bs.lambda_ref],
+                            "arn:aws:lambda:${local.region}:${local.account_id}:function:${local.name_prefix}-${bs.lambda_ref}"
+                          )
+                        } : {},
+                        try(bs.lambda_ref, null) == null ? {
+                          "AgentRuntimeArn" = try(
+                            var.agent_runtime_arns[coalesce(try(bs.agent_ref, null), try(bs.agent, null))],
+                            "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(bs.agent_ref, null), bs.agent)}"
+                          )
+                        } : {},
+                        { "Payload.$" = try(bs.lambda_ref, null) != null ? "$" : try(bs.prompt, "$.prompt") }
+                      )
+                      ResultPath = try(bs.result_path, try(bs.lambda_ref, null) != null ? "$.results.${bs.lambda_ref}" : "$.results.${coalesce(try(bs.agent_ref, null), bs.agent)}")
                     },
+                    try(bs.lambda_ref, null) != null ? { ResultSelector = { "body.$" = "$.Payload" } } : {},
                     {
                       Retry = try(bs.retry, null) != null ? [
                         for r in bs.retry : {
