@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# Observability Sub-Module — Variables
+# Observability Sub-Module -- Variables
 # ──────────────────────────────────────────────────────────────────────────────
 
 variable "resource_prefix" {

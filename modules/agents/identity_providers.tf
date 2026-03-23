@@ -1,12 +1,12 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# Agents Module — Identity / Credential Providers
+# Agents Module -- Identity / Credential Providers
 #
 # Creates AgentCore credential providers extracted from agent blueprints.
 # Currently supports API key credential providers via Terraform.
 #
 # OAuth2 providers (3LO user federation, M2M client credentials) require
 # secrets (client_secret, refresh_token) that should be configured via the
-# AgentCore Identity SDK or console — not stored in Terraform state.
+# AgentCore Identity SDK or console -- not stored in Terraform state.
 # ──────────────────────────────────────────────────────────────────────────────
 
 locals {
@@ -27,8 +27,8 @@ locals {
 resource "aws_bedrockagentcore_api_key_credential_provider" "this" {
   for_each = local.api_key_credential_map
 
-  name           = each.value.name
-  api_key_wo     = each.value.api_key
+  name               = each.value.name
+  api_key_wo         = each.value.api_key
   api_key_wo_version = 1
 
   tags = merge(local.tags, {
@@ -68,13 +68,13 @@ data "aws_ssm_parameter" "oauth_client_secret" {
 resource "aws_bedrockagentcore_oauth2_credential_provider" "this" {
   for_each = local.oauth_credential_map
 
-  name                      = each.value.name
+  name                       = each.value.name
   credential_provider_vendor = each.value.provider
 
   oauth2_provider_config {
     custom_oauth2_provider_config {
-      client_id_wo                 = data.aws_ssm_parameter.oauth_client_id[each.key].value
-      client_secret_wo             = data.aws_ssm_parameter.oauth_client_secret[each.key].value
+      client_id_wo                  = data.aws_ssm_parameter.oauth_client_id[each.key].value
+      client_secret_wo              = data.aws_ssm_parameter.oauth_client_secret[each.key].value
       client_credentials_wo_version = 1
 
       dynamic "oauth_discovery" {

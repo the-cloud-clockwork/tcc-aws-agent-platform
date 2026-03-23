@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# Data Sub-Module — Outputs
+# Data Sub-Module -- Outputs
 # ──────────────────────────────────────────────────────────────────────────────
 
 # ── DynamoDB Tables ──────────────────────────────────────────────────────────
@@ -14,7 +14,7 @@ output "table_arns" {
   value       = { for k, t in aws_dynamodb_table.tables : k => t.arn }
 }
 
-# ── S3 Buckets — Artifacts ───────────────────────────────────────────────────
+# ── S3 Buckets -- Artifacts ───────────────────────────────────────────────────
 
 output "artifacts_bucket_name" {
   description = "Name of the artifacts S3 bucket."
@@ -31,7 +31,7 @@ output "artifacts_bucket_id" {
   value       = aws_s3_bucket.artifacts.id
 }
 
-# ── S3 Buckets — Prompt Registry ─────────────────────────────────────────────
+# ── S3 Buckets -- Prompt Registry ─────────────────────────────────────────────
 
 output "prompt_registry_bucket_name" {
   description = "Name of the prompt registry S3 bucket."
@@ -43,7 +43,7 @@ output "prompt_registry_bucket_arn" {
   value       = aws_s3_bucket.prompt_registry.arn
 }
 
-# ── S3 Buckets — Historical Data ─────────────────────────────────────────────
+# ── S3 Buckets -- Historical Data ─────────────────────────────────────────────
 
 output "historical_data_bucket_name" {
   description = "Name of the historical data S3 bucket."
@@ -55,7 +55,7 @@ output "historical_data_bucket_arn" {
   value       = aws_s3_bucket.historical_data.arn
 }
 
-# ── S3 Buckets — Combined Map ────────────────────────────────────────────────
+# ── S3 Buckets -- Combined Map ────────────────────────────────────────────────
 
 output "bucket_names" {
   description = "Map of bucket key to S3 bucket name."
@@ -78,7 +78,7 @@ output "cloudfront_distribution_arn" {
   value       = var.cloudfront_enabled ? aws_cloudfront_distribution.artifacts[0].arn : ""
 }
 
-# ── SQS — Artifact Notifications ─────────────────────────────────────────────
+# ── SQS -- Artifact Notifications ─────────────────────────────────────────────
 
 output "artifact_queue_url" {
   description = "URL of the artifact notifications SQS queue."

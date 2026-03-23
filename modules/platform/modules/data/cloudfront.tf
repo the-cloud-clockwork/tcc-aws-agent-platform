@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# Data Sub-Module — CloudFront Distribution (Conditional)
+# Data Sub-Module -- CloudFront Distribution (Conditional)
 #
 # Creates a CloudFront distribution for the artifacts bucket when
 # cloudfront_enabled = true. Uses Origin Access Control (OAC) with SigV4

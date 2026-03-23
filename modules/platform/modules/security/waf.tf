@@ -1,10 +1,10 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# Security Sub-Module — WAF Web ACL (conditional)
+# Security Sub-Module -- WAF Web ACL (conditional)
 #
 # Created only when var.waf_enabled is true. Provides:
 #   1. Rate limiting (configurable requests per 5-min window)
-#   2. AWS Managed Rules — Common Rule Set
-#   3. AWS Managed Rules — Known Bad Inputs
+#   2. AWS Managed Rules -- Common Rule Set
+#   3. AWS Managed Rules -- Known Bad Inputs
 #   4. IP whitelist (only when var.waf_ip_whitelist is non-empty)
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -67,7 +67,7 @@ resource "aws_wafv2_web_acl" "main" {
     }
   }
 
-  # ── Rule 2: AWS Managed Rules — Common Rule Set ──────────────────────────
+  # ── Rule 2: AWS Managed Rules -- Common Rule Set ──────────────────────────
 
   rule {
     name     = "aws-common-rules"
@@ -91,7 +91,7 @@ resource "aws_wafv2_web_acl" "main" {
     }
   }
 
-  # ── Rule 3: AWS Managed Rules — Known Bad Inputs ─────────────────────────
+  # ── Rule 3: AWS Managed Rules -- Known Bad Inputs ─────────────────────────
 
   rule {
     name     = "aws-known-bad-inputs"

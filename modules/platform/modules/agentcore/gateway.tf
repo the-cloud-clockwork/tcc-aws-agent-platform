@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# AgentCore Sub-Module — Gateway
+# AgentCore Sub-Module -- Gateway
 #
 # Creates the AgentCore Gateway (MCP protocol) with an IAM execution role.
 # The Gateway routes tool calls from agents to MCP servers registered as
@@ -79,6 +79,21 @@ data "aws_iam_policy_document" "gateway_permissions" {
       "arn:aws:logs:${var.aws_region}:${var.account_id}:log-group:/aws/bedrock-agentcore/${local.prefix}-${local.env}-*:*",
     ]
   }
+
+  # Allow KMS operations for gateway encryption
+  statement {
+    sid    = "KmsGatewayEncryption"
+    effect = "Allow"
+    actions = [
+      "kms:Decrypt",
+      "kms:Encrypt",
+      "kms:GenerateDataKey",
+      "kms:DescribeKey",
+    ]
+    resources = [
+      var.gateway_kms_key_arn != "" ? var.gateway_kms_key_arn : "*",
+    ]
+  }
 }
 
 resource "aws_iam_role_policy" "gateway" {
@@ -96,7 +111,7 @@ resource "aws_bedrockagentcore_gateway" "this" {
 
   authorizer_type = var.gateway_auth_type
 
-  # CUSTOM_JWT authorizer configuration — only included when auth type is CUSTOM_JWT
+  # CUSTOM_JWT authorizer configuration -- only included when auth type is CUSTOM_JWT
   dynamic "authorizer_configuration" {
     for_each = var.gateway_auth_type == "CUSTOM_JWT" ? [1] : []
     content {

@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# Security Sub-Module — VPC Endpoints
+# Security Sub-Module -- VPC Endpoints
 #
 # Gateway endpoints (free): S3, DynamoDB
 # Interface endpoints: SQS, ECR API, ECR DKR, CloudWatch Logs,
@@ -46,15 +46,15 @@ resource "aws_vpc_endpoint" "dynamodb" {
 
 locals {
   interface_endpoints = {
-    sqs             = "com.amazonaws.${local.region}.sqs"
-    ecr_api         = "com.amazonaws.${local.region}.ecr.api"
-    ecr_dkr         = "com.amazonaws.${local.region}.ecr.dkr"
-    logs            = "com.amazonaws.${local.region}.logs"
-    secretsmanager  = "com.amazonaws.${local.region}.secretsmanager"
-    kms             = "com.amazonaws.${local.region}.kms"
-    sts             = "com.amazonaws.${local.region}.sts"
-    ssm             = "com.amazonaws.${local.region}.ssm"
-    bedrock         = "com.amazonaws.${local.region}.bedrock"
+    sqs               = "com.amazonaws.${local.region}.sqs"
+    ecr_api           = "com.amazonaws.${local.region}.ecr.api"
+    ecr_dkr           = "com.amazonaws.${local.region}.ecr.dkr"
+    logs              = "com.amazonaws.${local.region}.logs"
+    secretsmanager    = "com.amazonaws.${local.region}.secretsmanager"
+    kms               = "com.amazonaws.${local.region}.kms"
+    sts               = "com.amazonaws.${local.region}.sts"
+    ssm               = "com.amazonaws.${local.region}.ssm"
+    bedrock           = "com.amazonaws.${local.region}.bedrock"
     bedrock_runtime   = "com.amazonaws.${local.region}.bedrock-runtime"
     bedrock_agentcore = "com.amazonaws.${local.region}.bedrock-agentcore"
   }

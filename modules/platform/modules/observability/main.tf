@@ -8,7 +8,7 @@
 #   4. CloudWatch dashboard with platform overview widgets
 # ──────────────────────────────────────────────────────────────────────────────
 
-# ── CloudWatch Log Group — Pipeline Logs ─────────────────────────────────────
+# ── CloudWatch Log Group -- Pipeline Logs ─────────────────────────────────────
 
 resource "aws_cloudwatch_log_group" "pipeline" {
   name              = "/${var.resource_prefix}/${var.environment}/pipeline"
@@ -22,7 +22,7 @@ resource "aws_cloudwatch_log_group" "pipeline" {
   })
 }
 
-# ── SNS Topic — Alerts ──────────────────────────────────────────────────────
+# ── SNS Topic -- Alerts ──────────────────────────────────────────────────────
 
 resource "aws_sns_topic" "alerts" {
   name              = "${var.resource_prefix}-${var.environment}-alerts"
@@ -58,7 +58,7 @@ resource "aws_xray_group" "main" {
   })
 }
 
-# ── CloudWatch Dashboard — Platform Overview ─────────────────────────────────
+# ── CloudWatch Dashboard -- Platform Overview ─────────────────────────────────
 
 resource "aws_cloudwatch_dashboard" "overview" {
   dashboard_name = "${var.resource_prefix}-${var.environment}-overview"
@@ -72,7 +72,7 @@ resource "aws_cloudwatch_dashboard" "overview" {
         width  = 24
         height = 1
         properties = {
-          markdown = "# ${var.resource_prefix} ${var.environment} — Platform Overview"
+          markdown = "# ${var.resource_prefix} ${var.environment} -- Platform Overview"
         }
       },
       {

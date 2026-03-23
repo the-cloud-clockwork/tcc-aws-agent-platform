@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# Agents Module — CodeBuild
+# Agents Module -- CodeBuild
 #
 # Per-agent CodeBuild projects for building ARM64 Docker images. Each project
 # uses an inline buildspec that builds, tags, and pushes to the agent's ECR
@@ -22,11 +22,11 @@ data "aws_iam_policy_document" "codebuild_trust" {
 }
 
 resource "aws_iam_role" "codebuild" {
-  name               = "${local.name_prefix}-agent-codebuild-role"
+  name               = "${local.name_prefix}-codebuild-role"
   assume_role_policy = data.aws_iam_policy_document.codebuild_trust.json
 
   tags = merge(local.tags, {
-    Name      = "${local.name_prefix}-agent-codebuild-role"
+    Name      = "${local.name_prefix}-codebuild-role"
     Component = "codebuild"
   })
 }

@@ -1,5 +1,5 @@
 ## -----------------------------------------------------
-## Platform Module — Outputs
+## Platform Module -- Outputs
 ## SSM parameters + Terraform outputs for cross-module use.
 ## -----------------------------------------------------
 

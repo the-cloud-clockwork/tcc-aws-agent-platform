@@ -1,5 +1,5 @@
 ## -----------------------------------------------------
-## Platform Module — Root Composition
+## Platform Module -- Root Composition
 ## Wires all sub-modules into a single deployable unit.
 ## Domain repos consume this as:
 ##   source = "git::repo.git//modules/platform?ref=v1.0.0"

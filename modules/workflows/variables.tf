@@ -1,5 +1,5 @@
 ## -----------------------------------------------------
-## Workflows Module — Variables
+## Workflows Module -- Variables
 ## Reads workflow YAML and creates Step Functions.
 ## -----------------------------------------------------
 

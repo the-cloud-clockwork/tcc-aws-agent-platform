@@ -1,5 +1,5 @@
 ## -----------------------------------------------------
-## Network Sub-Module — Variables
+## Network Sub-Module -- Variables
 ## -----------------------------------------------------
 
 variable "resource_prefix" {

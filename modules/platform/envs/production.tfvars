@@ -1,8 +1,8 @@
-environment       = "production"
-resource_prefix   = "platform"
-aws_region        = "eu-west-1"
-bedrock_region    = "us-west-2"
-ssm_root_path     = "/platform/production"
+environment     = "production"
+resource_prefix = "platform"
+aws_region      = "eu-west-1"
+bedrock_region  = "us-west-2"
+ssm_root_path   = "/platform/production"
 
 # Network
 vpc_cidr          = "10.2.0.0/16"
@@ -21,9 +21,9 @@ cloudfront_enabled      = true
 removal_policy_destroy  = false
 
 # AgentCore
-gateway_auth_type         = "CUSTOM_JWT"
-memory_event_expiry_days  = 90
-cognito_enabled           = true
+gateway_auth_type        = "CUSTOM_JWT"
+memory_event_expiry_days = 90
+cognito_enabled          = true
 
 # Observability
 log_retention_days = 90

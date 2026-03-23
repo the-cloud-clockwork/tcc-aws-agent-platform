@@ -22,7 +22,7 @@ locals {
 }
 
 # ═════════════════════════════════════════════════════════════════════════════
-# IAM Role — Lambda Execution
+# IAM Role -- Lambda Execution
 # ═════════════════════════════════════════════════════════════════════════════
 
 data "aws_iam_policy_document" "lambda_assume_role" {
@@ -113,7 +113,7 @@ resource "aws_iam_role_policy" "lambda_permissions" {
 }
 
 # ═════════════════════════════════════════════════════════════════════════════
-# Lambda Function — Artifacts API
+# Lambda Function -- Artifacts API
 # ═════════════════════════════════════════════════════════════════════════════
 
 # NOTE: The deployment package (filename) is a placeholder. The actual package
@@ -151,7 +151,7 @@ resource "aws_lambda_function" "artifacts_api" {
 }
 
 # ═════════════════════════════════════════════════════════════════════════════
-# API Gateway — REST API
+# API Gateway -- REST API
 # ═════════════════════════════════════════════════════════════════════════════
 
 resource "aws_api_gateway_rest_api" "artifacts" {
@@ -313,7 +313,7 @@ resource "aws_api_gateway_integration" "get_run_by_id" {
   uri                     = aws_lambda_function.artifacts_api.invoke_arn
 }
 
-# ── CORS — OPTIONS Methods with Mock Integration ────────────────────────────
+# ── CORS -- OPTIONS Methods with Mock Integration ────────────────────────────
 
 # OPTIONS /api/artifacts
 resource "aws_api_gateway_method" "options_artifacts" {
@@ -614,7 +614,7 @@ resource "aws_api_gateway_stage" "main" {
   })
 }
 
-# ── Method Settings — Throttling ─────────────────────────────────────────────
+# ── Method Settings -- Throttling ─────────────────────────────────────────────
 
 resource "aws_api_gateway_method_settings" "all" {
   rest_api_id = aws_api_gateway_rest_api.artifacts.id
@@ -628,7 +628,7 @@ resource "aws_api_gateway_method_settings" "all" {
 }
 
 # ═════════════════════════════════════════════════════════════════════════════
-# Lambda Permission — Allow API Gateway Invocation
+# Lambda Permission -- Allow API Gateway Invocation
 # ═════════════════════════════════════════════════════════════════════════════
 
 resource "aws_lambda_permission" "api_gateway" {
