@@ -6,8 +6,8 @@
 #   - SUMMARIZATION: produces session summaries (blueprint alias: SUMMARY)
 #   - SEMANTIC: extracts factual knowledge
 #   - USER_PREFERENCE: learns user preferences from conversations
-#   - EPISODIC: captures meaningful interaction slices for contextual recall
-#   - CUSTOM: user-defined strategy logic
+# NOTE: EPISODIC is documented but not yet supported by the AWS API
+# NOTE: CUSTOM is documented but not yet supported by the AWS API
 #
 # The AgentCore Memory API allows only ONE strategy per type on a given
 # memory resource. When multiple agents declare the same strategy type,
@@ -18,14 +18,12 @@
 
 locals {
   # Type mapping: blueprint convenience names → API values
-  # Full API type list: SEMANTIC, SUMMARIZATION, USER_PREFERENCE, CUSTOM, EPISODIC
+  # Supported API types: SEMANTIC, SUMMARIZATION, USER_PREFERENCE
   strategy_type_map = {
     "SUMMARY"         = "SUMMARIZATION"
     "SUMMARIZATION"   = "SUMMARIZATION"
     "SEMANTIC"        = "SEMANTIC"
     "USER_PREFERENCE" = "USER_PREFERENCE"
-    "CUSTOM"          = "CUSTOM"
-    "EPISODIC"        = "EPISODIC"
   }
 
   # Resolve each strategy's API type
