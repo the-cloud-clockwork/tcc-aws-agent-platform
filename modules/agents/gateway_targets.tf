@@ -63,11 +63,6 @@ resource "aws_bedrockagentcore_gateway_target" "explicit" {
 }
 
 # ── Auto-registered MCP Runtime targets ──────────────────────────────────────
-#
-# For each blueprint with runtime.protocol: MCP, create a gateway target
-# pointing to the Runtime's /invocations endpoint. Auth uses the Gateway's
-# IAM role (Runtime-to-Gateway communication is IAM-based within the same
-# account/VPC).
 
 resource "aws_bedrockagentcore_gateway_target" "mcp_runtime" {
   for_each = local.mcp_runtime_targets
@@ -78,9 +73,13 @@ resource "aws_bedrockagentcore_gateway_target" "mcp_runtime" {
   target_configuration {
     mcp {
       mcp_server {
-        endpoint = "https://bedrock-agentcore.${var.aws_region}.amazonaws.com/runtimes/${urlencode(aws_bedrockagentcore_agent_runtime.agent[each.key].agent_runtime_arn)}/invocations"
+        endpoint = "https://bedrock-agentcore.${var.aws_region}.amazonaws.com/runtimes/${urlencode(aws_bedrockagentcore_agent_runtime.agent[each.key].agent_runtime_arn)}/invocations?qualifier=DEFAULT"
       }
     }
+  }
+
+  credential_provider_configuration {
+    gateway_iam_role {}
   }
 
   depends_on = [
