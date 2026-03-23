@@ -105,7 +105,7 @@ resource "aws_iam_role_policy" "gateway" {
 # ── AgentCore Gateway ────────────────────────────────────────────────────────
 
 resource "aws_bedrockagentcore_gateway" "this" {
-  name          = "${local.prefix}-${local.env}-gateway"
+  name          = "${local.prefix}_${local.env}_gateway"
   protocol_type = "MCP"
   role_arn      = aws_iam_role.gateway.arn
 
