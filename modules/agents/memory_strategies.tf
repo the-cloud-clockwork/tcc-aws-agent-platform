@@ -11,8 +11,9 @@
 #
 # The AgentCore Memory API allows only ONE strategy per type on a given
 # memory resource. When multiple agents declare the same strategy type,
-# we deduplicate by resolved API type — first name wins, namespaces are
-# merged from all agents declaring that type.
+# we deduplicate by resolved API type — first declaration wins.
+# Namespace isolation between agents is handled at the SDK level via
+# {actorId}/{sessionId} templates, not at the strategy resource level.
 # ──────────────────────────────────────────────────────────────────────────────
 
 locals {
@@ -27,7 +28,7 @@ locals {
     "EPISODIC"        = "EPISODIC"
   }
 
-  # Resolve each strategy's API type, collect all namespaces per type
+  # Resolve each strategy's API type
   _strategies_with_api_type = [
     for s in local.agent_memory_strategies : {
       api_type  = lookup(local.strategy_type_map, s.type, s.type)
@@ -36,19 +37,20 @@ locals {
     }
   ]
 
-  # Group by API type — collect all namespaces, take first name
+  # Group by API type
   _strategies_by_type = {
     for s in local._strategies_with_api_type :
     s.api_type => s...
   }
 
-  # Deduplicated map: one entry per API type
+  # Deduplicated map: one entry per API type, first declaration wins.
+  # API constraint: namespaces list length <= 1.
   memory_strategy_map = {
     for api_type, entries in local._strategies_by_type :
     api_type => {
       name       = entries[0].name
       api_type   = api_type
-      namespaces = distinct([for e in entries : e.namespace if e.namespace != ""])
+      namespaces = entries[0].namespace != "" ? [entries[0].namespace] : []
     }
   }
 }
