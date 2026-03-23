@@ -93,7 +93,7 @@ data "aws_iam_policy_document" "codebuild_permissions" {
 }
 
 resource "aws_iam_role_policy" "codebuild" {
-  name   = "${local.name_prefix}-agent-codebuild-policy"
+  name   = "${local.name_prefix}-codebuild-policy"
   role   = aws_iam_role.codebuild.id
   policy = data.aws_iam_policy_document.codebuild_permissions.json
 }
