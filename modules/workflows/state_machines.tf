@@ -52,8 +52,8 @@ resource "aws_sfn_state_machine" "workflows" {
             Resource = "arn:aws:states:::aws-sdk:bedrockagentcore:invokeAgentRuntime"
             Parameters = try(each.value.memory_branching.enabled, false) ? {
               "AgentRuntimeArn" = try(
-                var.agent_runtime_arns[coalesce(try(state.agent_ref, null), state.agent)],
-                "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(state.agent_ref, null), state.agent)}"
+                var.agent_runtime_arns[coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))],
+                "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))}"
               )
               "Payload" = {
                 "prompt.$"              = try(state.prompt, "$.prompt")
@@ -62,12 +62,12 @@ resource "aws_sfn_state_machine" "workflows" {
               }
             } : {
               "AgentRuntimeArn" = try(
-                var.agent_runtime_arns[coalesce(try(state.agent_ref, null), state.agent)],
-                "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(state.agent_ref, null), state.agent)}"
+                var.agent_runtime_arns[coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))],
+                "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))}"
               )
               "Payload.$" = try(state.prompt, "$.prompt")
             }
-            ResultPath = try(state.result_path, "$.results.${coalesce(try(state.agent_ref, null), state.agent)}")
+            ResultPath = try(state.result_path, "$.results.${coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))}")
             Retry = try(state.retry, null) != null ? [
               for r in state.retry : {
                 ErrorEquals     = try(r.error_equals, ["States.ALL"])
@@ -89,7 +89,7 @@ resource "aws_sfn_state_machine" "workflows" {
               }
             ] : [{
               ErrorEquals = ["States.ALL"]
-              ResultPath  = "$.error.${coalesce(try(state.agent_ref, null), state.agent)}"
+              ResultPath  = "$.error.${coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))}"
               Next        = "${state.id}_Failed"
             }]
           },
@@ -106,7 +106,7 @@ resource "aws_sfn_state_machine" "workflows" {
         "${state.id}_Failed" => {
           Type  = "Fail"
           Error = "AgentExecutionFailed"
-          Cause = "Agent ${coalesce(try(state.agent_ref, null), state.agent)} failed during ${state.id}"
+          Cause = "Agent ${coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))} failed during ${state.id}"
         }
       },
 
@@ -308,13 +308,13 @@ resource "aws_sfn_state_machine" "workflows" {
                         } : {},
                         try(bs.lambda_ref, null) == null ? {
                           "AgentRuntimeArn" = try(
-                            var.agent_runtime_arns[coalesce(try(bs.agent_ref, null), try(bs.agent, null))],
-                            "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(bs.agent_ref, null), bs.agent)}"
+                            var.agent_runtime_arns[coalesce(try(bs.agent_ref, null), try(bs.agent, "unknown"))],
+                            "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(bs.agent_ref, null), try(bs.agent, "unknown"))}"
                           )
                         } : {},
                         { "Payload.$" = try(bs.lambda_ref, null) != null ? "$" : try(bs.prompt, "$.prompt") }
                       )
-                      ResultPath = try(bs.result_path, try(bs.lambda_ref, null) != null ? "$.results.${bs.lambda_ref}" : "$.results.${coalesce(try(bs.agent_ref, null), bs.agent)}")
+                      ResultPath = try(bs.result_path, try(bs.lambda_ref, null) != null ? "$.results.${bs.lambda_ref}" : "$.results.${coalesce(try(bs.agent_ref, null), try(bs.agent, "unknown"))}")
                     },
                     try(bs.lambda_ref, null) != null ? { ResultSelector = { "body.$" = "$.Payload" } } : {},
                     {
@@ -337,19 +337,19 @@ resource "aws_sfn_state_machine" "workflows" {
                 }
               } : {
                 # Legacy simple branch: single agent reference
-                StartAt = coalesce(try(branch.agent_ref, null), try(branch.agent, null))
+                StartAt = coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))
                 States = {
-                  (coalesce(try(branch.agent_ref, null), branch.agent)) = {
+                  (coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))) = {
                     Type     = "Task"
                     Resource = "arn:aws:states:::aws-sdk:bedrockagentcore:invokeAgentRuntime"
                     Parameters = {
                       "AgentRuntimeArn" = try(
-                        var.agent_runtime_arns[coalesce(try(branch.agent_ref, null), branch.agent)],
-                        "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(branch.agent_ref, null), branch.agent)}"
+                        var.agent_runtime_arns[coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))],
+                        "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))}"
                       )
                       "Payload.$" = "$.prompt"
                     }
-                    ResultPath = "$.results.${coalesce(try(branch.agent_ref, null), branch.agent)}"
+                    ResultPath = "$.results.${coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))}"
                     Retry = [{
                       ErrorEquals     = ["States.ALL"]
                       IntervalSeconds = 2
