@@ -83,10 +83,6 @@ resource "aws_bedrockagentcore_gateway_target" "mcp_runtime" {
     }
   }
 
-  credential_provider_configuration {
-    gateway_iam_role {}
-  }
-
   depends_on = [
     aws_bedrockagentcore_agent_runtime.agent,
     aws_bedrockagentcore_agent_runtime_endpoint.agent,
