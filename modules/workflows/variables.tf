@@ -30,6 +30,12 @@ variable "agent_runtime_arns" {
   default     = {}
 }
 
+variable "lambda_arns" {
+  type        = map(string)
+  description = "Map of Lambda function name → ARN for lambda_ref task states"
+  default     = {}
+}
+
 variable "log_retention_days" {
   type    = number
   default = 14
