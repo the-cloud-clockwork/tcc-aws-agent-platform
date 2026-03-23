@@ -84,6 +84,8 @@ data "aws_iam_policy_document" "codebuild_permissions" {
         "s3:GetObject",
         "s3:GetObjectVersion",
         "s3:GetBucketLocation",
+        "s3:ListBucket",
+        "s3:ListBucketVersions",
       ]
       resources = [
         "arn:aws:s3:::${var.codebuild_source_bucket}",
