@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# Agents Module — IAM
+# Agents Module -- IAM
 #
 # Per-agent IAM roles with trust policy for bedrock-agentcore.amazonaws.com.
 # Each agent gets its own role scoped to the minimum permissions it needs:
@@ -58,7 +58,7 @@ resource "aws_iam_role" "agent" {
 data "aws_iam_policy_document" "agent_permissions" {
   for_each = local.blueprints
 
-  # Bedrock model invocation — scoped to agent's configured model
+  # Bedrock model invocation -- scoped to agent's configured model
   statement {
     sid    = "BedrockInvoke"
     effect = "Allow"
@@ -67,11 +67,11 @@ data "aws_iam_policy_document" "agent_permissions" {
       "bedrock:InvokeModelWithResponseStream",
     ]
     resources = [
-      "arn:aws:bedrock:${var.bedrock_region != "" ? var.bedrock_region : data.aws_region.current.name}::foundation-model/${each.value.model.model_id}",
+      "arn:aws:bedrock:${var.bedrock_region != "" ? var.bedrock_region : data.aws_region.current.name}::foundation-model/${try(each.value.model.model_id, "*")}",
     ]
   }
 
-  # ECR auth token — must be wildcard per API requirement
+  # ECR auth token -- must be wildcard per API requirement
   statement {
     sid       = "EcrAuth"
     effect    = "Allow"
@@ -79,7 +79,7 @@ data "aws_iam_policy_document" "agent_permissions" {
     resources = ["*"]
   }
 
-  # ECR image pull — scoped to agent's repository
+  # ECR image pull -- scoped to agent's repository
   statement {
     sid    = "EcrPull"
     effect = "Allow"
@@ -90,7 +90,7 @@ data "aws_iam_policy_document" "agent_permissions" {
     resources = [aws_ecr_repository.agent[each.key].arn]
   }
 
-  # CloudWatch Logs — scoped to agent-specific log groups
+  # CloudWatch Logs -- scoped to agent-specific log groups
   statement {
     sid    = "CloudWatchLogs"
     effect = "Allow"

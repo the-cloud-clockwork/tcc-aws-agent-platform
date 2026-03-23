@@ -1,8 +1,8 @@
-environment       = "dev"
-resource_prefix   = "platform"
-aws_region        = "eu-west-1"
-bedrock_region    = "us-west-2"
-ssm_root_path     = "/platform/dev"
+environment     = "dev"
+resource_prefix = "platform"
+aws_region      = "eu-west-1"
+bedrock_region  = "us-west-2"
+ssm_root_path   = "/platform/dev"
 
 # Network
 vpc_cidr          = "10.0.0.0/16"

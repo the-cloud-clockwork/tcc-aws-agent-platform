@@ -1,5 +1,5 @@
 ## -----------------------------------------------------
-## Workflows Module — IAM Roles
+## Workflows Module -- IAM Roles
 ## Step Functions execution roles with agent invoke perms.
 ## -----------------------------------------------------
 

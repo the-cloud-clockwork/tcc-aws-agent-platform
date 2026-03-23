@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# Agents Module — Gateway Targets
+# Agents Module -- Gateway Targets
 #
 # Registers tool targets with the AgentCore Gateway based on the
 # gateway-targets.yaml file. Each target maps a Lambda function to a set
@@ -25,12 +25,17 @@ resource "aws_bedrockagentcore_gateway_target" "this" {
       lambda {
         lambda_arn = each.value.lambda_arn
 
-        tool_schema {
-          dynamic "inline_payload" {
-            for_each = try(each.value.tools, [])
-            content {
-              name        = inline_payload.value.name
-              description = try(inline_payload.value.description, "Tool: ${inline_payload.value.name}")
+        dynamic "tool_schema" {
+          for_each = try(each.value.tools, [])
+          content {
+            inline_payload {
+              name        = tool_schema.value.name
+              description = try(tool_schema.value.description, "Tool: ${tool_schema.value.name}")
+
+              input_schema {
+                type        = "object"
+                description = try(tool_schema.value.description, "Input for ${tool_schema.value.name}")
+              }
             }
           }
         }

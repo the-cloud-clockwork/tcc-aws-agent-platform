@@ -1,11 +1,11 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# Data Sub-Module — S3 Buckets
+# Data Sub-Module -- S3 Buckets
 #
 # Three buckets:
-#   1. artifacts     — Two-tier bucket with /platform and /domain paths,
+#   1. artifacts     -- Two-tier bucket with /platform and /domain paths,
 #                      each enforcing a distinct KMS key via bucket policy.
-#   2. prompt-registry — Versioned prompt content storage.
-#   3. historical-data — Historical data (read-heavy workloads).
+#   2. prompt-registry -- Versioned prompt content storage.
+#   3. historical-data -- Historical data (read-heavy workloads).
 #
 # Naming: {prefix}-{env}-{name}-{account_id}
 # ──────────────────────────────────────────────────────────────────────────────
@@ -19,7 +19,7 @@ locals {
 }
 
 # ═════════════════════════════════════════════════════════════════════════════
-# 1. Artifacts Bucket — Two-Tier KMS Enforcement
+# 1. Artifacts Bucket -- Two-Tier KMS Enforcement
 # ═════════════════════════════════════════════════════════════════════════════
 
 resource "aws_s3_bucket" "artifacts" {

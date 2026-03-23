@@ -1,5 +1,5 @@
 ## -----------------------------------------------------
-## Network Sub-Module — VPC, Subnets, NAT, Security Groups
+## Network Sub-Module -- VPC, Subnets, NAT, Security Groups
 ##
 ## Replaces: CDK NetworkStack
 ## Creates a 3-tier VPC: public, private (NAT egress), isolated (no internet).
@@ -27,7 +27,7 @@ locals {
   azs      = length(var.availability_zones) > 0 ? var.availability_zones : data.aws_availability_zones.available.names
   az_count = length(local.azs)
 
-  # CIDR allocation — 3 tiers x N AZs
+  # CIDR allocation -- 3 tiers x N AZs
   # /16 split into /20s gives 16 subnets per tier, more than enough for any AZ count.
   # Tier layout: public=[0..N-1], private=[N..2N-1], isolated=[2N..3N-1]
   public_subnets   = { for i, az in local.azs : az => cidrsubnet(var.vpc_cidr, 4, i) }
@@ -151,7 +151,7 @@ resource "aws_nat_gateway" "main" {
 }
 
 # -------------------------------------------------------
-# Route Tables — Public (→ IGW)
+# Route Tables -- Public (→ IGW)
 # -------------------------------------------------------
 
 resource "aws_route_table" "public" {
@@ -177,7 +177,7 @@ resource "aws_route_table_association" "public" {
 }
 
 # -------------------------------------------------------
-# Route Tables — Private (→ NAT)
+# Route Tables -- Private (→ NAT)
 # One route table per AZ to allow AZ-local NAT routing
 # -------------------------------------------------------
 
@@ -209,7 +209,7 @@ resource "aws_route_table_association" "private" {
 }
 
 # -------------------------------------------------------
-# Route Tables — Isolated (local only, no internet)
+# Route Tables -- Isolated (local only, no internet)
 # -------------------------------------------------------
 
 resource "aws_route_table" "isolated" {
@@ -221,7 +221,7 @@ resource "aws_route_table" "isolated" {
   })
 }
 
-# No routes added — only the implicit local route exists
+# No routes added -- only the implicit local route exists
 
 resource "aws_route_table_association" "isolated" {
   for_each = aws_subnet.isolated
@@ -237,7 +237,7 @@ resource "aws_route_table_association" "isolated" {
 # Agent SG: agents initiate all connections, accept none
 resource "aws_security_group" "agent" {
   name_prefix = "${var.resource_prefix}-agent-"
-  description = "Agent security group — all outbound, no inbound"
+  description = "Agent security group -- all outbound, no inbound"
   vpc_id      = aws_vpc.main.id
 
   tags = merge(local.tags, {
@@ -259,7 +259,7 @@ resource "aws_vpc_security_group_egress_rule" "agent_all_out" {
 # MCP SG: accepts inbound on 8080 from agents, all outbound
 resource "aws_security_group" "mcp" {
   name_prefix = "${var.resource_prefix}-mcp-"
-  description = "MCP service security group — inbound 8080 from agents, all outbound"
+  description = "MCP service security group -- inbound 8080 from agents, all outbound"
   vpc_id      = aws_vpc.main.id
 
   tags = merge(local.tags, {

@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# AgentCore Sub-Module — Builtin Tools
+# AgentCore Sub-Module -- Builtin Tools
 #
 # Conditionally creates AgentCore managed tools: Code Interpreter and Browser.
 # These are shared platform resources available to all agents via the Gateway.

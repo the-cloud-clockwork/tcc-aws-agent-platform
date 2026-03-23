@@ -1,5 +1,5 @@
 ## -----------------------------------------------------
-## Platform Module — Top-Level Variables
+## Platform Module -- Top-Level Variables
 ## Domain repos set these when consuming the module.
 ## -----------------------------------------------------
 

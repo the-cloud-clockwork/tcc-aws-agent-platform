@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# Data Sub-Module — DynamoDB Tables & SQS Queues
+# Data Sub-Module -- DynamoDB Tables & SQS Queues
 #
 # Replaces CDK DataStack. Creates the five core DynamoDB tables and the
 # artifact notification queue with dead-letter queue.
@@ -75,13 +75,13 @@ resource "aws_dynamodb_table" "tables" {
   read_capacity  = local.is_provisioned ? var.dynamodb_read_capacity : null
   write_capacity = local.is_provisioned ? var.dynamodb_write_capacity : null
 
-  # Hash key (partition key) — always a string
+  # Hash key (partition key) -- always a string
   hash_key = each.value.hash_key
 
-  # Range key (sort key) — optional
+  # Range key (sort key) -- optional
   range_key = each.value.range_key
 
-  # Attribute definitions — one per unique key attribute (table + GSIs)
+  # Attribute definitions -- one per unique key attribute (table + GSIs)
   dynamic "attribute" {
     for_each = local.table_attributes[each.key]
     content {
@@ -112,7 +112,7 @@ resource "aws_dynamodb_table" "tables" {
     }
   }
 
-  # Point-in-time recovery — always enabled
+  # Point-in-time recovery -- always enabled
   point_in_time_recovery {
     enabled = true
   }
@@ -134,7 +134,7 @@ resource "aws_dynamodb_table" "tables" {
   })
 }
 
-# ── SQS — Artifact Notification Dead-Letter Queue ───────────────────────────
+# ── SQS -- Artifact Notification Dead-Letter Queue ───────────────────────────
 
 resource "aws_sqs_queue" "artifact_dlq" {
   name                      = "${var.resource_prefix}-${var.environment}-artifact-notifications-dlq"
@@ -152,7 +152,7 @@ resource "aws_sqs_queue" "artifact_dlq" {
   })
 }
 
-# ── SQS — Artifact Notification Queue ───────────────────────────────────────
+# ── SQS -- Artifact Notification Queue ───────────────────────────────────────
 
 resource "aws_sqs_queue" "artifact_notifications" {
   name                       = "${var.resource_prefix}-${var.environment}-artifact-notifications"

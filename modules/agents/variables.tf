@@ -1,5 +1,5 @@
 ## -----------------------------------------------------
-## Agents Module — Variables
+## Agents Module -- Variables
 ## Reads blueprint YAML and deploys per-agent resources.
 ## -----------------------------------------------------
 

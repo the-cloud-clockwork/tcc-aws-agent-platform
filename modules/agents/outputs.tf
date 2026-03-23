@@ -1,12 +1,12 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# Agents Module — Outputs
+# Agents Module -- Outputs
 # ──────────────────────────────────────────────────────────────────────────────
 
 output "runtime_arns" {
   description = "Map of agent_id to AgentCore Runtime ARN."
   value = {
     for agent_id, runtime in aws_bedrockagentcore_agent_runtime.agent :
-    agent_id => runtime.arn
+    agent_id => runtime.agent_runtime_arn
   }
 }
 

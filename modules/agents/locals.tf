@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# Agents Module — Locals
+# Agents Module -- Locals
 #
 # Parses blueprint YAML files and derives per-agent configuration maps
 # consumed by all other resource files in this module.
@@ -31,7 +31,7 @@ locals {
     ]
   ])
 
-  # Flatten identity credentials across all agents — API key type
+  # Flatten identity credentials across all agents -- API key type
   agent_api_key_credentials = flatten([
     for agent_id, bp in local.blueprints : [
       for cred in try(bp.identity.credentials, []) : {
@@ -44,7 +44,7 @@ locals {
     ]
   ])
 
-  # Flatten identity credentials across all agents — OAuth types
+  # Flatten identity credentials across all agents -- OAuth types
   agent_oauth_credentials = flatten([
     for agent_id, bp in local.blueprints : [
       for cred in try(bp.identity.credentials, []) : {

@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# AgentCore Sub-Module — Memory
+# AgentCore Sub-Module -- Memory
 #
 # Creates the AgentCore Memory resource with an IAM execution role.
 # Memory provides three-tier persistence (short-term, long-term, episodic)
@@ -47,14 +47,14 @@ resource "aws_iam_role" "memory" {
 # ── AgentCore Memory ─────────────────────────────────────────────────────────
 
 resource "aws_bedrockagentcore_memory" "this" {
-  name = "${local.prefix}-${local.env}-memory"
+  name = "${local.prefix}_${local.env}_memory"
 
   description = var.memory_description != "" ? var.memory_description : null
 
-  # Event expiry — duration in days
+  # Event expiry -- duration in days
   event_expiry_duration = var.memory_event_expiry_days
 
-  # KMS encryption — only set when a key ARN is provided
+  # KMS encryption -- only set when a key ARN is provided
   encryption_key_arn = var.memory_kms_key_arn != "" ? var.memory_kms_key_arn : null
 
   # Execution role for Memory service operations

@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# AgentCore Sub-Module — Cognito User Pool
+# AgentCore Sub-Module -- Cognito User Pool
 #
 # Conditionally creates a Cognito user pool for agent identity/authentication.
 # When enabled, this provides the OIDC issuer that the Gateway's CUSTOM_JWT
@@ -23,7 +23,7 @@ resource "aws_cognito_user_pool" "agents" {
     temporary_password_validity_days = 7
   }
 
-  # MFA — optional (users can enable if desired)
+  # MFA -- optional (users can enable if desired)
   mfa_configuration = "OPTIONAL"
 
   software_token_mfa_configuration {
@@ -60,13 +60,13 @@ resource "aws_cognito_user_pool_client" "agents" {
   name         = "${local.prefix}-${local.env}-agent-client"
   user_pool_id = aws_cognito_user_pool.agents[0].id
 
-  # Auth flows — SRP for secure password auth, refresh for session renewal
+  # Auth flows -- SRP for secure password auth, refresh for session renewal
   explicit_auth_flows = [
     "ALLOW_USER_SRP_AUTH",
     "ALLOW_REFRESH_TOKEN_AUTH",
   ]
 
-  # No client secret — public client for agent SDKs
+  # No client secret -- public client for agent SDKs
   generate_secret = false
 
   # Token validity

@@ -1,5 +1,5 @@
 ## -----------------------------------------------------
-## Workflows Module — Step Functions State Machines
+## Workflows Module -- Step Functions State Machines
 ## Reads workflow YAML and generates SFN definitions.
 ## Each agent step invokes an AgentCore Runtime.
 ##

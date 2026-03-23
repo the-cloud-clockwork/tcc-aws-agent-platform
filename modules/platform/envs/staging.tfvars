@@ -1,8 +1,8 @@
-environment       = "staging"
-resource_prefix   = "platform"
-aws_region        = "eu-west-1"
-bedrock_region    = "us-west-2"
-ssm_root_path     = "/platform/staging"
+environment     = "staging"
+resource_prefix = "platform"
+aws_region      = "eu-west-1"
+bedrock_region  = "us-west-2"
+ssm_root_path   = "/platform/staging"
 
 # Network
 vpc_cidr          = "10.1.0.0/16"
@@ -19,9 +19,9 @@ cloudfront_enabled     = true
 removal_policy_destroy = false
 
 # AgentCore
-gateway_auth_type         = "CUSTOM_JWT"
-memory_event_expiry_days  = 60
-cognito_enabled           = true
+gateway_auth_type        = "CUSTOM_JWT"
+memory_event_expiry_days = 60
+cognito_enabled          = true
 
 # Observability
 log_retention_days = 30

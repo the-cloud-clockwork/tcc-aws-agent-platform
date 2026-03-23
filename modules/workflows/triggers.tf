@@ -1,5 +1,5 @@
 ## -----------------------------------------------------
-## Workflows Module — EventBridge Triggers
+## Workflows Module -- EventBridge Triggers
 ## Scheduled execution of workflow state machines.
 ## -----------------------------------------------------
 

@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# Agents Module — Memory Strategies
+# Agents Module -- Memory Strategies
 #
 # Creates AgentCore memory strategies extracted from agent blueprints.
 # Each strategy defines how long-term memories are processed:

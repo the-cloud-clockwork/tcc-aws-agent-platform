@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# Security Sub-Module — KMS Keys & Secrets Manager
+# Security Sub-Module -- KMS Keys & Secrets Manager
 #
 # Replaces the CDK SecurityStack. Creates envelope-encryption keys for every
 # data tier and a Secrets Manager secret for the observability API key.

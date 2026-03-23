@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# AgentCore Sub-Module — Variables
+# AgentCore Sub-Module -- Variables
 #
 # Inputs for Gateway, Memory, builtin tools, and Cognito resources.
 # ──────────────────────────────────────────────────────────────────────────────

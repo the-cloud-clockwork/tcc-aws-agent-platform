@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# Agents Module — ECR
+# Agents Module -- ECR
 #
 # Per-agent ECR repositories for container images. Each agent gets its own
 # repository namespaced under {prefix}/{env}/{agent_id}. Images are scanned

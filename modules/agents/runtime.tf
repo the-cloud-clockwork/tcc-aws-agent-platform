@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# Agents Module — AgentCore Runtime
+# Agents Module -- AgentCore Runtime
 #
 # Per-agent AgentCore Runtime resources. Each agent blueprint produces one
 # Runtime with container configuration pointing at the agent's ECR image,
@@ -10,7 +10,7 @@
 resource "aws_bedrockagentcore_agent_runtime" "agent" {
   for_each = local.blueprints
 
-  agent_runtime_name = "${local.name_prefix}-${each.key}"
+  agent_runtime_name = "${replace(local.name_prefix, "-", "_")}_${replace(each.key, "-", "_")}"
   description        = try(each.value.description, "Agent runtime for ${each.key}")
   role_arn           = aws_iam_role.agent[each.key].arn
 
@@ -21,7 +21,7 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
     }
   }
 
-  # Environment variables — merge platform wiring with optional artifact config
+  # Environment variables -- merge platform wiring with optional artifact config
   environment_variables = merge(
     {
       AGENTCORE_GATEWAY_URL = var.gateway_url
@@ -35,12 +35,12 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
     var.artifacts_bucket_name != "" ? { ARTIFACTS_BUCKET = var.artifacts_bucket_name } : {},
   )
 
-  # Network configuration — PUBLIC or PRIVATE (with VPC)
+  # Network configuration -- PUBLIC or VPC
   network_configuration {
     network_mode = try(each.value.runtime.network_mode, "PUBLIC")
 
     dynamic "network_mode_config" {
-      for_each = try(each.value.runtime.network_mode, "PUBLIC") == "PRIVATE" ? [1] : []
+      for_each = try(each.value.runtime.network_mode, "PUBLIC") == "VPC" ? [1] : []
       content {
         subnets         = var.private_subnet_ids
         security_groups = [var.agent_security_group_id]
@@ -48,18 +48,18 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
     }
   }
 
-  # Protocol — HTTP, MCP, or A2A
+  # Protocol -- HTTP, MCP, or A2A
   protocol_configuration {
     server_protocol = each.value.runtime.protocol
   }
 
-  # Lifecycle timeouts — from blueprint when specified
+  # Lifecycle timeouts -- from blueprint when specified
   lifecycle_configuration = (
     try(each.value.runtime.max_lifetime, null) != null ||
     try(each.value.runtime.idle_timeout, null) != null
-  ) ? [{
-    max_lifetime                 = try(each.value.runtime.max_lifetime, null)
-    idle_runtime_session_timeout = try(each.value.runtime.idle_timeout, null)
+    ) ? [{
+      max_lifetime                 = try(each.value.runtime.max_lifetime, null)
+      idle_runtime_session_timeout = try(each.value.runtime.idle_timeout, null)
   }] : null
 
   tags = merge(local.tags, {
@@ -83,7 +83,7 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
 resource "aws_bedrockagentcore_agent_runtime_endpoint" "agent" {
   for_each = local.blueprints
 
-  name             = "${local.name_prefix}-${each.key}-ep"
+  name             = "${replace(local.name_prefix, "-", "_")}_${replace(each.key, "-", "_")}_ep"
   agent_runtime_id = aws_bedrockagentcore_agent_runtime.agent[each.key].agent_runtime_id
   description      = "Endpoint for runtime: ${each.key}"
 
