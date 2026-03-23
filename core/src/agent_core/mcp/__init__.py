@@ -10,6 +10,7 @@ This subpackage is domain-agnostic — no domain-specific imports allowed.
 from agent_core.mcp.base_server import BaseMCPServer
 from agent_core.mcp.cache import cache_get, cache_set
 from agent_core.mcp.provider_routing import resolve_provider
+from agent_core.mcp.observability import MCPObservabilityHook
 from agent_core.mcp.versioned_store import VersionedS3Store
 
 __all__ = [
@@ -17,5 +18,6 @@ __all__ = [
     "VersionedS3Store",
     "cache_get",
     "cache_set",
+    "MCPObservabilityHook",
     "resolve_provider",
 ]
