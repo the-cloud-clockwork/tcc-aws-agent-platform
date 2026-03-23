@@ -103,6 +103,18 @@ variable "codebuild_source_bucket" {
   default     = ""
 }
 
+variable "codeartifact_domain" {
+  description = "CodeArtifact domain name for package resolution during builds."
+  type        = string
+  default     = ""
+}
+
+variable "codeartifact_repo" {
+  description = "CodeArtifact repository name for Python packages."
+  type        = string
+  default     = ""
+}
+
 # -- Tags ------------------------------------------------------------
 
 variable "tags" {

@@ -82,6 +82,7 @@ data "aws_iam_policy_document" "codebuild_permissions" {
       effect = "Allow"
       actions = [
         "s3:GetObject",
+        "s3:GetObjectVersion",
         "s3:GetBucketLocation",
       ]
       resources = [
@@ -89,6 +90,35 @@ data "aws_iam_policy_document" "codebuild_permissions" {
         "arn:aws:s3:::${var.codebuild_source_bucket}/*",
       ]
     }
+  }
+
+  # Conditional: KMS decrypt for encrypted S3 source objects
+  dynamic "statement" {
+    for_each = var.storage_kms_key_arn != "" ? [1] : []
+    content {
+      sid    = "KmsSourceDecrypt"
+      effect = "Allow"
+      actions = [
+        "kms:Decrypt",
+        "kms:DescribeKey",
+      ]
+      resources = [
+        var.storage_kms_key_arn,
+      ]
+    }
+  }
+
+  # CodeArtifact authentication for Python package resolution
+  statement {
+    sid    = "CodeArtifactAuth"
+    effect = "Allow"
+    actions = [
+      "codeartifact:GetAuthorizationToken",
+      "codeartifact:ReadFromRepository",
+      "codeartifact:GetRepositoryEndpoint",
+      "sts:GetServiceBearerToken",
+    ]
+    resources = ["*"]
   }
 }
 
@@ -146,6 +176,21 @@ resource "aws_codebuild_project" "agent" {
     environment_variable {
       name  = "AWS_DEFAULT_REGION"
       value = data.aws_region.current.name
+
+      environment_variable {
+        name  = "AWS_ACCOUNT_ID"
+        value = data.aws_caller_identity.current.account_id
+      }
+
+      environment_variable {
+        name  = "CODEARTIFACT_DOMAIN"
+        value = var.codeartifact_domain
+      }
+
+      environment_variable {
+        name  = "CODEARTIFACT_REPO"
+        value = var.codeartifact_repo
+      }
     }
   }
 
@@ -157,9 +202,11 @@ resource "aws_codebuild_project" "agent" {
         pre_build:
           commands:
             - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REPO_URI
+            - export CODEARTIFACT_TOKEN=$(aws codeartifact get-authorization-token --domain $CODEARTIFACT_DOMAIN --domain-owner $AWS_ACCOUNT_ID --region $AWS_DEFAULT_REGION --query authorizationToken --output text)
+            - export PIP_EXTRA_INDEX_URL="https://aws:$${CODEARTIFACT_TOKEN}@$${CODEARTIFACT_DOMAIN}-$${AWS_ACCOUNT_ID}.d.codeartifact.$${AWS_DEFAULT_REGION}.amazonaws.com/pypi/$${CODEARTIFACT_REPO}/simple/"
         build:
           commands:
-            - docker build --platform linux/arm64 -t $ECR_REPO_URI:latest -t $ECR_REPO_URI:$CODEBUILD_RESOLVED_SOURCE_VERSION .
+            - docker build --platform linux/arm64 --build-arg PIP_EXTRA_INDEX_URL="$PIP_EXTRA_INDEX_URL" -t $ECR_REPO_URI:latest -t $ECR_REPO_URI:$CODEBUILD_RESOLVED_SOURCE_VERSION .
         post_build:
           commands:
             - docker push $ECR_REPO_URI:latest
