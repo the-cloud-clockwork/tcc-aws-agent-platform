@@ -89,3 +89,78 @@ resource "aws_cognito_user_pool_domain" "agents" {
   domain       = "${local.prefix}-${local.env}-agents"
   user_pool_id = aws_cognito_user_pool.agents[0].id
 }
+
+# ── Resource Server (OAuth2 scopes for MCP Gateway targets) ─────────────────
+
+resource "aws_cognito_resource_server" "gateway_mcp" {
+  count = var.cognito_enabled ? 1 : 0
+
+  user_pool_id = aws_cognito_user_pool.agents[0].id
+  identifier   = "${local.prefix}-${local.env}-agentcore-mcp"
+  name         = "${local.prefix}-${local.env} AgentCore MCP Resources"
+
+  scope {
+    scope_name        = "mcp.invoke"
+    scope_description = "Invoke MCP server tools via Gateway"
+  }
+
+  scope {
+    scope_name        = "runtime.access"
+    scope_description = "Access AgentCore Runtimes"
+  }
+}
+
+# ── M2M App Client (Gateway→Runtime OAuth2 client_credentials) ──────────────
+
+resource "aws_cognito_user_pool_client" "gateway_m2m" {
+  count = var.cognito_enabled ? 1 : 0
+
+  name         = "${local.prefix}-${local.env}-gateway-m2m"
+  user_pool_id = aws_cognito_user_pool.agents[0].id
+
+  generate_secret = true # Required for client_credentials grant
+
+  allowed_oauth_flows                  = ["client_credentials"]
+  allowed_oauth_flows_user_pool_client = true
+  allowed_oauth_scopes = [
+    "${aws_cognito_resource_server.gateway_mcp[0].identifier}/mcp.invoke",
+    "${aws_cognito_resource_server.gateway_mcp[0].identifier}/runtime.access",
+  ]
+
+  access_token_validity = 1
+  token_validity_units {
+    access_token = "hours"
+  }
+
+  depends_on = [aws_cognito_resource_server.gateway_mcp]
+}
+
+# ── SSM Parameters (auto-store M2M credentials for OAuth2 provider) ─────────
+
+resource "aws_ssm_parameter" "m2m_client_id" {
+  count = var.cognito_enabled ? 1 : 0
+
+  name  = "${var.ssm_root_path}/gateway/oauth/mcp-gateway/client-id"
+  type  = "SecureString"
+  value = aws_cognito_user_pool_client.gateway_m2m[0].id
+
+  tags = merge(var.tags, {
+    Name      = "gateway-m2m-client-id"
+    Module    = "agentcore"
+    Component = "oauth2"
+  })
+}
+
+resource "aws_ssm_parameter" "m2m_client_secret" {
+  count = var.cognito_enabled ? 1 : 0
+
+  name  = "${var.ssm_root_path}/gateway/oauth/mcp-gateway/client-secret"
+  type  = "SecureString"
+  value = aws_cognito_user_pool_client.gateway_m2m[0].client_secret
+
+  tags = merge(var.tags, {
+    Name      = "gateway-m2m-client-secret"
+    Module    = "agentcore"
+    Component = "oauth2"
+  })
+}

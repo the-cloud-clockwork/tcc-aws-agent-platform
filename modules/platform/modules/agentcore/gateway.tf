@@ -102,6 +102,31 @@ resource "aws_iam_role_policy" "gateway" {
   policy = data.aws_iam_policy_document.gateway_permissions.json
 }
 
+# ── OAuth2 Token Retrieval Permissions (conditional on Cognito) ─────────────
+
+data "aws_iam_policy_document" "gateway_oauth2" {
+  count = var.cognito_enabled ? 1 : 0
+
+  statement {
+    sid    = "GetResourceOauth2Token"
+    effect = "Allow"
+    actions = [
+      "bedrock-agentcore:GetResourceOauth2Token",
+    ]
+    resources = [
+      aws_bedrockagentcore_oauth2_credential_provider.gateway_mcp[0].credential_provider_arn,
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "gateway_oauth2" {
+  count = var.cognito_enabled ? 1 : 0
+
+  name   = "${local.prefix}-${local.env}-gateway-oauth2-policy"
+  role   = aws_iam_role.gateway.id
+  policy = data.aws_iam_policy_document.gateway_oauth2[0].json
+}
+
 # ── AgentCore Gateway ────────────────────────────────────────────────────────
 
 resource "aws_bedrockagentcore_gateway" "this" {

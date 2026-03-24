@@ -223,6 +223,14 @@ output "cognito_client_id" {
   value = module.agentcore.cognito_client_id
 }
 
+output "mcp_oauth2_provider_arn" {
+  value = module.agentcore.mcp_oauth2_provider_arn
+}
+
+output "mcp_oauth2_scopes" {
+  value = module.agentcore.mcp_oauth2_scopes
+}
+
 # Observability
 output "alert_topic_arn" {
   value = module.observability.alert_topic_arn

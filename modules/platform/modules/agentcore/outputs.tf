@@ -64,3 +64,18 @@ output "cognito_domain" {
   description = "Cognito user pool domain. Empty string if Cognito is disabled."
   value       = var.cognito_enabled ? aws_cognito_user_pool_domain.agents[0].domain : ""
 }
+
+# ── OAuth2 MCP Gateway ─────────────────────────────────────────────────────
+
+output "mcp_oauth2_provider_arn" {
+  description = "ARN of the OAuth2 credential provider for Gateway-to-MCP-Runtime auth. Empty if Cognito disabled."
+  value       = var.cognito_enabled ? aws_bedrockagentcore_oauth2_credential_provider.gateway_mcp[0].credential_provider_arn : ""
+}
+
+output "mcp_oauth2_scopes" {
+  description = "OAuth2 scopes for MCP Gateway targets. Empty list if Cognito disabled."
+  value = var.cognito_enabled ? [
+    "${aws_cognito_resource_server.gateway_mcp[0].identifier}/mcp.invoke",
+    "${aws_cognito_resource_server.gateway_mcp[0].identifier}/runtime.access",
+  ] : []
+}
