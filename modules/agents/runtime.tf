@@ -33,6 +33,8 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
     },
     var.bedrock_region != "" ? { BEDROCK_REGION = var.bedrock_region } : {},
     var.artifacts_bucket_name != "" ? { ARTIFACTS_BUCKET = var.artifacts_bucket_name } : {},
+    var.prompt_registry_table != "" ? { PROMPT_REGISTRY_TABLE = var.prompt_registry_table } : {},
+    var.prompt_registry_bucket != "" ? { PROMPT_REGISTRY_BUCKET = var.prompt_registry_bucket } : {},
   )
 
   # Network configuration -- PUBLIC or VPC
