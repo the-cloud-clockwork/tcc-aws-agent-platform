@@ -129,6 +129,27 @@ def create_agent_client(bearer_token: str = "") -> httpx.AsyncClient:
 
 Each agent gets its own Cognito client credentials. The Identity service handles token refresh automatically.
 
+### Pattern 4b: Gateway-to-Runtime M2M (MCP Server Authentication)
+
+**Problem:** Gateway needs to call MCP servers hosted on AgentCore Runtimes. These Runtimes must verify that the caller is the Gateway — not an arbitrary client.
+
+This is a specialized form of M2M auth where the platform provisions everything automatically. When Cognito is enabled, the platform creates:
+
+- A **Cognito Resource Server** with custom scopes (`mcp.invoke` for tool invocation, `runtime.access` for general Runtime access).
+- A **confidential M2M client** with `client_credentials` grant type, authorized for these scopes.
+- An **OAuth2 credential provider** that Gateway uses to obtain access tokens via `GetResourceOauth2Token`.
+
+On the receiving side, each MCP protocol Runtime is configured with a **JWT authorizer** that validates incoming tokens against the Cognito OIDC discovery endpoint. The authorizer checks the token signature, expiry, and `aud` claim to confirm the token was issued for the correct client.
+
+The token lifecycle is fully managed by AgentCore:
+
+1. Gateway calls `GetResourceOauth2Token` on the credential provider before each MCP request.
+2. The credential provider exchanges the M2M client credentials at the Cognito token endpoint.
+3. AgentCore caches the token and refreshes it before expiry — no application code involved.
+4. The Runtime JWT authorizer validates the token on every inbound request.
+
+This pattern requires no application code changes. It is configured entirely through Terraform variables (`mcp_oauth2_provider_arn`, `mcp_oauth2_scopes`, `mcp_oauth2_discovery_url`, `mcp_oauth2_allowed_clients`) passed from the platform module to the agents module.
+
 ## Auth Pattern Summary
 
 | Pattern | Auth Flow | When to Use |
@@ -137,6 +158,7 @@ Each agent gets its own Cognito client credentials. The Identity service handles
 | API key injection | Secrets Manager | Agent needs a static third-party credential |
 | 3-legged OAuth | USER_FEDERATION | Agent needs user's permission to access their resources |
 | M2M token | M2M | Agent-to-agent calls, no user consent needed |
+| Gateway-to-Runtime M2M | M2M (automatic) | Gateway authenticating to MCP server Runtimes (no application code) |
 
 ## How User Identity Flows Through the Stack
 

@@ -20,7 +20,7 @@ The module is composed of six sub-modules that wire together automatically. Doma
 | **data** | `modules/platform/modules/data` | DynamoDB tables (sessions, artifacts, audit\_log, evaluation, policy\_versions), S3 buckets (platform artifacts, domain artifacts), SQS queue, CloudFront distribution (conditional) |
 | **observability** | `modules/platform/modules/observability` | CloudWatch log groups, SNS alert topic, CloudWatch Alarms |
 | **api** | `modules/platform/modules/api` | API Gateway HTTP API, Lambda function for artifact store (claim-check pattern), stage throttle settings |
-| **agentcore** | `modules/platform/modules/agentcore` | AgentCore Gateway (with KMS encryption + Cedar policy engine), AgentCore Memory resource, Cognito user pool (conditional), built-in Code Interpreter (conditional), built-in Browser (conditional) |
+| **agentcore** | `modules/platform/modules/agentcore` | AgentCore Gateway (with KMS encryption + Cedar policy engine), AgentCore Memory resource, Cognito user pool (conditional), M2M OAuth2 credential provider for MCP gateway targets (conditional on Cognito), built-in Code Interpreter (conditional), built-in Browser (conditional) |
 
 All platform outputs are also written as SSM parameters under `${var.ssm_root_path}/` for cross-account and cross-module consumption without requiring Terraform state sharing.
 
@@ -115,6 +115,10 @@ All platform outputs are also written as SSM parameters under `${var.ssm_root_pa
 | `browser_id` | Built-in Browser tool ID (empty when disabled) |
 | `cognito_user_pool_id` | Cognito User Pool ID (empty when disabled) |
 | `cognito_client_id` | Cognito App Client ID (empty when disabled) |
+| `mcp_oauth2_provider_arn` | OAuth2 credential provider ARN for MCP gateway targets (empty when Cognito disabled) |
+| `mcp_oauth2_scopes` | OAuth2 scopes for MCP gateway targets (empty list when Cognito disabled) |
+| `mcp_oauth2_discovery_url` | OIDC discovery URL for MCP Runtime JWT authorizer (empty when Cognito disabled) |
+| `mcp_oauth2_allowed_clients` | Allowed client IDs for MCP Runtime JWT authorizer (empty list when Cognito disabled) |
 
 ### Observability
 
@@ -180,6 +184,12 @@ module "agents" {
   private_subnet_ids      = module.platform.private_subnet_ids
   agent_security_group_id = module.platform.agent_security_group_id
   storage_kms_key_arn     = module.platform.storage_kms_key_arn
+
+  # OAuth2 MCP target authentication (conditional on cognito_enabled)
+  mcp_oauth2_provider_arn    = module.platform.mcp_oauth2_provider_arn
+  mcp_oauth2_scopes          = module.platform.mcp_oauth2_scopes
+  mcp_oauth2_discovery_url   = module.platform.mcp_oauth2_discovery_url
+  mcp_oauth2_allowed_clients = module.platform.mcp_oauth2_allowed_clients
   # ...
 }
 ```
