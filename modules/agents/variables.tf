@@ -121,6 +121,20 @@ variable "mcp_oauth2_allowed_clients" {
   default     = []
 }
 
+# -- Prompt Registry --------------------------------------------------
+
+variable "prompt_registry_table" {
+  type        = string
+  description = "DynamoDB table name for versioned prompt metadata."
+  default     = ""
+}
+
+variable "prompt_registry_bucket" {
+  type        = string
+  description = "S3 bucket name for prompt content storage."
+  default     = ""
+}
+
 # -- Build -----------------------------------------------------------
 
 variable "codebuild_source_bucket" {
