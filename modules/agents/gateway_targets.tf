@@ -79,7 +79,20 @@ resource "aws_bedrockagentcore_gateway_target" "mcp_runtime" {
   }
 
   credential_provider_configuration {
-    gateway_iam_role {}
+    # MCP server targets require OAuth2 credentials (gateway_iam_role is Lambda-only)
+    dynamic "oauth" {
+      for_each = var.mcp_oauth2_provider_arn != "" ? [1] : []
+      content {
+        provider_arn = var.mcp_oauth2_provider_arn
+        scopes       = var.mcp_oauth2_scopes
+      }
+    }
+
+    # Fallback for deployments without Cognito (will fail for MCP targets at API level)
+    dynamic "gateway_iam_role" {
+      for_each = var.mcp_oauth2_provider_arn == "" ? [1] : []
+      content {}
+    }
   }
 
   depends_on = [

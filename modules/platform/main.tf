@@ -64,6 +64,7 @@ module "agentcore" {
   memory_description          = var.memory_description
   memory_kms_key_arn          = module.security.data_kms_key_arn
   gateway_kms_key_arn         = module.security.data_kms_key_arn
+  ssm_root_path               = var.ssm_root_path
   cognito_enabled             = var.cognito_enabled
   code_interpreter_enabled    = var.builtin_code_interpreter_enabled
   browser_enabled             = var.builtin_browser_enabled

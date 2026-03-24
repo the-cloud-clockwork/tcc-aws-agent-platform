@@ -95,6 +95,20 @@ variable "storage_kms_key_arn" {
   default     = ""
 }
 
+# -- OAuth2 MCP Gateway -----------------------------------------------
+
+variable "mcp_oauth2_provider_arn" {
+  type        = string
+  description = "ARN of OAuth2 credential provider for MCP server gateway targets. Empty = gateway_iam_role fallback."
+  default     = ""
+}
+
+variable "mcp_oauth2_scopes" {
+  type        = list(string)
+  description = "OAuth2 scopes for MCP server gateway targets."
+  default     = []
+}
+
 # -- Build -----------------------------------------------------------
 
 variable "codebuild_source_bucket" {

@@ -96,6 +96,14 @@ variable "gateway_kms_key_arn" {
   default     = ""
 }
 
+# ── SSM ─────────────────────────────────────────────────────────────────────
+
+variable "ssm_root_path" {
+  description = "Root SSM parameter path (e.g. '/qitp/dev'). Used for storing OAuth2 M2M credentials."
+  type        = string
+  default     = ""
+}
+
 # ── Cognito ──────────────────────────────────────────────────────────────────
 
 variable "cognito_enabled" {
