@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class MemoryStrategyType(str, Enum):
@@ -27,6 +27,14 @@ class MemoryStrategyConfig(BaseModel):
         ...,
         description="Namespace template with {actorId}/{sessionId} placeholders.",
     )
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def normalize_strategy_type(cls, v: str) -> str:
+        """Accept SUMMARIZATION as alias for SUMMARY."""
+        if isinstance(v, str) and v.upper() == "SUMMARIZATION":
+            return "SUMMARY"
+        return v
 
 
 class RetrievalConfig(BaseModel):

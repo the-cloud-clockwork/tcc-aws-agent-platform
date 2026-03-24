@@ -30,27 +30,53 @@ Example YAML::
         - field: confidence
           operator: lt
           value: 0.3
+    evaluation:
+      primary_metric: accuracy
+      metrics: [accuracy, precision, recall]
+      benchmark: baseline
+    risk_controls:
+      max_daily_error_rate: 0.03
+      max_degradation_halt: 0.10
 """
 
 from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from agent_core.schemas.execution_modes import ExecutionModes
 
+_PARAM_TYPE_ALIASES: dict[str, str] = {
+    "string": "str",
+    "integer": "int",
+    "number": "float",
+    "boolean": "bool",
+    "array": "list",
+}
+
 
 class ConditionConfig(BaseModel):
-    """A single field comparison condition."""
+    """A single field comparison condition.
+
+    For structured exit conditions (e.g. trailing stops), use ``type``
+    instead of ``field``/``operator``/``value``.  The platform stores
+    the raw dict for the domain evaluation engine.
+    """
 
     model_config = ConfigDict(frozen=True)
 
-    field: str = Field(..., description="Signal or parameter name to compare.")
-    operator: Literal[
-        "eq", "neq", "gt", "gte", "lt", "lte", "in", "not_in", "between"
-    ] = Field(..., description="Comparison operator.")
-    value: Any = Field(..., description="Threshold or target value.")
+    field: str | None = Field(
+        default=None, description="Signal or parameter name to compare."
+    )
+    operator: (
+        Literal["eq", "neq", "gt", "gte", "lt", "lte", "in", "not_in", "between"] | None
+    ) = Field(default=None, description="Comparison operator.")
+    value: Any = Field(default=None, description="Threshold or target value.")
+    type: str | None = Field(
+        default=None,
+        description="Structured condition type (e.g. 'threshold_breach') for domain evaluation.",
+    )
 
 
 class ConditionGroupConfig(BaseModel):
@@ -64,6 +90,14 @@ class ConditionGroupConfig(BaseModel):
     conditions: list[ConditionConfig] = Field(
         ..., min_length=1, description="Condition list (at least one required)."
     )
+
+    @field_validator("logic", mode="before")
+    @classmethod
+    def normalize_logic(cls, v: str) -> str:
+        """Accept uppercase AND/OR."""
+        if isinstance(v, str):
+            return v.lower()
+        return v
 
 
 class ParameterConfig(BaseModel):
@@ -82,6 +116,61 @@ class ParameterConfig(BaseModel):
     )
     max_value: float | None = Field(
         default=None, description="Maximum numeric value (int/float types only)."
+    )
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def normalize_param_type(cls, v: str) -> str:
+        """Accept common aliases (string -> str, integer -> int, etc.)."""
+        if isinstance(v, str):
+            return _PARAM_TYPE_ALIASES.get(v.lower(), v)
+        return v
+
+
+class StrategyEvaluationConfig(BaseModel):
+    """Strategy backtesting and evaluation configuration."""
+
+    model_config = ConfigDict(frozen=True)
+
+    primary_metric: str = Field(
+        ..., description="Primary performance metric for ranking."
+    )
+    metrics: list[str] = Field(
+        default_factory=list, description="All metrics to compute."
+    )
+    benchmark: str | None = Field(
+        default=None, description="Benchmark strategy for comparison."
+    )
+    lookback_window: int | None = Field(
+        default=None, gt=0, description="Lookback window in periods."
+    )
+    min_activations_threshold: int | None = Field(
+        default=None,
+        gt=0,
+        description="Minimum activations for statistical significance.",
+    )
+
+
+class RiskControlConfig(BaseModel):
+    """Strategy-level risk control thresholds."""
+
+    model_config = ConfigDict(frozen=True)
+
+    max_daily_error_rate: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Max daily error rate before circuit break.",
+    )
+    max_degradation_halt: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Max performance degradation before halt.",
+    )
+    circuit_breaker: dict[str, Any] | None = Field(
+        default=None,
+        description="Circuit breaker config (consecutive_failures, pause_periods).",
     )
 
 
@@ -125,6 +214,15 @@ class StrategyBlueprint(BaseModel):
     exit_conditions: ConditionGroupConfig | None = Field(
         default=None,
         description="Conditions that trigger strategy deactivation.",
+    )
+
+    evaluation: StrategyEvaluationConfig | None = Field(
+        default=None,
+        description="Backtesting and evaluation configuration.",
+    )
+    risk_controls: RiskControlConfig | None = Field(
+        default=None,
+        description="Risk control thresholds and circuit breakers.",
     )
 
     execution_modes: ExecutionModes | None = Field(
