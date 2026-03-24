@@ -41,25 +41,24 @@ locals {
     s.api_type => s...
   }
 
-  # Sort entries by name within each type for deterministic "first wins" selection.
-  # Without sorting, iteration order depends on blueprint filename ordering,
-  # which causes the provider to see name changes on every apply.
-  _sorted_strategies_by_type = {
-    for api_type, entries in local._strategies_by_type :
-    api_type => [
-      for name in sort([for e in entries : e.name]) :
-      [for e in entries : e if e.name == name][0]
-    ]
+  # Canonical name per strategy type. The API only allows ONE strategy per type
+  # on a memory resource, so the name is irrelevant for routing — it's just a
+  # label. Using a fixed canonical name avoids provider drift when multiple
+  # agents declare the same type with different names.
+  _canonical_strategy_names = {
+    "SEMANTIC"        = "semantic_knowledge"
+    "SUMMARIZATION"   = "session_summaries"
+    "USER_PREFERENCE" = "user_preferences"
   }
 
-  # Deduplicated map: one entry per API type, alphabetically first name wins.
+  # Deduplicated map: one entry per API type, canonical name, first namespace wins.
   # API constraint: namespaces list length <= 1.
   memory_strategy_map = {
-    for api_type, sorted_entries in local._sorted_strategies_by_type :
+    for api_type, entries in local._strategies_by_type :
     api_type => {
-      name       = sorted_entries[0].name
+      name       = lookup(local._canonical_strategy_names, api_type, entries[0].name)
       api_type   = api_type
-      namespaces = sorted_entries[0].namespace != "" ? [sorted_entries[0].namespace] : []
+      namespaces = entries[0].namespace != "" ? [entries[0].namespace] : []
     }
   }
 }
