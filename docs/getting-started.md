@@ -22,7 +22,7 @@ This section covers everything you need to go from zero to a running AI agent on
 
 ## How the Platform Works in One Paragraph
 
-You define agents as YAML blueprints in your domain repo. The platform reads those declarations and turns them into fully operational AWS infrastructure: AgentCore Runtime containers, Gateway tool routing, Memory persistence, Identity flows, Cedar policies, observability, and multi-agent orchestration — without runtime glue code. One handler file serves every agent you declare; the blueprint determines which model, tools, prompts, memory strategies, identity providers, and policies are wired.
+You define agents as YAML blueprints in your domain repo. The platform reads those declarations and turns them into fully operational AWS infrastructure: AgentCore Runtime containers, Gateway tool routing, Memory persistence, Identity flows, Cedar policies, observability, and multi-agent orchestration -- without runtime glue code. One handler file serves every agent you declare; the blueprint determines which model, tools, prompts, memory strategies, identity providers, and policies are wired.
 
 ---
 

@@ -5,153 +5,160 @@ nav_order: 7
 
 # Evaluation
 
-The Evaluation subsystem measures agent output quality. It ships 13 built-in evaluators covering correctness, safety, and groundedness, and supports custom LLM-as-judge evaluators. Evaluation can run on-demand (for testing) or online (sampling live traffic in production).
+The Evaluation subsystem measures agent output quality. It ships 12 built-in evaluators covering correctness, safety, tool usage, and task completion, and supports custom LLM-as-judge evaluators. Evaluation can run on-demand (for testing) or online (sampling live traffic in production).
 
 ## Key Classes
 
 | Class | Purpose |
 |-------|---------|
-| `EvaluationClient` | Runs evaluators against agent outputs, aggregates scores |
-| `BuiltinEvaluators` | Factory for the 13 built-in evaluator instances |
+| `EvaluationClient` | Wraps `bedrock_agentcore_starter_toolkit.Evaluation` — runs evaluators, manages online configs |
+| `BUILTIN_EVALUATORS` | Dict of 12 built-in evaluator metadata (name, category, level) |
+
+The upstream `Evaluation` class from `bedrock_agentcore_starter_toolkit` handles the actual API calls. `EvaluationClient` adds error handling, logging, and evaluator ID resolution.
 
 ## Built-in Evaluators
 
+12 built-in evaluators across four categories:
+
+**Response Quality (TRACE level):**
+
 | Evaluator | What It Measures |
 |-----------|-----------------|
-| `Faithfulness` | Whether the response is grounded in the provided context (no hallucinations) |
-| `AnswerRelevance` | Whether the response directly addresses the user's question |
-| `ContextRecall` | Whether the retrieved context contained the information needed |
-| `ContextPrecision` | Whether the retrieved context was free of irrelevant material |
-| `Toxicity` | Presence of harmful, abusive, or inappropriate content |
-| `Bias` | Presence of demographic or ideological bias in the response |
-| `PromptInjection` | Whether the user input attempts to override system instructions |
-| `SemanticSimilarity` | Cosine similarity between response and a reference answer |
-| `ExactMatch` | Exact string match against a reference answer |
-| `RougeScore` | ROUGE-L overlap between response and reference |
-| `Coherence` | Logical consistency and fluency of the response |
-| `Completeness` | Whether the response addresses all parts of the question |
-| `Conciseness` | Whether the response is appropriately brief without losing information |
+| `Builtin.Correctness` | Factual accuracy of agent responses |
+| `Builtin.Completeness` | Whether the response fully addresses the request |
+| `Builtin.Faithfulness` | Whether the response is grounded in retrieved context |
+| `Builtin.Helpfulness` | How useful the response is to the user |
+| `Builtin.Harmlessness` | Whether the response avoids harmful content |
+| `Builtin.Coherence` | Logical consistency and flow of the response |
+| `Builtin.Relevance` | How relevant the response is to the query |
+
+**Task Completion (SESSION level):**
+
+| Evaluator | What It Measures |
+|-----------|-----------------|
+| `Builtin.GoalSuccessRate` | Whether the agent achieved the stated goal |
+
+**Tool Usage (SPAN level):**
+
+| Evaluator | What It Measures |
+|-----------|-----------------|
+| `Builtin.ToolSelectionAccuracy` | Whether the agent chose the right tools |
+| `Builtin.ToolParameterAccuracy` | Whether the agent passed correct parameters to tools |
+
+**Safety (TRACE level):**
+
+| Evaluator | What It Measures |
+|-----------|-----------------|
+| `Builtin.Harmfulness` | Detection of harmful or dangerous content |
+| `Builtin.Stereotyping` | Detection of stereotyping or biased content |
 
 ## On-Demand Evaluation
 
-Run evaluators explicitly against a single input/output pair:
+Run evaluators against a specific agent session's OTEL traces:
 
 ```python
-from agent_core.evaluation import EvaluationClient, BuiltinEvaluators
+from agent_core.evaluation.client import EvaluationClient
 
-client = EvaluationClient.from_blueprint("agent.yaml")
-evaluators = BuiltinEvaluators.from_blueprint("agent.yaml")
+client = EvaluationClient(region="us-west-2")
 
-result = await client.evaluate(
-    input="What is the capital of France?",
-    output="The capital of France is Paris.",
-    context=["France is a country in Western Europe. Its capital city is Paris."],
+result = client.run(
+    agent_id="my-agent",
+    session_id="sess-001",
     evaluators=[
-        evaluators.faithfulness(),
-        evaluators.answer_relevance(),
-        evaluators.context_recall(),
+        "Builtin.Faithfulness",
+        "Builtin.Correctness",
+        "Builtin.ToolSelectionAccuracy",
     ],
 )
 
 for score in result.scores:
-    print(f"{score.evaluator}: {score.value:.3f}  ({score.reason})")
+    print(f"{score.evaluator_name}: {score.label} = {score.value}  ({score.explanation})")
 ```
 
-## Online Evaluation (Sampling)
+## Online Evaluation (Continuous Monitoring)
 
-Enable online evaluation to automatically evaluate a percentage of live production traffic:
+Enable online evaluation to automatically sample and evaluate a percentage of live production sessions. Use `create_online_config()` on `EvaluationClient`:
 
 ```python
-from agent_core.evaluation import EvaluationClient
+from agent_core.evaluation.client import EvaluationClient
+from agent_core.schemas.evaluation_config import OnlineEvaluationConfig
 
-client = EvaluationClient.from_blueprint("agent.yaml")
+client = EvaluationClient(region="us-west-2")
 
-# Register the hook with the agent
-agent = Agent(
-    model=model,
-    tools=tools,
-    hooks=[client.as_hook()],  # Samples according to blueprint sampling_rate
+config = OnlineEvaluationConfig(
+    sampling_rate=10,  # 10% of sessions
+    evaluators=["Builtin.Faithfulness", "Builtin.Harmfulness"],
+)
+
+config_id = client.create_online_config(
+    agent_id="my-agent",
+    config_name="production-monitoring",
+    config=config,
+)
+
+# Later, retrieve results
+results = client.get_online_results(
+    agent_id="my-agent",
+    config_name="production-monitoring",
 )
 ```
 
 Evaluation results are written to CloudWatch and, if Langfuse is enabled, attached to the corresponding Langfuse trace.
 
-## Sampling Rates
-
-Configure sampling in the blueprint. A rate of `0.1` means 10% of production invocations are evaluated:
-
-```yaml
-evaluation:
-  enabled: true
-  sampling_rate: 0.1
-  evaluators:
-    - faithfulness
-    - answer_relevance
-    - toxicity
-    - prompt_injection
-```
-
-Set `sampling_rate: 1.0` for staging environments where you want full coverage.
-
 ## Custom LLM-as-Judge
 
-Define a custom evaluator using an LLM prompt. The judge model receives the input, output, and context, and returns a score between 0.0 and 1.0:
+Define a custom evaluator using the `CustomEvaluatorConfig` schema. The judge model receives the agent trace and scores it according to your instructions:
 
 ```python
-from agent_core.evaluation import EvaluationClient
+from agent_core.evaluation.client import EvaluationClient
+from agent_core.schemas.evaluation_config import CustomEvaluatorConfig, EvaluatorLevel
 
-client = EvaluationClient.from_blueprint("agent.yaml")
+client = EvaluationClient(region="us-west-2")
 
-custom_evaluator = client.create_llm_judge(
+config = CustomEvaluatorConfig(
     name="domain_accuracy",
-    prompt="""
-You are evaluating whether an agent's response is accurate for {domain_context}.
-
-Input: {input}
-Response: {output}
-
-Score from 0.0 (completely wrong) to 1.0 (fully accurate).
-Respond with JSON: {"score": <float>, "reason": "<string>"}
-""",
-    model="anthropic.claude-3-haiku-20240307-v1:0",
+    level=EvaluatorLevel.TRACE,
+    model_id="anthropic.claude-3-haiku-20240307-v1:0",
+    max_tokens=1024,
+    temperature=0.0,
+    instructions="Evaluate whether the agent's response is factually accurate for the given context. {context} {assistant_turn}",
+    scale=[1, 5],
 )
 
-result = await client.evaluate(
-    input=user_question,
-    output=agent_response,
-    evaluators=[custom_evaluator],
+evaluator_id = client.create_evaluator(config)
+
+# Use the custom evaluator in on-demand or online evaluation
+result = client.run(
+    agent_id="my-agent",
+    session_id="sess-001",
+    evaluators=[evaluator_id, "Builtin.Faithfulness"],
 )
 ```
 
 The model ID for LLM-as-judge evaluators must always come from the blueprint or explicit parameter — never hardcoded.
 
-## Aggregating Results
-
-`EvaluationClient` can aggregate scores across many samples to produce a dashboard-ready summary:
-
-```python
-summary = client.aggregate(results)
-print(summary.mean_scores)       # {"faithfulness": 0.87, "answer_relevance": 0.91, ...}
-print(summary.pass_rate)         # Fraction of samples above threshold
-print(summary.failed_samples)    # List of samples that failed any evaluator
-```
-
 ## Blueprint Configuration
 
 ```yaml
 evaluation:
-  enabled: true
-  sampling_rate: 0.1
-  judge_model: anthropic.claude-3-haiku-20240307-v1:0
-  evaluators:
-    - faithfulness
-    - answer_relevance
-    - context_recall
-    - toxicity
-    - prompt_injection
-  thresholds:
-    faithfulness: 0.8
-    toxicity: 0.05      # Fail if toxicity score exceeds this
+  online:
+    sampling_rate: 10              # Percentage of sessions to evaluate (1-100)
+    evaluators:
+      - Builtin.Faithfulness
+      - Builtin.Correctness
+      - Builtin.Harmfulness
+  custom_evaluators:
+    - name: domain_accuracy
+      level: TRACE
+      model_id: anthropic.claude-3-haiku-20240307-v1:0
+      max_tokens: 1024
+      temperature: 0.0
+      instructions: "Evaluate domain accuracy. {context} {assistant_turn}"
+      scale: [1, 5]
+  persistence:
+    enabled: true
+    table_env: EVAL_TABLE_NAME
+    retention_days: 90
 ```
 
 Evaluation scores are published to CloudWatch under the `/Agents/{agent_name}/Evaluation` namespace.

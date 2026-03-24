@@ -5,16 +5,15 @@ nav_order: 8
 
 # Policy
 
-The Policy subsystem enforces access control for agent tool invocations using [Cedar](https://www.cedarpolicy.com/), an open-source policy language developed by AWS. The default model is DENY-all: every tool call is denied unless an explicit permit policy allows it.
+The Policy subsystem enforces access control for agent tool invocations using [Cedar](https://www.cedarpolicy.com/), an open-source policy language developed by AWS. The platform uses the AgentCore Policy Engine for policy storage and evaluation. The default model is DENY-all: every tool call is denied unless an explicit permit policy allows it.
 
 ## Key Classes
 
 | Class | Purpose |
 |-------|---------|
-| `PolicyClient` | Evaluates Cedar policies at tool invocation time |
+| `PolicyClient` | Creates policy engines, manages Cedar policies, attaches to Gateways, generates policies via NL2Cedar |
 | `CedarPolicyBuilder` | Fluent Python API for constructing Cedar policies |
 | `PolicyTranslator` | Converts platform policy schemas to Cedar syntax |
-| `NL2Cedar` | Translates natural-language policy descriptions to Cedar using an LLM |
 
 ## Cedar Syntax Basics
 
@@ -90,62 +89,82 @@ policy = (
 )
 ```
 
-## Policy Engine Attachment to Gateway
+## Policy Engine Lifecycle
 
-The policy engine is evaluated before every tool invocation routed through the Gateway. The `PolicyClient` is attached to the `GatewayClient` at wiring time:
+`PolicyClient` wraps both the boto3 `bedrock-agentcore-control` client (for engine CRUD) and the `bedrock_agentcore_starter_toolkit` policy SDK (for policy CRUD and NL2Cedar):
 
 ```python
-from agent_core.policy import PolicyClient
-from agent_core.gateway import GatewayClient
+from agent_core.policy.client import PolicyClient, PolicyMode
 
-policy = PolicyClient.from_blueprint("agent.yaml")
-gateway = GatewayClient.from_blueprint("agent.yaml")
+client = PolicyClient(region="us-west-2")
 
-# Policy is checked on every gateway.invoke_tool() call automatically
+# Create a policy engine
+result = client.create_engine(name="my-agent-policies")
+engine_id = result["policyEngineId"]
+
+# Create a Cedar policy in the engine
+client.create_policy(
+    engine_id=engine_id,
+    name="allow-search",
+    cedar_statement='permit(principal in Role::"analyst", action == Action::"invoke_tool", resource == Tool::"search");',
+)
+
+# List policies
+policies = client.list_policies(engine_id)
+```
+
+## Policy Engine Attachment to Gateway
+
+The policy engine is evaluated before every tool invocation routed through the Gateway. Attach a policy engine to a Gateway with an enforcement mode:
+
+```python
+# Attach with enforcement
+client.attach_to_gateway(
+    gateway_identifier="gw-abc123",
+    policy_engine_arn=result["policyEngineArn"],
+    mode=PolicyMode.ENFORCE,  # or PolicyMode.LOG_ONLY
+)
+
+# Later, detach
+client.detach_from_gateway(gateway_identifier="gw-abc123")
 ```
 
 If a policy decision is DENY, `GatewayClient` raises `PolicyDeniedError` with the matching `forbid` policy attached for logging and audit.
 
-## NL-to-Cedar Translation
+## NL-to-Cedar Generation
 
-`NL2Cedar` uses an LLM to translate a plain-language policy description into valid Cedar syntax:
+`PolicyClient.generate_policy()` uses the AgentCore NL2Cedar API to convert a plain-language policy description into valid Cedar syntax:
 
 ```python
-from agent_core.policy import NL2Cedar
-
-nl2cedar = NL2Cedar.from_blueprint("agent.yaml")
-
-cedar_text = await nl2cedar.translate(
-    description="Allow users in the 'reviewer' role to view documents but not edit or delete them.",
-    available_actions=["view_document", "edit_document", "delete_document"],
-    available_roles=["reviewer", "editor", "admin"],
+result = client.generate_policy(
+    engine_id=engine_id,
+    name="reviewer-access",
+    gateway_arn="arn:aws:bedrock-agentcore:us-west-2:123456789012:gateway/gw-abc",
+    natural_language="Allow users in the 'reviewer' role to view documents but not edit or delete them.",
 )
 
-print(cedar_text)
-# permit (
-#   principal in Role::"reviewer",
-#   action in [Action::"view_document"],
-#   resource
-# );
+# result contains {"generatedPolicies": [...]}
+for policy in result.get("generatedPolicies", []):
+    print(policy)
 ```
 
-Always review LLM-generated Cedar policies before deploying them. `NL2Cedar` is a productivity tool, not a security guarantee.
+Always review LLM-generated Cedar policies before deploying them. `generate_policy()` is a productivity tool, not a security guarantee.
 
 ## Storing and Loading Policies
 
-Policies are stored in Amazon Verified Permissions. The `PolicyClient` loads them at startup and caches them for the policy TTL:
+Policies are stored in the AgentCore Policy Engine. The `PolicyClient` manages the full lifecycle:
 
 ```python
-client = PolicyClient.from_blueprint("agent.yaml")
+client = PolicyClient(region="us-west-2")
 
-# List all policies in the policy store
-policies = await client.list_policies()
+# List all policies in an engine
+policies = client.list_policies(engine_id)
 
-# Add a new policy
-policy_id = await client.put_policy(cedar_text)
+# Add a new policy (idempotent — uses create_or_get_policy)
+client.create_policy(engine_id, name="allow-search", cedar_statement=cedar_text)
 
 # Remove a policy
-await client.delete_policy(policy_id)
+client.delete_policy(engine_id, policy_id="pol-123")
 ```
 
 ## Blueprint Configuration

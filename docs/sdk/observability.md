@@ -5,7 +5,7 @@ nav_order: 6
 
 # Observability
 
-The Observability subsystem provides full-stack instrumentation for agent workloads. It integrates AWS X-Ray, CloudWatch GenAI metrics, Langfuse experiment tracking, structured logging, audit logging, cost tracking, PII masking, and alerting — all configurable from the blueprint.
+The Observability subsystem provides full-stack instrumentation for agent workloads. It integrates AWS X-Ray, CloudWatch GenAI metrics, Langfuse experiment tracking, structured logging, audit logging, cost tracking, and alerting — all configurable from the blueprint.
 
 ## Key Classes
 
@@ -21,21 +21,71 @@ The Observability subsystem provides full-stack instrumentation for agent worklo
 
 ## OTEL Auto-Instrumentation
 
-The runtime configures OpenTelemetry automatically when `observability.otel` is enabled. OTEL instruments the Strands agent loop, HTTP clients, and AWS SDK calls with no additional code:
+OTEL is configured via environment variables, not programmatic initialization. The `config_gen.py` module generates the required env vars from blueprint configuration, and the generated Dockerfile wraps the entrypoint with `opentelemetry-instrument`:
 
-```python
-from agent_core.observability.otel import configure_otel
-
-# Called once at app startup (AgentCoreApp.from_blueprint does this automatically)
-configure_otel(service_name="my-agent", endpoint="${OTEL_EXPORTER_ENDPOINT}")
+```dockerfile
+# Generated Dockerfile (when runtime.observability_enabled: true)
+RUN pip install --no-cache-dir aws-opentelemetry-distro
+CMD ["opentelemetry-instrument", "python", "-m", "app"]
 ```
 
-Traces are exported to AWS X-Ray via the OTEL → X-Ray exporter. Spans include:
+The `generate_otel_env()` function produces the env vars that configure the AWS OpenTelemetry distro:
+
+```python
+from agent_core.runtime.config_gen import generate_otel_env
+
+env_vars = generate_otel_env(blueprint)
+# Returns:
+# {
+#   "OTEL_PYTHON_DISTRO": "aws_distro",
+#   "OTEL_PYTHON_CONFIGURATOR": "aws_configurator",
+#   "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+#   "OTEL_TRACES_EXPORTER": "otlp",
+#   "OTEL_EXPORTER_OTLP_LOGS_HEADERS": "x-aws-log-group=...,x-aws-log-stream=default,...",
+#   "OTEL_RESOURCE_ATTRIBUTES": "service.name=my-agent",
+#   "AGENT_OBSERVABILITY_ENABLED": "true",
+# }
+```
+
+These env vars are set in the container task definition. No `configure_otel()` function call is needed — the `opentelemetry-instrument` CLI wrapper handles initialization at process start.
+
+Traces are exported to AWS X-Ray via the OTEL exporter. Spans include:
 
 - Agent invocation start/end
 - Each tool call with input/output sizes
 - Bedrock model calls with token counts
 - Memory read/write operations
+
+## Session Baggage
+
+`set_session_baggage` from `agent_core.observability.otel` attaches session and user IDs to OTEL baggage, so every downstream span and log inherits these values for session-level filtering:
+
+```python
+from agent_core.observability.otel import set_session_baggage, detach_session_baggage
+
+token = set_session_baggage(session_id="sess-001", user_id="user-123")
+try:
+    # All spans created here inherit session.id and user.id
+    result = agent(prompt)
+finally:
+    detach_session_baggage(token)
+```
+
+## Custom Spans
+
+`get_agent_tracer` returns an OTEL tracer scoped to an agent, for creating custom spans inside tool functions:
+
+```python
+from agent_core.observability.otel import get_agent_tracer
+
+tracer = get_agent_tracer("my-agent")
+
+@tool
+def search(query: str) -> str:
+    with tracer.start_as_current_span("search") as span:
+        span.set_attribute("search.query", query)
+        return do_search(query)
+```
 
 ## X-Ray Tracing
 
@@ -112,28 +162,9 @@ await audit.write({
 
 Sensitive parameter values are never written to audit logs. Use `parameters_hash` to log a fingerprint for correlation without exposing content.
 
-## Data Protection (PII Masking)
+## Data Protection
 
-`DataProtection` intercepts log and audit writes and masks PII patterns before they reach any storage backend:
-
-```python
-from agent_core.observability.data_protection import DataProtection
-
-protection = DataProtection(patterns=["email", "phone", "credit_card"])
-
-# Automatically applied when configured in blueprint
-masked = protection.mask("Contact me at user@example.com or 555-0100")
-# Output: "Contact me at [EMAIL] or [PHONE]"
-```
-
-Blueprint configuration:
-
-```yaml
-observability:
-  data_protection:
-    enabled: true
-    patterns: ["email", "phone", "ssn", "credit_card"]
-```
+Data protection is handled via Amazon Bedrock Guardrails, configured at the infrastructure layer. Guardrails intercept model inputs and outputs to apply PII masking, content filtering, and topic restrictions before content reaches any storage backend. Configure guardrails in the blueprint and they are attached to the agent's Bedrock model calls automatically.
 
 ## CompositeObservabilityHook
 
@@ -162,9 +193,6 @@ observability:
   audit_log:
     enabled: true
     log_group: "/agents/my-agent/audit"
-  data_protection:
-    enabled: true
-    patterns: ["email", "phone"]
   alerts:
     enabled: true
     sns_topic_arn: "arn:aws:sns:${AWS_REGION}:${AWS_ACCOUNT_ID}:agent-alerts"
