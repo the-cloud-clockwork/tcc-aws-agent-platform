@@ -35,10 +35,10 @@ locals {
   agent_api_key_credentials = flatten([
     for agent_id, bp in local.blueprints : [
       for cred in try(bp.identity.credentials, []) : {
-        key      = "${agent_id}-${cred.name}"
-        agent_id = agent_id
-        name     = cred.name
-        provider = cred.provider
+        key              = "${agent_id}-${cred.name}"
+        agent_id         = agent_id
+        name             = cred.name
+        api_key_ssm_path = try(cred.api_key_ssm_path, "${var.ssm_root_path}/agents/${agent_id}/credentials/${cred.name}/api-key")
       }
       if try(cred.type, "") == "api_key"
     ]
