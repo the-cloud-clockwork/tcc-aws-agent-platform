@@ -88,6 +88,13 @@ resource "aws_ssm_parameter" "api_url" {
   tags  = local.tags
 }
 
+resource "aws_ssm_parameter" "prompt_registry_url" {
+  name  = "${local.ssm_prefix}/prompt-registry/url"
+  type  = "String"
+  value = module.prompt_registry.prompt_registry_url
+  tags  = local.tags
+}
+
 resource "aws_ssm_parameter" "cloudfront_domain" {
   count = var.cloudfront_enabled ? 1 : 0
 
@@ -252,3 +259,8 @@ output "pipeline_log_group_name" {
 output "api_url" {
   value = module.api.api_url
 }
+
+output "prompt_registry_url" {
+  value = module.prompt_registry.prompt_registry_url
+}
+
