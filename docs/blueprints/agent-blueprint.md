@@ -5,7 +5,7 @@ nav_order: 1
 
 # Agent Blueprint
 
-An agent blueprint is a YAML file that fully declares an AI agent. Every configurable aspect — the model it uses, how it runs, which tools it calls, how it remembers, who can invoke it, and how it is observed — is expressed here. The platform reads this file at both SDK load time and Terraform plan time.
+An agent blueprint is a YAML file that fully declares an AI agent. Every configurable aspect -- the model it uses, how it runs, which tools it calls, how it remembers, who can invoke it, and how it is observed -- is expressed here. The platform reads this file at both SDK load time and Terraform plan time.
 
 ---
 
@@ -14,25 +14,31 @@ An agent blueprint is a YAML file that fully declares an AI agent. Every configu
 ```yaml
 id: researcher                  # Unique agent identifier (snake_case). Used as resource name key.
 name: Research Agent            # Human-readable name displayed in dashboards.
-version: 1.0.0                  # Semantic version. Stamped on Runtime and ECR tags.
+version: "1.0.0"               # Semantic version. Stamped on Runtime and ECR tags.
 description: Researches topics  # Optional. Used as Runtime description in AWS console.
+prompt_ref: researcher-system-v1  # Required. Reference key for the Prompt Registry (a string).
 ```
+
+The `prompt_ref` field is a **required string** referencing a versioned prompt in the Prompt Registry (e.g., `researcher-system-v1`). It is not a nested object.
 
 ---
 
 ## `model:` Block
 
-Declares the LLM this agent uses. All fields are required — the platform never assumes a default model.
+Declares the LLM this agent uses. `model_id`, `temperature`, and `max_tokens` are all **required** -- the platform never assumes a default model or sampling parameters.
 
 ```yaml
 model:
   provider: bedrock                               # bedrock | anthropic | litellm | vertex
-  model_id: us.anthropic.claude-sonnet-4-20250514-v1:0  # Fully qualified model ID
-  temperature: 0.3                                # 0.0–1.0
-  max_tokens: 4096                                # Maximum output tokens
+  model_id: us.anthropic.claude-sonnet-4-20250514-v1:0  # Fully qualified model ID. Required.
+  temperature: 0.3                                # 0.0-1.0. Required.
+  max_tokens: 4096                                # Maximum output tokens. Required.
   cache_prompt: default                           # Prompt caching policy: default | none | <key>
   cache_tools: default                            # Tool-result caching policy
 ```
+
+{: .warning }
+> There is no `region` field in `ModelConfig`. The Bedrock region is resolved from the `BEDROCK_REGION` environment variable.
 
 ---
 
@@ -42,7 +48,7 @@ Controls how the agent runs on AgentCore Runtime (microVM per session, port 8080
 
 ```yaml
 runtime:
-  type: agentcore                 # Always agentcore — the only supported runtime type
+  type: agentcore                 # Always agentcore -- the only supported runtime type
   max_iterations: 10              # Maximum agentic loop iterations per session
   max_execution_time: 300         # Hard timeout in seconds
   idle_timeout_minutes: 30        # Session idle timeout before microVM terminates
@@ -54,7 +60,7 @@ runtime:
   observability_enabled: true     # Enable OTEL auto-instrumentation via opentelemetry-instrument
 ```
 
-For PRIVATE network mode, VPC subnet IDs and security group IDs are resolved from the platform module outputs and wired automatically by Terraform — no additional YAML is needed.
+For PRIVATE network mode, VPC subnet IDs and security group IDs are resolved from the platform module outputs and wired automatically by Terraform -- no additional YAML is needed.
 
 ---
 
@@ -94,6 +100,21 @@ Built-in tools must also be enabled in the platform module via `builtin_code_int
 
 ---
 
+## `gateway:` Block
+
+Configures how the agent connects to AgentCore Gateway for tool access. All tool calls route through the Gateway -- no direct MCP connections.
+
+```yaml
+gateway:
+  url: null                        # Gateway URL. Falls back to AGENTCORE_GATEWAY_URL env var.
+  auth_type: aws_iam               # aws_iam | custom_jwt | none
+  jwt_env_var: null                # Env var holding the JWT (for custom_jwt auth)
+  region: null                     # AWS region for SigV4 signing. Falls back to AWS_REGION.
+  service_name: bedrock-agentcore  # AWS service name for SigV4 signing
+```
+
+---
+
 ## `identity:` Block
 
 Controls inbound authorisation (who can call this agent) and outbound credentials (what external services the agent can authenticate to).
@@ -118,26 +139,28 @@ identity:
 
 ### Outbound Credentials
 
+Only two credential types are supported: `api_key` and `oauth2`.
+
 ```yaml
 identity:
   credentials:
     # API key credential
     - name: data-api-key
-      type: api_key
+      type: api_key                # api_key | oauth2 (only these two types)
       provider: DataServiceApiKey  # Provider name registered in AgentCore Identity
 
-    # OAuth2 M2M (machine-to-machine)
+    # OAuth2 credential (M2M -- machine-to-machine)
     - name: internal-service-token
-      type: m2m
+      type: oauth2
       provider: InternalServiceOAuth
       scopes:
         - read:records
         - write:records
-      auth_flow: M2M
+      auth_flow: M2M               # M2M | USER_FEDERATION
 
-    # OAuth2 3LO (three-legged, user federation)
+    # OAuth2 credential (USER_FEDERATION -- three-legged)
     - name: user-delegated-token
-      type: oauth_3lo
+      type: oauth2
       provider: UserDelegatedOAuth
       scopes:
         - openid
@@ -150,12 +173,14 @@ identity:
 
 ## `memory:` Block
 
-Configures long-term memory integration via AgentCore Memory.
+Configures long-term memory integration via AgentCore Memory. There is no `mode` field -- the presence of strategies enables memory automatically.
+
+The canonical strategy type for summarization is `SUMMARY`. The alias `SUMMARIZATION` is accepted and automatically normalized to `SUMMARY`.
 
 ```yaml
 memory:
   strategies:
-    - type: SEMANTIC              # SEMANTIC | SUMMARIZATION | USER_PREFERENCE | EPISODIC
+    - type: SEMANTIC              # SEMANTIC | SUMMARY | USER_PREFERENCE | EPISODIC
       name: knowledge-base        # Human-readable strategy name
       namespace: "{actorId}/knowledge"  # Namespace template with {actorId}/{sessionId} placeholders
 
@@ -163,11 +188,11 @@ memory:
       name: preferences
       namespace: "{actorId}/preferences"
 
-    - type: SUMMARIZATION
+    - type: SUMMARY               # Canonical name. SUMMARIZATION accepted as alias.
       name: session-summaries
       namespace: "{actorId}/{sessionId}/summary"
 
-  event_expiry_days: 30           # Memory event retention (1–365 days)
+  event_expiry_days: 30           # Memory event retention (1-365 days)
   short_term_k: 5                 # Number of recent memories to surface per turn
   enable_tool_provider: true      # Expose memory_recall and memory_record as agent tools
   retrieval:
@@ -200,7 +225,7 @@ observability:
 
   audit_log:
     enabled: true
-    ttl_days: 1825                         # ~5 years retention
+    ttl_days: 1825                         # ~5 years retention (field is ttl_days, not ttl_years)
     table_env: AUDIT_LOG_TABLE             # Env var holding DynamoDB table name
 
   dashboard:
@@ -229,7 +254,7 @@ evaluation:
   online:
     sampling_rate: 20             # Evaluate 20% of production sessions
     evaluators:
-      - Builtin.Correctness       # 13 built-in evaluators available
+      - Builtin.Correctness       # 12 built-in evaluators available
       - Builtin.Helpfulness
       - Builtin.Harmlessness
       - Builtin.GoalSuccessRate
@@ -310,38 +335,51 @@ policy:
 
 ## `multi_agent:` Block
 
-Configures multi-agent coordination when this agent participates in a graph topology.
+Configures multi-agent coordination when this agent participates in a graph or swarm topology.
+
+The field is `pattern` (not `type`). Nodes use `agent_ref` and `node_id` (not `id`).
 
 ```yaml
 multi_agent:
-  type: graph                    # Coordination topology type
-  role: coordinator              # coordinator | specialist
+  pattern: graph                 # Orchestration pattern: swarm | graph
+  role: coordinator              # coordinator | specialist | standalone
+  execution_timeout: 180         # Total execution timeout in seconds
+  node_timeout: 60               # Per-node timeout in seconds
+  max_handoffs: 10               # Maximum handoff count
+  max_iterations: 30             # Maximum iterations
+  entry_point: data_collection   # Node ID to start execution from (must be in nodes)
   nodes:
-    - id: specialist-a           # Agent IDs this coordinator can dispatch to
-    - id: specialist-b
-    - id: specialist-c
+    - agent_ref: simple-agent    # Blueprint ID to load for this node
+      node_id: data_collection   # Unique node identifier within the graph
+    - agent_ref: analyzer-agent
+      node_id: deep_analysis
+  edges:
+    - from_node: data_collection
+      to_node: deep_analysis
+      condition: null             # Optional safe expression, or null for unconditional
 ```
 
 For specialist agents:
 
 ```yaml
 multi_agent:
-  type: graph
+  pattern: swarm
   role: specialist
   # a2a_port in runtime: block must be non-zero for A2A server to start
 ```
 
----
+### Remote Node Options
 
-## `prompt_ref:` Block
-
-References a versioned prompt from the prompt registry.
+For cross-runtime A2A communication, nodes support remote addressing:
 
 ```yaml
-prompt_ref:
-  name: researcher-system-prompt
-  version: "2.1.0"
-  mode: production               # simulation | staging | production
+nodes:
+  - agent_ref: remote-specialist
+    node_id: remote_step
+    a2a_url_env: REMOTE_SPECIALIST_A2A_URL   # Env var holding the A2A URL
+  - agent_ref: another-specialist
+    node_id: direct_invoke
+    runtime_arn_env: SPECIALIST_RUNTIME_ARN   # Env var holding the Runtime ARN
 ```
 
 ---
@@ -351,8 +389,10 @@ prompt_ref:
 ```yaml
 id: researcher
 name: Research Agent
-version: 1.2.0
+version: "1.2.0"
 description: Researches topics using web search and internal knowledge bases
+
+prompt_ref: researcher-system-v1
 
 model:
   provider: bedrock
@@ -381,6 +421,9 @@ tools:
       - list_collections
   - builtin: browser
     network_mode: PUBLIC
+
+gateway:
+  auth_type: aws_iam
 
 identity:
   authorizer:

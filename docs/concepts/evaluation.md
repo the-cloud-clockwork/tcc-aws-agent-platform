@@ -83,7 +83,7 @@ agentcli eval run \
   --evaluators Builtin.GoalSuccessRate,Builtin.Correctness,Builtin.ToolSelectionAccuracy
 ```
 
-Or via SDK:
+Or via SDK. The platform's `EvaluationClient` wraps the upstream AgentCore Evaluation class, adding blueprint-aware configuration, evaluator resolution, and integration with the platform's observability stack:
 
 ```python
 from agent_core.evaluation.client import EvaluationClient
@@ -96,7 +96,10 @@ result = client.run(
 )
 for score in result.scores:
     print(f"{score.evaluator_name}: {score.label} ({score.value:.2f})")
+    print(f"  Explanation: {score.explanation}")
 ```
+
+Each score includes an `explanation` field with the judge model's reasoning — useful for understanding why a particular score was assigned and for debugging prompt or tool issues.
 
 ## Online Evaluation (Continuous Monitoring)
 

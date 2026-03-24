@@ -5,186 +5,194 @@ nav_order: 2
 
 # Strategy Blueprint
 
-A strategy blueprint declares a decision strategy as a YAML file. It defines when a strategy should be active (entry conditions), when it should exit, how parameters should be sized, what signals it requires, and how it is evaluated. Strategy blueprints are consumed by domain-specific modules that build on the platform SDK.
+A strategy blueprint declares a domain-agnostic evaluation strategy as a YAML file. It defines parameterized configuration, condition-based entry and exit rules, evaluation criteria, and risk control thresholds. Strategy blueprints are consumed by domain-specific modules that build on the platform SDK.
 
-Strategy blueprints are validated at load time by the `StrategyBlueprint` Pydantic schema. Invalid blueprints fail loudly — there are no silent defaults.
+Strategy blueprints are validated at load time by the `StrategyBlueprint` Pydantic schema in `agent_core.blueprints.strategy`. Invalid blueprints fail loudly -- there are no silent defaults.
 
 ---
 
 ## Top-Level Identity Fields
 
+All three top-level fields are **required**.
+
 ```yaml
-id: high-confidence-route          # Unique strategy identifier (snake_case)
-name: High Confidence Routing      # Human-readable display name
-version: 2.0.0                     # Semantic version
-description: |
+id: confidence-threshold           # Unique strategy identifier. Required.
+name: Confidence Threshold         # Human-readable display name. Required.
+version: "1.0.0"                   # Semantic version string. Required.
+description: |                     # Optional description.
   Activates when the primary confidence signal crosses above threshold
-  and quality conditions are confirmed.
+  and data quality conditions are confirmed.
 ```
 
 ---
 
-## `entry_conditions:` Block
+## `required_agents:`, `required_mcps:`, `required_signals:`
 
-Declares the conditions that must be met before the strategy activates. All conditions in the `all:` list must be true simultaneously. Conditions in `any:` require at least one match.
-
-```yaml
-entry_conditions:
-  all:
-    - signal: confidence_score
-      operator: greater_than
-      value: 0.7
-      lookback_periods: 5
-
-    - signal: quality_gate
-      operator: equals
-      value: "passed"
-
-  any:
-    - signal: volume_signal
-      operator: greater_than
-      value: 1.5
-    - signal: load_regime
-      operator: equals
-      value: "normal"
-
-  cooldown_periods: 3              # Minimum periods between activations
-  require_all_signals: false       # If true, all required_signals must be present
-```
-
----
-
-## `exit_conditions:` Block
-
-Declares the conditions that trigger strategy exit. Exit conditions are evaluated independently after entry.
+Declares dependencies. All three are lists of strings and are optional (default to empty lists).
 
 ```yaml
-exit_conditions:
-  error_threshold:
-    type: percentage               # percentage | absolute | rate_multiple
-    value: 2.0                     # Exit if error rate exceeds 2%
+required_agents:                   # Agent IDs that must produce input signals
+  - data-collector
+  - analyzer
 
-  success_target:
-    type: percentage
-    value: 6.0                     # Exit when target success rate of 6% above baseline
+required_mcps:                     # MCP server names needed by this strategy
+  - scoring-mcp
 
-  time_limit:
-    max_active_periods: 20         # Force exit after 20 periods regardless
-
-  signal_reversal:                 # Exit when entry signal reverses
-    signal: confidence_score
-    operator: less_than
-    value: 0.3
+required_signals:                  # Named signals expected from required agents
+  - confidence_score
+  - data_quality_score
+  - accuracy_metric
 ```
 
 ---
 
 ## `parameters:` Block
 
-Declares sizing rules and parameter limits. The platform enforces these bounds at evaluation time.
+Declares named strategy parameters with type constraints. Each parameter has a `name` and `type` (required), plus optional `default`, `description`, `min_value`, and `max_value`.
+
+Supported types: `int`, `float`, `str`, `bool`, `list`. Common aliases are accepted: `string` maps to `str`, `integer` to `int`, `number` to `float`, `boolean` to `bool`, `array` to `list`.
 
 ```yaml
 parameters:
-  sizing:
-    method: confidence_adjusted    # fixed | percentage | confidence_adjusted | adaptive
-    base_size: 0.05                # Base allocation as fraction of capacity
-    max_size: 0.15                 # Hard cap regardless of sizing calculation
-    min_size: 0.01                 # Minimum meaningful allocation
+  - name: threshold
+    type: float
+    default: 0.7
+    description: Minimum confidence score to activate
+    min_value: 0.0
+    max_value: 1.0
 
-  limits:
-    max_concurrent_activations: 3
-    max_total_exposure: 0.40       # Maximum total exposure across all active strategies
-    correlation_limit: 0.70        # Skip if correlation with existing activation exceeds threshold
+  - name: lookback_window
+    type: int
+    default: 20
+    description: Number of periods to consider
+    min_value: 5
+    max_value: 500
 
-  scaling:
-    scale_in_allowed: true         # Allow increasing allocation on reconfirmation
-    scale_in_max_additions: 2
-    scale_out_allowed: true        # Allow partial deactivation
-    scale_out_levels: [0.33, 0.67] # Fraction deactivated at each level
+  - name: mode
+    type: str
+    default: "standard"
+    description: Operating mode
+
+  - name: enabled
+    type: bool
+    default: true
+
+  - name: target_metrics
+    type: list
+    default: ["accuracy", "precision"]
 ```
 
 ---
 
-## `required_signals:` Block
+## `entry_conditions:` Block
 
-Declares which signals this strategy depends on. The platform validates signal availability before activation.
+Declares conditions that must be met to activate the strategy. Uses a `ConditionGroupConfig` with a `logic` operator (`and` or `or`) and a list of `conditions`. At least one condition is required.
+
+Each condition has `field`, `operator`, and `value`. Supported operators: `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in`, `not_in`, `between`.
+
+A condition may alternatively use `type` for structured domain-specific conditions (e.g., `type: threshold_breach`) instead of the `field`/`operator`/`value` pattern.
 
 ```yaml
-required_signals:
-  - id: confidence_score
-    source: scoring-agent          # Agent ID that produces this signal
-    type: continuous               # continuous | discrete | boolean
-    min_history_periods: 20        # Minimum signal history required
+entry_conditions:
+  logic: and                       # and | or (default: and, accepts AND/OR)
+  conditions:
+    - field: confidence_score
+      operator: gte
+      value: 0.8
 
-  - id: quality_gate
-    source: quality-agent
-    type: discrete
-    allowed_values:
-      - passed
-      - pending
-      - failed
+    - field: data_quality_score
+      operator: gte
+      value: 0.7
 
-  - id: volume_signal
-    source: volume-agent
-    type: continuous
-    min_history_periods: 5
-    optional: true                 # Strategy can activate even if this signal is absent
+    - field: status
+      operator: in
+      value: ["ready", "verified"]
+```
+
+---
+
+## `exit_conditions:` Block
+
+Declares conditions that trigger strategy deactivation. Same structure as `entry_conditions`.
+
+```yaml
+exit_conditions:
+  logic: or
+  conditions:
+    - field: confidence_score
+      operator: lt
+      value: 0.3
+
+    - field: error_rate
+      operator: gt
+      value: 0.05
+
+    - field: accuracy_metric
+      operator: between
+      value: [0.0, 0.4]
 ```
 
 ---
 
 ## `evaluation:` Block
 
-Configures how this strategy is evaluated. Metrics are calculated by the platform evaluation subsystem and persisted to DynamoDB.
+Configures how this strategy is evaluated. The `primary_metric` field is **required**. All other fields are optional.
 
 ```yaml
 evaluation:
-  primary_metric: success_rate     # Optimisation objective
-  metrics:
-    - success_rate
-    - activation_rate
-    - error_rate
-    - coverage_ratio
+  primary_metric: accuracy         # Required. Primary performance metric for ranking.
+  metrics:                         # All metrics to compute (list of strings)
+    - accuracy
+    - precision
+    - recall
+    - f1_score
     - latency_p95
-
-  benchmark: baseline_strategy     # ID of the benchmark strategy to compare against
-
-  lookback_window: 252             # Periods of history used for metric calculation
-
-  min_activations_threshold: 10    # Minimum activation count before evaluation is meaningful
-
-  persistence:
-    enabled: true
-    table_env: STRATEGY_EVAL_TABLE
-    retention_days: 365
-```
-
----
-
-## `execution_modes:` Block
-
-Controls in which execution environments the strategy is active. Aligns with the platform's `simulation → staging → production` promotion model.
-
-```yaml
-execution_modes:
-  simulation: true                 # Active in simulation/testing environment
-  staging: true                    # Active in staging environment with non-production data
-  production: false                # Disabled in production until promoted
+  benchmark: baseline-strategy     # Benchmark strategy ID for comparison
+  lookback_window: 100             # Lookback window in periods (must be > 0)
+  min_activations_threshold: 10    # Minimum activations for statistical significance (must be > 0)
 ```
 
 ---
 
 ## `risk_controls:` Block
 
-Hard limits enforced independently of sizing logic. These are non-negotiable guardrails.
+Hard limits enforced independently of evaluation logic. These are non-negotiable guardrails.
+
+All fields are optional. Rate values must be between 0.0 and 1.0.
 
 ```yaml
 risk_controls:
-  max_daily_error_rate: 0.03       # Halt strategy if daily error rate exceeds 3%
-  max_degradation_halt: 0.10       # Halt strategy if quality degradation from baseline exceeds 10%
-  circuit_breaker:
-    consecutive_failures: 5        # Pause strategy after 5 consecutive failures
-    pause_periods: 10              # Number of periods to wait before resuming
+  max_daily_error_rate: 0.03       # Halt if daily error rate exceeds 3%
+  max_degradation_halt: 0.10       # Halt if quality degradation from baseline exceeds 10%
+  circuit_breaker:                 # Arbitrary dict for domain-specific circuit breaker config
+    consecutive_failures: 5
+    pause_periods: 10
+```
+
+---
+
+## `execution_modes:` Block
+
+Controls in which execution environments the strategy is active. Aligns with the platform's `simulation -> staging -> production` promotion model.
+
+```yaml
+execution_modes:
+  simulation: true                 # Active in simulation/testing environment
+  staging: true                    # Active in staging environment
+  production: false                # Disabled in production until promoted
+```
+
+---
+
+## `tags:` Block
+
+Arbitrary key-value metadata tags. Optional.
+
+```yaml
+tags:
+  team: data-science
+  category: classification
+  priority: high
 ```
 
 ---
@@ -192,75 +200,68 @@ risk_controls:
 ## Complete Example
 
 ```yaml
-id: high-confidence-route
-name: High Confidence Routing Strategy
-version: 2.0.0
+id: confidence-threshold
+name: Confidence Threshold Strategy
+version: "2.0.0"
 description: |
   Activates when confidence score crosses above threshold
-  with quality gate confirmation. Exits on error threshold or signal reversal.
+  with data quality confirmation. Exits on error threshold or signal reversal.
 
-entry_conditions:
-  all:
-    - signal: confidence_score
-      operator: greater_than
-      value: 0.65
-      lookback_periods: 10
-    - signal: quality_gate
-      operator: equals
-      value: "passed"
-  cooldown_periods: 5
-  require_all_signals: true
+required_agents:
+  - data-collector
+  - analyzer
 
-exit_conditions:
-  error_threshold:
-    type: percentage
-    value: 2.0
-  success_target:
-    type: percentage
-    value: 8.0
-  signal_reversal:
-    signal: confidence_score
-    operator: less_than
-    value: 0.30
-
-parameters:
-  sizing:
-    method: confidence_adjusted
-    base_size: 0.05
-    max_size: 0.12
-    min_size: 0.01
-  limits:
-    max_concurrent_activations: 4
-    max_total_exposure: 0.35
+required_mcps:
+  - scoring-mcp
 
 required_signals:
-  - id: confidence_score
-    source: scoring-agent
-    type: continuous
-    min_history_periods: 20
-  - id: quality_gate
-    source: quality-agent
-    type: discrete
-    allowed_values: [passed, pending, failed]
+  - confidence_score
+  - data_quality_score
+  - accuracy_metric
+
+parameters:
+  - name: threshold
+    type: float
+    default: 0.7
+    description: Minimum confidence score to activate
+    min_value: 0.0
+    max_value: 1.0
+  - name: lookback_window
+    type: int
+    default: 20
+    min_value: 5
+    max_value: 500
+
+entry_conditions:
+  logic: and
+  conditions:
+    - field: confidence_score
+      operator: gte
+      value: 0.8
+    - field: data_quality_score
+      operator: gte
+      value: 0.7
+
+exit_conditions:
+  logic: or
+  conditions:
+    - field: confidence_score
+      operator: lt
+      value: 0.3
+    - field: error_rate
+      operator: gt
+      value: 0.05
 
 evaluation:
-  primary_metric: success_rate
+  primary_metric: accuracy
   metrics:
-    - success_rate
-    - activation_rate
-    - error_rate
+    - accuracy
+    - precision
+    - recall
     - latency_p95
-  lookback_window: 252
+  benchmark: baseline-strategy
+  lookback_window: 100
   min_activations_threshold: 15
-  persistence:
-    enabled: true
-    table_env: STRATEGY_EVAL_TABLE
-    retention_days: 365
-
-execution_modes:
-  simulation: true
-  staging: false
-  production: false
 
 risk_controls:
   max_daily_error_rate: 0.025
@@ -268,4 +269,34 @@ risk_controls:
   circuit_breaker:
     consecutive_failures: 4
     pause_periods: 8
+
+execution_modes:
+  simulation: true
+  staging: false
+  production: false
+
+tags:
+  team: data-science
+  category: classification
 ```
+
+---
+
+## Schema Reference
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | `str` | Yes | Unique strategy identifier |
+| `name` | `str` | Yes | Human-readable name |
+| `version` | `str` | Yes | Semantic version string |
+| `description` | `str` | No | Strategy description |
+| `required_agents` | `list[str]` | No | Agent IDs that produce input signals |
+| `required_mcps` | `list[str]` | No | MCP server names needed |
+| `required_signals` | `list[str]` | No | Named signals expected from agents |
+| `parameters` | `list[ParameterConfig]` | No | Parameterized configuration |
+| `entry_conditions` | `ConditionGroupConfig` | No | Activation conditions |
+| `exit_conditions` | `ConditionGroupConfig` | No | Deactivation conditions |
+| `evaluation` | `StrategyEvaluationConfig` | No | Evaluation configuration |
+| `risk_controls` | `RiskControlConfig` | No | Risk control thresholds |
+| `execution_modes` | `ExecutionModes` | No | Environment gates |
+| `tags` | `dict[str, str]` | No | Arbitrary metadata tags |

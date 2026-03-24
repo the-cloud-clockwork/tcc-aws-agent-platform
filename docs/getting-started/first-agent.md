@@ -27,14 +27,19 @@ A general-purpose assistant agent that:
 
 ## Step 1: Write the Blueprint
 
-The blueprint is the single source of truth for your agent. Every runtime behavior — model selection, tool routing, memory persistence, auth, observability — is declared here.
+The blueprint is the single source of truth for your agent. Every runtime behavior -- model selection, tool routing, memory persistence, auth, observability -- is declared here.
 
 Create `blueprints/agents/assistant.yaml`:
 
 ```yaml
-agent_id: assistant
+id: assistant
+name: General Purpose Assistant
 version: "1.0.0"
 description: "General-purpose assistant with tool access and memory"
+
+# --- Prompt Reference ---
+# Required. References a versioned prompt in the Prompt Registry.
+prompt_ref: assistant-system-v1
 
 # --- Block 1: Runtime ---
 # Hosts this agent in an isolated microVM per session.
@@ -48,11 +53,13 @@ runtime:
 
 # --- Block 9: Model (Strands/Bedrock) ---
 # Model is resolved at load time from the blueprint.
-# Never hardcode a model ID — use an environment variable.
+# Never hardcode a model ID -- use an environment variable.
+# temperature and max_tokens are required fields.
 model:
   provider: bedrock
   model_id: ${MODEL_ID}
-  region: ${BEDROCK_REGION}
+  temperature: 0.3
+  max_tokens: 4096
 
 # --- Block 2: Gateway Tools ---
 # The agent sees these as MCP tools.
@@ -61,11 +68,16 @@ tools:
   - mcp: assistant-tools-mcp
     tools: [search_knowledge_base, create_note, list_notes]
 
+# --- Gateway ---
+gateway:
+  auth_type: aws_iam
+
 # --- Block 4: Memory ---
 # Short-term: last 5 turns injected into the system prompt each session.
 # Long-term: semantic facts extracted asynchronously and retrieved by similarity.
+# Note: There is no `mode` field. Strategies enable memory automatically.
+# The canonical type is SUMMARY (SUMMARIZATION is accepted as an alias).
 memory:
-  mode: MANAGED
   strategies:
     - type: USER_PREFERENCE
       name: PreferenceLearner
@@ -82,6 +94,7 @@ memory:
 # --- Block 3: Identity ---
 # Inbound: Cognito JWT validates every request before your code runs.
 # Outbound: the agent can acquire credentials for external APIs.
+# Credential types: api_key and oauth2 only.
 identity:
   authorizer:
     type: cognito_jwt
@@ -95,6 +108,7 @@ identity:
 # --- Block 6: Observability ---
 # OTEL auto-instrumentation is enabled by including aws-opentelemetry-distro
 # in the generated Dockerfile. trace_attributes appear on every span.
+# Note: audit_log uses ttl_days (not ttl_years).
 observability:
   enabled: true
   trace_attributes:
@@ -102,7 +116,7 @@ observability:
     agent.version: "1.0.0"
   audit_log:
     enabled: true
-    ttl_years: 5
+    ttl_days: 1825
 
 # --- Block 7: Evaluation ---
 # Online evaluation scores a percentage of live sessions continuously.
@@ -132,7 +146,7 @@ policy:
 | Block | YAML Key | What the Platform Does |
 |-------|---------|------------------------|
 | Runtime | `runtime:` | Generates `@app.entrypoint`, Dockerfile, ECR push, Runtime registration |
-| Gateway | `tools:` | Registers MCP targets, injects `MCPClient` wired to `${GATEWAY_URL}` |
+| Gateway | `tools:` + `gateway:` | Registers MCP targets, injects `MCPClient` wired to `${GATEWAY_URL}` |
 | Memory | `memory:` | Generates `MemoryHookProvider`, injects into Strands `Agent` |
 | Identity | `identity:` | Configures Runtime JWT validation, registers credential providers |
 | Observability | `observability:` | Adds OTEL Dockerfile layer, wraps entrypoint with `opentelemetry-instrument` |
@@ -164,7 +178,7 @@ REGISTRY.register(AgentConfig(
 ))
 ```
 
-The `AgentConfigRegistry` is the complete interface between domain logic and the platform. Everything else — wiring the prompt to the agent, injecting memory context, attaching tools — is handled by `BlueprintLoader`.
+The `AgentConfigRegistry` is the complete interface between domain logic and the platform. Everything else -- wiring the prompt to the agent, injecting memory context, attaching tools -- is handled by `BlueprintLoader`.
 
 ---
 
@@ -189,10 +203,10 @@ That is the complete handler. `BlueprintLoader` reads `blueprints/agents/assista
 
 ## Step 4: Validate the Blueprint
 
-Before deploying, confirm the YAML is structurally valid:
+Before deploying, confirm the YAML is structurally valid. The `agentcli blueprint lint` command takes a single file path:
 
 ```bash
-agentcli blueprint lint blueprints/
+agentcli blueprint lint blueprints/agents/assistant.yaml
 ```
 
 Expected output:
@@ -202,7 +216,7 @@ Validating blueprints/agents/assistant.yaml ... OK
   runtime: agentcore, PRIVATE, HTTP
   model: ${MODEL_ID} via bedrock
   tools: 1 MCP target(s), 3 tool(s)
-  memory: MANAGED, 3 strategies, 5 short-term turns
+  memory: 3 strategies, 5 short-term turns
   identity: cognito_jwt, 1 credential provider(s)
   observability: enabled, audit_log: enabled
   evaluation: online @ 100%, 3 evaluator(s)
@@ -220,14 +234,14 @@ If validation fails, the CLI reports the field path and the expected format. Fix
 With infrastructure already deployed (see [Infrastructure]({{ '/docs/infrastructure/' | relative_url }})), deploy the agent:
 
 ```bash
-# Validate all blueprints
-agentcli blueprint lint blueprints/
+# Validate the blueprint
+agentcli blueprint lint blueprints/agents/assistant.yaml
 
 # Deploy to the target environment
-agentcli deploy --env production
+agentcli deploy agent blueprints/agents/assistant.yaml --env production
 ```
 
-Under the hood, `agentcli deploy`:
+Under the hood, `agentcli deploy agent`:
 
 1. Reads the blueprint and generates a production `Dockerfile` with the OTEL layer
 2. Builds the Docker image locally
@@ -242,7 +256,7 @@ Under the hood, `agentcli deploy`:
 The platform generated all of this from the blueprint:
 
 - The `@app.entrypoint` decorator and AgentCore wiring
-- The `BedrockModel` instantiation with the correct model ID and region
+- The `BedrockModel` instantiation with the correct model ID
 - The `MCPClient` connecting to Gateway at `${GATEWAY_URL}`
 - The `MemoryHookProvider` that loads history on agent init and saves turns on message add
 - The `@requires_access_token` / `@requires_api_key` decorators for outbound credentials
@@ -264,19 +278,11 @@ aws bedrock-agentcore invoke-agent-runtime \
   --session-id "$(uuidgen)"
 ```
 
-Or via the CLI:
-
-```bash
-agentcli invoke --agent assistant \
-  --env production \
-  --payload '{"operation": "assist", "user_request": "What notes do I have for today?"}'
-```
-
 ---
 
 ## Next Steps
 
-- [The 12 Building Blocks]({{ '/docs/architecture/building-blocks' | relative_url }}) — deep dive into every blueprint block
-- [Agent Blueprint Spec]({{ '/docs/blueprints/agent-blueprint' | relative_url }}) — complete YAML field reference
-- [SDK Reference — Runtime]({{ '/docs/sdk/runtime' | relative_url }}) — `AgentCoreApp`, `GenericHandler`, `BlueprintLoader` API
-- [Infrastructure]({{ '/docs/infrastructure/' | relative_url }}) — Terraform modules and deployment patterns
+- [The 12 Building Blocks]({{ '/docs/architecture/building-blocks' | relative_url }}) -- deep dive into every blueprint block
+- [Agent Blueprint Spec]({{ '/docs/blueprints/agent-blueprint' | relative_url }}) -- complete YAML field reference
+- [SDK Reference -- Runtime]({{ '/docs/sdk/runtime' | relative_url }}) -- `AgentCoreApp`, `GenericHandler`, `BlueprintLoader` API
+- [Infrastructure]({{ '/docs/infrastructure/' | relative_url }}) -- Terraform modules and deployment patterns

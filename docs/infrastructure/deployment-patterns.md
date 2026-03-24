@@ -214,11 +214,13 @@ Agents support two network modes controlled by the `runtime.network_mode` field 
 | Mode | Description | Use When |
 |------|-------------|----------|
 | `PUBLIC` | Runtime has outbound internet access | Agent needs to reach external APIs |
-| `PRIVATE` | Runtime is VPC-only (isolated subnets) | Sensitive workloads, internal-only tool access |
+| `VPC` | Runtime is VPC-only (private subnets, no public IP) | Sensitive workloads, internal-only tool access |
 
-For `PRIVATE` mode, the Terraform module automatically wires `private_subnet_ids` and `agent_security_group_id` from the platform module into the Runtime's `network_configuration` block. No additional configuration is needed in the blueprint.
+For `VPC` mode, the Terraform module automatically wires `private_subnet_ids` and `agent_security_group_id` from the platform module into the Runtime's `network_configuration` block. No additional configuration is needed in the blueprint.
 
-VPC endpoints for `bedrock-agentcore`, `ecr.dkr`, `ecr.api`, `s3`, and `ssm` are provisioned by the network sub-module to ensure PRIVATE-mode agents can reach required services without traversing the internet.
+VPC endpoints for `ecr.dkr`, `ecr.api`, `s3`, and `ssm` are provisioned by the network sub-module to ensure VPC-mode agents can reach required services without traversing the internet.
+
+> **Note:** A VPC endpoint for the `bedrock-agentcore` service is aspirational. As of March 2026, verify that the `com.amazonaws.<region>.bedrock-agentcore` endpoint service is available in your region before enabling it. The network sub-module includes a placeholder that can be activated once the endpoint is GA.
 
 ---
 

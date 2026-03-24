@@ -35,6 +35,31 @@ async def handle(context):
     return await session.agent.invoke(context.input_text)
 ```
 
+> **Note:** The platform vision is for `BlueprintLoader` to generate this entrypoint entirely from YAML — the `@app.entrypoint` handler shown above is what happens *under the hood*. In practice, domain developers write a 5-line `app.py` that delegates to `GenericHandler`, and the platform wires everything from the blueprint. The manual entrypoint approach is still valid for advanced use cases where you need full control.
+
+### Alternative: Raw FastAPI (No SDK)
+
+You do not need the `agent-core` SDK to deploy on AgentCore Runtime. The contract is just `POST /invocations` + `GET /ping` on port 8080. A raw FastAPI application works identically:
+
+```python
+from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
+
+app = FastAPI()
+
+@app.post("/invocations")
+async def invoke(request):
+    return StreamingResponse(...)
+
+@app.get("/ping")
+async def ping():
+    return {"status": "healthy"}
+
+# uvicorn.run(app, host="0.0.0.0", port=8080)
+```
+
+Both approaches deploy identically to AgentCore Runtime. The SDK is a convenience that wires blueprints, memory hooks, identity decorators, and observability automatically — but it is not a requirement.
+
 For full SDK details, see the [Runtime SDK Reference](../sdk/runtime).
 
 ## Why Not Lambda?
@@ -51,7 +76,7 @@ Lambda is designed for the opposite: short, stateless, fast functions. It's perf
 
 ```
 Agent (microVM)            Gateway            Lambda function
-Long-running       ──>   (MCP proxy)   ──>   Short, stateless
+Long-running       -->   (MCP proxy)   -->   Short, stateless
 Stateful                                     < 30 seconds
 Streaming                                    Returns data
 ```
@@ -90,16 +115,16 @@ Key lifecycle facts:
 
 ```
 Your agent code
-    │
+    |
     ▼
 Docker image (python:3.12-slim base)
-    │
+    |
     ▼
 ECR repository (auto-created by agentcli deploy)
-    │
+    |
     ▼
 AgentCore Runtime (create_agent_runtime() call)
-    │
+    |
     ▼
 Per-session microVMs spawned on demand
 ```
@@ -131,8 +156,11 @@ With this configured, invalid or missing tokens receive `AccessDeniedException` 
 | Port | 8080 (for `/invocations` and `/ping`) |
 | A2A port | 9000 |
 | SSH / direct debugging | Not available |
+| Pricing | Per-session-second (idle time is billed until `stop_runtime_session()`) |
 
 ARM64 only means your Docker base image and all native dependencies must support Graviton. Use `python:3.12-slim` (multi-arch) as your base — it works out of the box.
+
+> **Cost note:** Pricing is per-session-second. Long-running idle sessions can be expensive if you forget to call `stop_runtime_session()`. Design workflows to terminate sessions when their work is done.
 
 ## Streaming Support
 

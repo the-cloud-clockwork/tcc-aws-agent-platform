@@ -141,14 +141,14 @@ After rendering, a summary table is always printed to the terminal:
 
 ```
       Graph Summary
-┌──────────────┬───────┐
-│ Metric       │ Value │
-├──────────────┼───────┤
-│ Pattern      │ graph │
-│ Nodes        │ 3     │
-│ Edges        │ 2     │
-│ Gate nodes   │ 1     │
-└──────────────┴───────┘
++--------------+-------+
+| Metric       | Value |
++--------------+-------+
+| Pattern      | graph |
+| Nodes        | 3     |
+| Edges        | 2     |
+| Gate nodes   | 1     |
++--------------+-------+
 ```
 
 ## Node Types

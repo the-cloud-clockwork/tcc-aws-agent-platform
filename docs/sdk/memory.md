@@ -13,9 +13,10 @@ Memory integrates with the agent lifecycle through hook events, so it populates 
 
 | Class | Purpose |
 |-------|---------|
-| `MemoryManager` | Top-level interface — read, write, and search across both tiers |
+| `MemoryManager` | Top-level interface — create events, retrieve turns, and semantic search |
 | `MemoryHookProvider` | Strands hook that intercepts agent events and writes to memory |
-| `MemoryBranchManager` | Fork and merge memory namespaces for multi-agent coordination |
+| `MemoryBranchManager` | Fork conversations into named branches for multi-agent coordination (wraps `MemorySessionManager`) |
+| `MemoryToolProvider` | Exposes `memory_recall` and `memory_record` as agent-callable tools |
 
 ## Two-Tier Architecture
 
@@ -36,15 +37,18 @@ The memory strategy controls what gets promoted from short-term to long-term sto
 | `USER_PREFERENCE` | Extracts stated preferences, recurring patterns, and explicit settings |
 | `SEMANTIC` | Embeds and stores all significant turns for general-purpose retrieval |
 | `SUMMARY` | Generates a rolling summary of each session; stores the summary |
+| `EPISODIC` | Stores episodic memories of discrete events |
 
 Blueprint configuration:
 
 ```yaml
 memory:
-  enabled: true
-  strategy: SEMANTIC
-  short_term_ttl_hours: 24
-  namespace: "user/{user_id}"
+  strategies:
+    - type: SEMANTIC
+      name: "semantic-extraction"
+      namespace: "user/{actorId}"
+  event_expiry_days: 30
+  short_term_k: 5
 ```
 
 ## Hook Pattern
@@ -75,68 +79,126 @@ Namespaces isolate memory between users, sessions, or agent roles. Namespaces su
 
 ```yaml
 memory:
-  namespace: "user/{user_id}/agent/{agent_name}"
+  strategies:
+    - type: SEMANTIC
+      name: "user-memory"
+      namespace: "user/{actorId}/agent/{agentName}"
 ```
 
-At runtime, `{user_id}` is resolved from the verified identity claims and `{agent_name}` from the blueprint. This ensures memory from one user never leaks to another.
+At runtime, `{actorId}` is resolved from the verified identity claims and `{agentName}` from the blueprint. This ensures memory from one user never leaks to another.
 
 ## Branching for Multi-Agent
 
-`MemoryBranchManager` supports coordinator/specialist patterns where a coordinator spawns specialist sub-agents. Each specialist gets a forked namespace that can read from the parent but writes to its own branch:
+`MemoryBranchManager` wraps `bedrock_agentcore.memory.MemorySessionManager` to provide isolated memory contexts for sub-agents. Each specialist gets a forked conversation branch that can be read independently:
 
 ```python
-from agent_core.memory import MemoryBranchManager
+from agent_core.memory.branching import MemoryBranchManager
 
-branch_manager = MemoryBranchManager(memory_manager)
+branch_mgr = MemoryBranchManager(memory_id="mem-abc123")
 
-# Fork a branch for a specialist agent
-branch = await branch_manager.fork(
-    parent_namespace="user/{user_id}",
-    branch_name="summarization-task-{task_id}",
+# Create a session, then fork a branch for a specialist
+session = branch_mgr.create_session(actor_id="coordinator", session_id="sess-1")
+branch_mgr.fork_conversation(
+    session=session,
+    root_event_id="evt-000",
+    branch_name="summarization-task",
+    messages=[("Summarize the document", "user")],
 )
 
-# After the specialist completes, merge selected facts back
-await branch_manager.merge(branch, strategy="selective", tags=["key-finding"])
-```
+# Read specialist branch turns
+turns = branch_mgr.get_branch_turns(session, branch_name="summarization-task", k=10)
 
-Branches are cheap — they share the parent's read index until a write occurs (copy-on-write semantics).
+# List all branches
+branches = branch_mgr.list_branches(session)
+```
 
 ## Direct Read and Write
 
 For cases where explicit control is needed:
 
 ```python
-from agent_core.memory import MemoryManager
+from agent_core.memory.manager import MemoryManager
 
-memory = MemoryManager.from_blueprint("agent.yaml")
+memory = MemoryManager(memory_id="mem-abc123")
 
-# Write an event directly
-await memory.write_event(
-    namespace="user/u-123",
-    event_type="preference",
-    content={"theme": "dark", "language": "en"},
+# Store conversation turns as events
+memory.create_event(
+    memory_id="mem-abc123",
+    actor_id="user-u-123",
+    session_id="sess-001",
+    messages=[("What is the weather?", "user"), ("It is sunny today.", "assistant")],
 )
 
-# Semantic search in long-term memory
-results = await memory.search(
+# Retrieve recent short-term turns
+turns = memory.get_last_k_turns(
+    memory_id="mem-abc123",
+    actor_id="user-u-123",
+    session_id="sess-001",
+    k=5,
+)
+
+# Semantic search in extracted long-term memories
+results = memory.retrieve_memories(
+    memory_id="mem-abc123",
     namespace="user/u-123",
     query="user's preferred communication style",
     top_k=5,
 )
 for result in results:
-    print(result.content, result.score)
+    print(result)
 ```
+
+## Agent-Callable Memory Tools
+
+When `memory.enable_tool_provider: true` is set in the blueprint, `MemoryToolProvider` (wrapping `AgentCoreMemoryToolProvider` from `strands_tools`) exposes `memory_recall` and `memory_record` as tools the agent can call directly — in addition to the automatic hook-based persistence:
+
+```python
+from agent_core.memory.tool_provider import MemoryToolProvider
+
+tool_provider = MemoryToolProvider(
+    memory_id="mem-abc123",
+    actor_id="agent-1",
+    session_id="sess-001",
+)
+
+agent = Agent(model=model, tools=[*other_tools, *tool_provider.tools])
+```
+
+## Multi-Namespace Retrieval
+
+The `RetrievalConfig` schema supports per-namespace `top_k` and `relevance_score` thresholds. Configure multiple namespaces in the blueprint to search different memory scopes during agent initialization:
+
+```yaml
+memory:
+  retrieval:
+    - namespace: "user/{actorId}/preferences"
+      top_k: 3
+      relevance_score: 0.5
+    - namespace: "user/{actorId}/history"
+      top_k: 10
+      relevance_score: 0.3
+```
+
+Each namespace is searched independently and results are merged before injection into the agent context.
 
 ## Blueprint Configuration
 
 ```yaml
 memory:
-  enabled: true
-  strategy: SEMANTIC           # USER_PREFERENCE | SEMANTIC | SUMMARY
-  short_term_ttl_hours: 24
-  long_term_top_k: 10
-  namespace: "user/{user_id}"
-  distillation_model: anthropic.claude-3-haiku-20240307-v1:0
+  strategies:
+    - type: SEMANTIC
+      name: "semantic-extraction"
+      namespace: "user/{actorId}"
+    - type: USER_PREFERENCE
+      name: "pref-extraction"
+      namespace: "user/{actorId}/prefs"
+  event_expiry_days: 30
+  short_term_k: 5
+  enable_tool_provider: false
+  retrieval:
+    - namespace: "user/{actorId}"
+      top_k: 10
+      relevance_score: 0.3
 ```
 
 All model IDs come from the blueprint — the SDK never supplies a default model.

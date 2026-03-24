@@ -89,6 +89,7 @@ All state machines log at level `ALL` with `include_execution_data = true` to th
 | `ssm_root_path` | `string` | — | Root SSM path |
 | `workflow_dir` | `string` | — | Path to directory containing workflow YAML blueprints |
 | `agent_runtime_arns` | `map(string)` | `{}` | Map of `agent_id` → Runtime ARN (from agents module) |
+| `lambda_arns` | `map(string)` | `{}` | Map of Lambda function name → ARN for `lambda_ref` task states |
 | `log_retention_days` | `number` | `14` | CloudWatch log retention for SFN log groups |
 | `tags` | `map(string)` | `{}` | Additional resource tags |
 

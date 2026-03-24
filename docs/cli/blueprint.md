@@ -40,21 +40,21 @@ For agent blueprints, `lint` prints a block coverage tree showing which subsyste
 
 ```
 my-agent.yaml (agent blueprint)
-├── Name: my-agent
-├── Version: 1.0.0
-├── Model
-│   ├── provider: bedrock
-│   └── model_id: eu.anthropic.claude-sonnet-4-6
-└── Block Coverage
-    ├── runtime
-    ├── gateway
-    ├── identity  —
-    ├── memory
-    ├── tools  —
-    ├── observability
-    ├── evaluation  —
-    ├── policy  —
-    └── multi_agent  —
++-- Name: my-agent
++-- Version: 1.0.0
++-- Model
+|   +-- provider: bedrock
+|   +-- model_id: eu.anthropic.claude-sonnet-4-6
++-- Block Coverage
+    +-- runtime
+    +-- gateway
+    +-- identity  —
+    +-- memory
+    +-- tools  —
+    +-- observability
+    +-- evaluation  —
+    +-- policy  —
+    +-- multi_agent  —
 
 PASS — Blueprint is valid.
 ```

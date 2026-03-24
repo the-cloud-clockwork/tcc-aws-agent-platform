@@ -121,6 +121,21 @@ when {
 
 Any user can process orders up to $500. Senior staff can process any amount.
 
+### Geography-based constraints
+
+```cedar
+forbid(
+  principal,
+  action == AgentCore::Action::"DataTarget___export_records",
+  resource == AgentCore::Gateway::"<gateway_arn>")
+unless {
+  principal has locale &&
+  principal.locale.region == "EU"
+};
+```
+
+Only users with an EU locale in their JWT claims can export records. This pattern is useful for data residency compliance — restricting tool access based on the caller's geography.
+
 ## Declaring Policies in Blueprints
 
 The `policy:` block in a blueprint defines rules that `agentcli policy generate` translates to Cedar:

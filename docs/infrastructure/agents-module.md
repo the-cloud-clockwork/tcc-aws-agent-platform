@@ -101,6 +101,7 @@ Each AgentCore Runtime is created with platform outputs wired as environment var
 | `SSM_ROOT_PATH` | `var.ssm_root_path` |
 | `BEDROCK_REGION` | `var.bedrock_region` (when non-empty) |
 | `ARTIFACTS_BUCKET` | `var.artifacts_bucket_name` (when non-empty) |
+| `PROMPT_REGISTRY_URL` | `var.prompt_registry_url` (when non-empty) |
 
 ---
 
@@ -120,7 +121,7 @@ Each AgentCore Runtime is created with platform outputs wired as environment var
 | `gateway_role_arn` | `string` | — | Gateway IAM role ARN (from platform module) |
 | `memory_id` | `string` | — | AgentCore Memory ID (from platform module) |
 | `vpc_id` | `string` | — | VPC ID (from platform module) |
-| `private_subnet_ids` | `list(string)` | — | Private subnet IDs for PRIVATE network mode |
+| `private_subnet_ids` | `list(string)` | — | Private subnet IDs for VPC network mode |
 | `agent_security_group_id` | `string` | — | Security group ID for agent containers |
 | `artifacts_bucket_name` | `string` | `""` | Artifacts bucket name (optional) |
 | `artifacts_bucket_arn` | `string` | `""` | Artifacts bucket ARN (optional) |
@@ -132,6 +133,9 @@ Each AgentCore Runtime is created with platform outputs wired as environment var
 | `mcp_oauth2_scopes` | `list(string)` | `[]` | OAuth2 scopes for MCP server gateway targets. |
 | `mcp_oauth2_discovery_url` | `string` | `""` | OIDC discovery URL for MCP Runtime JWT authorizer. Empty disables authorizer. |
 | `mcp_oauth2_allowed_clients` | `list(string)` | `[]` | Allowed OAuth2 client IDs for MCP Runtime JWT authorizer. |
+| `prompt_registry_url` | `string` | `""` | Lambda Function URL for the Prompt Registry API (from platform module) |
+| `codeartifact_domain` | `string` | `""` | CodeArtifact domain name for package resolution during builds |
+| `codeartifact_repo` | `string` | `""` | CodeArtifact repository name for Python packages |
 | `tags` | `map(string)` | `{}` | Additional resource tags |
 
 ---
