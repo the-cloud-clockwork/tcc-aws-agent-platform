@@ -23,12 +23,24 @@ locals {
 }
 
 # ── API Key Credential Providers ───────────────────────────────────────────
+#
+# API key values are read from SSM SecureString parameters.
+# Pre-populate before terraform apply:
+#   aws ssm put-parameter --type SecureString \
+#     --name "{ssm_root_path}/agents/{agent_id}/credentials/{name}/api-key" \
+#     --value "..."
+# ──────────────────────────────────────────────────────────────────────────────
+
+data "aws_ssm_parameter" "api_key" {
+  for_each = local.api_key_credential_map
+  name     = each.value.api_key_ssm_path
+}
 
 resource "aws_bedrockagentcore_api_key_credential_provider" "this" {
   for_each = local.api_key_credential_map
 
   name               = each.value.name
-  api_key_wo         = each.value.api_key
+  api_key_wo         = data.aws_ssm_parameter.api_key[each.key].value
   api_key_wo_version = 1
 
   tags = merge(local.tags, {
