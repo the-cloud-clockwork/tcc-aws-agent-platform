@@ -94,9 +94,8 @@ resource "aws_lambda_function" "prompt_registry" {
 
   environment {
     variables = {
-      DYNAMODB_TABLE     = var.prompt_table_name
-      S3_BUCKET          = var.prompt_bucket_name
-      AWS_DEFAULT_REGION = data.aws_region.current.name
+      DYNAMODB_TABLE = var.prompt_table_name
+      S3_BUCKET      = var.prompt_bucket_name
     }
   }
 
