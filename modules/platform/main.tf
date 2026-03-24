@@ -100,3 +100,18 @@ module "api" {
   waf_enabled                    = var.waf_enabled
   tags                           = local.tags
 }
+
+# -- Prompt Registry (AI-DLC: prompts as first-class artifacts) --
+
+module "prompt_registry" {
+  source = "./modules/prompt_registry"
+
+  resource_prefix     = var.resource_prefix
+  environment         = var.environment
+  prompt_table_name   = module.data.table_names["prompt_registry"]
+  prompt_table_arn    = module.data.table_arns["prompt_registry"]
+  prompt_bucket_name  = module.data.bucket_names["prompt_registry"]
+  prompt_bucket_arn   = module.data.prompt_registry_bucket_arn
+  storage_kms_key_arn = module.security.storage_kms_key_arn
+  tags                = local.tags
+}

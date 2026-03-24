@@ -123,17 +123,13 @@ variable "mcp_oauth2_allowed_clients" {
 
 # -- Prompt Registry --------------------------------------------------
 
-variable "prompt_registry_table" {
+variable "prompt_registry_url" {
   type        = string
-  description = "DynamoDB table name for versioned prompt metadata."
+  description = "Lambda Function URL for the Prompt Registry API."
   default     = ""
 }
 
-variable "prompt_registry_bucket" {
-  type        = string
-  description = "S3 bucket name for prompt content storage."
-  default     = ""
-}
+
 
 # -- Build -----------------------------------------------------------
 
