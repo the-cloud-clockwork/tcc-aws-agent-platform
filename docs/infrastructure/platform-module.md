@@ -7,7 +7,7 @@ nav_order: 1
 
 The platform module (`modules/platform/`) provisions the shared infrastructure that all agents and workflows depend on. It is the first module deployed and emits outputs consumed by the agents and workflows modules.
 
-The module is composed of six sub-modules that wire together automatically. Domain repos consume the platform module as a single unit — the internal sub-module boundaries are an implementation detail.
+The module is composed of seven sub-modules that wire together automatically. Domain repos consume the platform module as a single unit — the internal sub-module boundaries are an implementation detail.
 
 ---
 
@@ -15,12 +15,13 @@ The module is composed of six sub-modules that wire together automatically. Doma
 
 | Sub-Module | Path | What It Provisions |
 |------------|------|--------------------|
-| **network** | `modules/platform/modules/network` | VPC, public/private/isolated subnets, NAT gateways, security groups for agent runtimes and MCP servers, VPC endpoint for `bedrock-agentcore` |
+| **network** | `modules/platform/modules/network` | VPC, public/private/isolated subnets, NAT gateways, security groups for agent runtimes and MCP servers, VPC endpoints (ecr.dkr, ecr.api, s3, ssm) |
 | **security** | `modules/platform/modules/security` | Five KMS keys (data, storage, secrets, platform\_artifacts, domain\_artifacts), WAF WebACL (conditional), network security group rules |
 | **data** | `modules/platform/modules/data` | DynamoDB tables (sessions, artifacts, audit\_log, evaluation, policy\_versions), S3 buckets (platform artifacts, domain artifacts), SQS queue, CloudFront distribution (conditional) |
 | **observability** | `modules/platform/modules/observability` | CloudWatch log groups, SNS alert topic, CloudWatch Alarms |
 | **api** | `modules/platform/modules/api` | API Gateway HTTP API, Lambda function for artifact store (claim-check pattern), stage throttle settings |
 | **agentcore** | `modules/platform/modules/agentcore` | AgentCore Gateway (with KMS encryption + Cedar policy engine), AgentCore Memory resource, Cognito user pool (conditional), M2M OAuth2 credential provider for MCP gateway targets (conditional on Cognito), built-in Code Interpreter (conditional), built-in Browser (conditional) |
+| **prompt_registry** | `modules/platform/modules/prompt_registry` | Lambda Function URL for the Prompt Registry API — versioned prompt management backed by DynamoDB + S3 |
 
 All platform outputs are also written as SSM parameters under `${var.ssm_root_path}/` for cross-account and cross-module consumption without requiring Terraform state sharing.
 
@@ -132,6 +133,12 @@ All platform outputs are also written as SSM parameters under `${var.ssm_root_pa
 | Output | Description |
 |--------|-------------|
 | `api_url` | Artifact store API Gateway URL |
+
+### Prompt Registry
+
+| Output | Description |
+|--------|-------------|
+| `prompt_registry_url` | Lambda Function URL for the Prompt Registry API |
 
 ---
 

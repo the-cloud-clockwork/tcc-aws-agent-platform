@@ -75,12 +75,12 @@ Output:
 Running evaluation: agent=my-agent session=sess-a1b2c3 evaluators=2
 
       Evaluation Results
-┌─────────────────────────┬───────────┬───────┬──────────────────────────────────────────┐
-│ Evaluator               │ Label     │ Score │ Explanation                              │
-├─────────────────────────┼───────────┼───────┼──────────────────────────────────────────┤
-│ Builtin.Correctness     │ Correct   │  1.00 │ The response accurately reflects the ... │
-│ Builtin.GoalSuccessRate │ Achieved  │  1.00 │ The agent successfully completed the ...  │
-└─────────────────────────┴───────────┴───────┴──────────────────────────────────────────┘
++-------------------------+-----------+-------+------------------------------------------+
+| Evaluator               | Label     | Score | Explanation                              |
++-------------------------+-----------+-------+------------------------------------------+
+| Builtin.Correctness     | Correct   |  1.00 | The response accurately reflects the ... |
+| Builtin.GoalSuccessRate | Achieved  |  1.00 | The agent successfully completed the ...  |
++-------------------------+-----------+-------+------------------------------------------+
 ```
 
 ```bash

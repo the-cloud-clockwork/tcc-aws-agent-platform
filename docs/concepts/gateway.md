@@ -18,15 +18,15 @@ The key insight is that Gateway is not just an API proxy — it is a **protocol 
 ## Where Gateway Sits
 
 ```
-                        ┌─────────────────────────┐
-                        │   AgentCore Gateway      │
-                        │   (single MCP endpoint)  │
-                        │                          │
-Agent ── MCP ──────────>│  Lambda Target     ──────│──── IAM Role ──── Lambda fn
-                        │  REST Target       ──────│──── HTTP ─────── REST API
-                        │  OpenAPI Target    ──────│──── HTTP ─────── OpenAPI service
-                        │  MCP Target        ──────│──── MCP ──────── Runtime MCP server
-                        └─────────────────────────┘
+                        +-------------------------+
+                        |   AgentCore Gateway      |
+                        |   (single MCP endpoint)  |
+                        |                          |
+Agent -- MCP ---------->|  Lambda Target     ------|---- IAM Role ---- Lambda fn
+                        |  REST Target       ------|---- HTTP ------- REST API
+                        |  OpenAPI Target    ------|---- HTTP ------- OpenAPI service
+                        |  MCP Target        ------|---- MCP -------- Runtime MCP server
+                        +-------------------------+
 ```
 
 The agent connects to one URL. Gateway routes tool calls to the appropriate backend, handles auth for each target, and returns results in MCP format.
@@ -163,6 +163,20 @@ with mcp_client:
 ```
 
 All tools from all registered targets are exposed through this single client. The agent mixes local tools and remote Gateway tools without distinction.
+
+> **Note:** `GatewayClient` exposes the complete Python API for Gateway management — target registration, target updates, target deletion, and tool discovery. See the [Gateway SDK Reference](../sdk/gateway) for the full interface.
+
+## MCP Aggregation Pattern
+
+Gateway can front multiple MCP servers through a single URL. This is one of its most powerful patterns — the agent connects to one gateway endpoint and gets tools from all registered targets:
+
+```
+Agent -> Gateway (single URL) -> Runtime MCP Server A (data extraction tools)
+                               -> Runtime MCP Server B (analysis tools)
+                               -> Lambda Target C (utility tools)
+```
+
+The agent has no awareness that tools come from different backends. It calls `list_tools()` once and gets a unified tool list from every registered target. This eliminates the need to manage multiple MCP connections in agent code.
 
 ## Tool Discovery
 

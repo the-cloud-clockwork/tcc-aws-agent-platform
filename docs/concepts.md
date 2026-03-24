@@ -24,6 +24,10 @@ For API usage and code samples, see the [SDK Reference](../sdk/). These pages fo
 | [Evaluation](evaluation) | 13 built-in evaluators, LLM-as-judge pattern, on-demand vs online evaluation, how evaluation reads traces |
 | [Policy](policy) | Why Cedar, the default DENY model, policy engine placement at the Gateway, common access control patterns |
 | [A2A](a2a) | Agent-to-agent communication via agent cards, coordinator/specialist pattern, M2M auth flow, memory branching across agents |
+| [Tools](tools) | Code Interpreter and Browser built-in tools — Gateway-mediated, sandbox lifecycle, tool discovery |
+| [MCP](mcp) | Base classes for building MCP servers — BaseMCPServer, cache layer, provider routing, observability integration |
+| [Prompts](prompts) | Prompt Registry — versioned prompt management, S3 + DynamoDB storage, mode-gated resolution, push/get/promote lifecycle |
+| [Artifacts](artifacts) | Artifact Store — claim-check pattern, S3 + DynamoDB, signed URLs, 8 MCP tools, tiered storage |
 
 ---
 

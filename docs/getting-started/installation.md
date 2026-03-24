@@ -17,10 +17,10 @@ The platform is distributed as four Python packages. Install only what your doma
 
 | Package | Install Command | Purpose |
 |---------|----------------|---------|
-| `agent-core` | `pip install agent-core` | Core runtime engine — BlueprintLoader, GenericHandler, Gateway, Memory, Identity, Policy, Observability, Evaluation, A2A, MCP base classes |
-| `prompt-registry` | `pip install prompt-registry` | Versioned prompt management — S3 + DynamoDB storage, mode-gated resolution |
-| `mcp-artifacts` | `pip install mcp-artifacts` | Artifact store MCP server — S3 + DynamoDB, signed URL delivery, claim-check pattern |
-| `agent-cli` | `pip install agent-cli` | CLI tooling — blueprint validation, prompt management, strategy lifecycle, deployment |
+| `agent-core` | `pip install agent-core` | Core runtime engine -- BlueprintLoader, GenericHandler, Gateway, Memory, Identity, Policy, Observability, Evaluation, A2A, MCP base classes |
+| `prompt-registry` | `pip install prompt-registry` | Versioned prompt management -- S3 + DynamoDB storage, mode-gated resolution |
+| `mcp-artifacts` | `pip install mcp-artifacts` | Artifact store MCP server -- S3 + DynamoDB, signed URL delivery, claim-check pattern |
+| `agent-cli` | `pip install agent-cli` | CLI tooling -- blueprint validation, prompt management, strategy lifecycle, deployment |
 
 ### Package Index
 
@@ -62,7 +62,7 @@ module "platform" {
   environment = var.environment
   vpc_id      = module.network.vpc_id
 
-  # Optional — override defaults
+  # Optional -- override defaults
   enable_waf         = true
   enable_cloudfront  = false
 }
@@ -115,17 +115,17 @@ Set these in your deployment environment before running agents. Never hardcode v
 |----------|----------|-------------|
 | `AWS_REGION` | Yes | Primary AWS region for platform services |
 | `BEDROCK_REGION` | Yes | AWS region where Bedrock models are invoked (may differ from primary) |
-| `GATEWAY_URL` | Yes | AgentCore Gateway endpoint — output from Terraform |
-| `MEMORY_ID` | Yes | AgentCore Memory resource ID — output from Terraform |
+| `GATEWAY_URL` | Yes | AgentCore Gateway endpoint -- output from Terraform |
+| `MEMORY_ID` | Yes | AgentCore Memory resource ID -- output from Terraform |
 | `COGNITO_POOL_ID` | Yes | Cognito User Pool ID for inbound JWT validation |
 | `COGNITO_CLIENT_ID` | Yes | Cognito App Client ID for inbound JWT validation |
 | `MODEL_ID` | Yes | Bedrock model ID for this agent (e.g., a specific Claude variant) |
-| `EXECUTION_MODE` | Yes | `simulation`, `staging`, or `production` — gates prompt variants and risk logic |
+| `EXECUTION_MODE` | Yes | `simulation`, `staging`, or `production` -- gates prompt variants and risk logic |
 | `BLUEPRINTS_DIR` | No | Path to blueprint YAML files (default: `blueprints/`) |
 | `LOG_LEVEL` | No | `DEBUG`, `INFO`, `WARNING`, `ERROR` (default: `INFO`) |
 
 {: .note }
-> `EXECUTION_MODE` is a first-class concept in the platform. Prompts, data sources, and execution targets all resolve differently per mode. Always set it explicitly — never let it default.
+> `EXECUTION_MODE` is a first-class concept in the platform. Prompts, data sources, and execution targets all resolve differently per mode. Always set it explicitly -- never let it default.
 
 ---
 
@@ -142,6 +142,6 @@ ruff format --check .
 
 ## Next Steps
 
-- [First Agent]({{ '/docs/getting-started/first-agent' | relative_url }}) — build and deploy your first agent end-to-end
-- [Infrastructure]({{ '/docs/infrastructure/' | relative_url }}) — Terraform module reference and deployment patterns
-- [CLI Reference]({{ '/docs/cli/' | relative_url }}) — full `agentcli` command reference
+- [First Agent]({{ '/docs/getting-started/first-agent' | relative_url }}) -- build and deploy your first agent end-to-end
+- [Infrastructure]({{ '/docs/infrastructure/' | relative_url }}) -- Terraform module reference and deployment patterns
+- [CLI Reference]({{ '/docs/cli/' | relative_url }}) -- full `agentcli` command reference

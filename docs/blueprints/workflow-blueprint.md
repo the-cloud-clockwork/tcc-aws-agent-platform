@@ -5,7 +5,7 @@ nav_order: 3
 
 # Workflow Blueprint
 
-A workflow blueprint declares a multi-agent pipeline as a YAML file. The `modules/workflows` Terraform module reads these files and generates AWS Step Functions state machines — one state machine per blueprint. Workflow blueprints support sequential agent steps, parallel branches, choice routing, retry/catch logic, and EventBridge triggers.
+A workflow blueprint declares a multi-agent pipeline as a YAML file. The `modules/workflows` Terraform module reads these files and generates AWS Step Functions state machines -- one state machine per blueprint. Workflow blueprints support sequential agent steps, parallel branches, choice routing, retry/catch logic, and EventBridge triggers.
 
 ---
 
@@ -13,24 +13,41 @@ A workflow blueprint declares a multi-agent pipeline as a YAML file. The `module
 
 ```yaml
 id: analysis-pipeline              # Unique workflow identifier (snake_case). Used as SFN name key.
-name: Analysis Pipeline            # Human-readable name for dashboards
-version: 1.0.0                     # Semantic version
-description: |
+name: Analysis Pipeline            # Human-readable name for dashboards. Required.
+version: "1.0.0"                   # Semantic version. Required.
+description: |                     # Optional description.
   Runs data analysis agents in sequence, then synthesises results
   and routes to the appropriate downstream handler.
-timeout_minutes: 60                # Overall workflow timeout. Default: 60.
+timeout_minutes: 60                # Overall workflow timeout. Default: 60. Must be > 0.
 ```
 
 ---
 
 ## `trigger:` Block
 
-Configures how the workflow is started. Two trigger types are supported: `schedule` (EventBridge rule) and `manual` (API call only).
+Configures how the workflow is started. Three trigger types are supported: `schedule` (EventBridge rule), `event` (EventBridge event pattern), and `manual` (API call only).
 
 ```yaml
+# Schedule trigger — runs on a cron expression
 trigger:
-  type: schedule                   # schedule | manual
+  type: schedule                   # schedule | event | manual
   schedule: "cron(0 8 * * ? *)"   # EventBridge schedule expression
+  timezone: "UTC"                  # Optional IANA timezone
+```
+
+```yaml
+# Event trigger — reacts to EventBridge event patterns
+trigger:
+  type: event
+  event_pattern:
+    source: ["my.application"]
+    detail-type: ["DataReady"]
+```
+
+```yaml
+# Manual trigger — API call or Step Functions StartExecution only
+trigger:
+  type: manual
 ```
 
 For scheduled workflows, the platform creates an `aws_cloudwatch_event_rule` and wires an `aws_cloudwatch_event_target` that injects `trigger`, `scheduled_time`, `workflow`, and `environment` into the execution input.
@@ -39,17 +56,22 @@ For scheduled workflows, the platform creates an `aws_cloudwatch_event_rule` and
 
 ## `states:` Block
 
-The `states:` list defines the workflow DAG. Each entry is either an agent invocation, a parallel branch, or a choice router.
+The `states:` list defines the workflow DAG. Each entry is either an agent invocation, a parallel branch, a choice router, a wait state, or a fail state.
 
 ### Sequential Agent Step
 
 ```yaml
 states:
   - id: ResearchStep              # State name (PascalCase by convention)
-    agent: researcher             # Agent ID — must match an agent blueprint id
+    type: task                    # task | choice | parallel | wait | wait_for_token | succeed | fail
+    agent_ref: researcher         # Agent blueprint ID to invoke via AgentCore Runtime
     next: SynthesisStep           # Next state ID. Omit for terminal states.
-    retry_max: 3                  # Max retry attempts on error. Default: 3.
-    prompt: "$.input.query"       # JSONPath or static string for agent payload
+    prompt: "$.input.query"       # JSONPath to the prompt field in execution input
+    retry_max: 3                  # Maximum retry attempts for this state (>= 1)
+    heartbeat_seconds: 30         # Heartbeat interval for callback-pattern wait states (> 0)
+    input_mapping:                # Optional map of state input keys to agent payload keys
+      query: "$.input.query"
+      context: "$.results.previous"
 ```
 
 The Terraform module resolves the agent's Runtime ARN from `var.agent_runtime_arns` (passed from `module.agents.runtime_arns`) and generates a Step Functions SDK integration task using `arn:aws:states:::aws-sdk:bedrockagentcore:invokeAgentRuntime`.
@@ -63,10 +85,14 @@ Runs multiple agents simultaneously. All branches must complete before the workf
 ```yaml
 states:
   - id: ParallelAnalysis
-    parallel:
-      - agent: analyst-a           # Each entry is an agent reference
-      - agent: analyst-b
-      - agent: analyst-c
+    type: parallel
+    branches:                      # Each branch is a dict (sub-workflow definition)
+      - states:
+          - id: AnalystA
+            agent_ref: analyst-a
+      - states:
+          - id: AnalystB
+            agent_ref: analyst-b
     next: SynthesisStep
 ```
 
@@ -79,57 +105,76 @@ Routes to different next states based on the execution context.
 ```yaml
 states:
   - id: RouteByConfidence
-    choice:
-      - condition: "$.results.researcher.confidence >= 0.8"
+    type: choice
+    choices:
+      - condition:
+          path: "$.results.researcher.confidence"
+          op: ">="
+          value: 0.8
         next: HighConfidenceHandler
-      - condition: "$.results.researcher.confidence >= 0.5"
+      - condition:
+          path: "$.results.researcher.confidence"
+          op: ">="
+          value: 0.5
         next: MediumConfidenceHandler
-      - default: LowConfidenceHandler    # Fallback if no condition matches
+    default: LowConfidenceHandler  # Fallback if no condition matches
+```
+
+### Fail State
+
+Terminal state that records an error.
+
+```yaml
+states:
+  - id: ValidationFailed
+    type: fail
+    error: "ValidationError"       # Error code
+    cause: "Input did not pass validation checks"  # Error description
 ```
 
 ---
 
-## `retry:` Block (per state)
+## `retry:` and `catch:` (per state)
 
-Each agent step automatically includes retry logic. Override defaults per-state:
+Each agent step supports standard Step Functions retry and catch configuration:
 
 ```yaml
 states:
   - id: CriticalStep
-    agent: critical-agent
-    retry_max: 5                   # Max attempts (default: 3)
-    retry_interval: 5              # Base interval in seconds (default: 2)
-    retry_backoff: 1.5             # Backoff multiplier (default: 2.0)
+    type: task
+    agent_ref: critical-agent
+    prompt: "$.input"
+    retry_max: 5                   # Shorthand for simple retry
+    retry:                         # Full retry config (list of retry policies)
+      - ErrorEquals: ["States.TaskFailed"]
+        IntervalSeconds: 5
+        MaxAttempts: 3
+        BackoffRate: 2.0
+    catch:                         # Catch config (list of catch policies)
+      - ErrorEquals: ["States.ALL"]
+        Next: ErrorHandler
     next: NextStep
 ```
-
-On final failure, the step transitions to an auto-generated `<StateId>_Failed` Fail state, writing the error to `$.error.<agent_id>`.
 
 ---
 
 ## `memory_branching:` Block
 
-Configures AgentCore Memory branching for multi-agent workflows. When enabled, each agent step can operate on an isolated memory branch, with merge happening at workflow completion.
+Configures AgentCore Memory branching for multi-agent workflows. When enabled, each agent step operates on an isolated memory branch.
 
 ```yaml
 memory_branching:
-  enabled: true
-  merge_strategy: union            # union | intersection | coordinator_wins
-  branch_namespace: "{sessionId}/branches/{stateId}"
+  enabled: true                    # Enable per-state memory branches (default: false)
+  merge_strategy: union            # union | latest | coordinator_wins | none (default: union)
+  branch_namespace: "{sessionId}/branches/{stateId}"  # Namespace template with {sessionId}, {stateId}
 ```
 
----
-
-## `execution_modes:` Block
-
-Gates which execution environments the workflow runs in.
-
-```yaml
-execution_modes:
-  simulation: true                 # Active in simulation environment
-  staging: true                    # Active in staging
-  production: false                # Disabled until promoted
-```
+| Merge Strategy | Behaviour |
+|----------------|-----------|
+| `union` | Merge all branch memories into the main namespace |
+| `latest` | Keep only the most recent branch's memories |
+| `coordinator_wins` | Coordinator's memories take precedence on conflicts |
+| `none` | No merge -- branches remain isolated |
 
 ---
 
@@ -138,7 +183,7 @@ execution_modes:
 ```yaml
 id: research-synthesis-pipeline
 name: Research and Synthesis Pipeline
-version: 1.1.0
+version: "1.1.0"
 description: |
   Parallel data collection, followed by synthesis and
   confidence-based routing to a final output handler.
@@ -150,59 +195,76 @@ trigger:
 states:
   # Step 1: Validate the incoming request
   - id: ValidateRequest
-    agent: validator
+    type: task
+    agent_ref: validator
     next: ParallelCollection
     retry_max: 2
     prompt: "$.input"
 
   # Step 2: Run three collection agents in parallel
   - id: ParallelCollection
-    parallel:
-      - agent: web-researcher
-      - agent: database-researcher
-      - agent: archive-researcher
+    type: parallel
+    branches:
+      - states:
+          - id: WebResearch
+            agent_ref: web-researcher
+            prompt: "$.input.query"
+      - states:
+          - id: DatabaseResearch
+            agent_ref: database-researcher
+            prompt: "$.input.query"
+      - states:
+          - id: ArchiveResearch
+            agent_ref: archive-researcher
+            prompt: "$.input.query"
     next: SynthesisStep
 
   # Step 3: Synthesise parallel results
   - id: SynthesisStep
-    agent: synthesizer
+    type: task
+    agent_ref: synthesizer
     next: RouteByConfidence
     retry_max: 3
     prompt: "$.parallel_results"
 
   # Step 4: Route based on synthesiser confidence
   - id: RouteByConfidence
-    choice:
-      - condition: "$.results.synthesizer.confidence >= 0.85"
+    type: choice
+    choices:
+      - condition:
+          path: "$.results.synthesizer.confidence"
+          op: ">="
+          value: 0.85
         next: HighQualityOutput
-      - condition: "$.results.synthesizer.confidence >= 0.55"
+      - condition:
+          path: "$.results.synthesizer.confidence"
+          op: ">="
+          value: 0.55
         next: ReviewRequired
-      - default: LowQualityFallback
+    default: LowQualityFallback
 
   # Step 5a: High-quality path
   - id: HighQualityOutput
-    agent: output-formatter
+    type: task
+    agent_ref: output-formatter
     prompt: "$.results.synthesizer"
 
   # Step 5b: Requires human review
   - id: ReviewRequired
-    agent: review-preparer
+    type: task
+    agent_ref: review-preparer
     prompt: "$.results.synthesizer"
 
   # Step 5c: Low-quality fallback
   - id: LowQualityFallback
-    agent: fallback-handler
+    type: task
+    agent_ref: fallback-handler
     prompt: "$.results.synthesizer"
 
 memory_branching:
   enabled: true
   merge_strategy: coordinator_wins
   branch_namespace: "{sessionId}/pipeline/{stateId}"
-
-execution_modes:
-  simulation: true
-  staging: true
-  production: true
 ```
 
 ---
@@ -236,7 +298,7 @@ module "workflows" {
   source = "git::https://github.com/your-org/aws-agent-platform.git//modules/workflows"
 
   workflow_dir       = "./blueprints/workflows"
-  agent_runtime_arns = module.agents.runtime_arns  # Map of agent_id → Runtime ARN
+  agent_runtime_arns = module.agents.runtime_arns  # Map of agent_id -> Runtime ARN
   environment        = var.environment
   resource_prefix    = var.resource_prefix
   aws_region         = var.aws_region
@@ -245,3 +307,22 @@ module "workflows" {
 ```
 
 See [Deployment Patterns](../infrastructure/deployment-patterns) for the full three-module composition.
+
+---
+
+## Schema Reference
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `id` | `str` | Yes | -- | Unique workflow identifier |
+| `name` | `str` | Yes | -- | Human-readable name |
+| `version` | `str` | Yes | -- | Semantic version |
+| `description` | `str` | No | `""` | Workflow description |
+| `trigger` | `TriggerConfig` | No | `schedule` | Trigger configuration |
+| `trigger.type` | `str` | No | `schedule` | `schedule`, `event`, or `manual` |
+| `trigger.schedule` | `str` | No | `null` | Cron expression |
+| `trigger.timezone` | `str` | No | `null` | IANA timezone |
+| `trigger.event_pattern` | `dict` | No | `null` | EventBridge event pattern |
+| `timeout_minutes` | `int` | No | `60` | Overall workflow timeout |
+| `states` | `list[WorkflowState]` | No | `[]` | State machine definition |
+| `memory_branching` | `MemoryBranchConfig` | No | `null` | Memory branching config |

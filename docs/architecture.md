@@ -84,6 +84,14 @@ graph TB
 
 **Hard dependencies.** Strands Agents SDK and Amazon Bedrock AgentCore are required. The platform does not provide fallbacks or compatibility shims.
 
+**Bundle deployment.** Deploy once, every domain repo consumes. The platform infrastructure (Gateway, Memory, Identity, Observability, data stores) is deployed once per account and shared by all domain repos.
+
+**Zero boilerplate.** YAML to production without writing runtime code. Domain developers write blueprint YAML and prompt builders; the platform generates the entrypoint, Dockerfile, IAM policies, and AgentCore registration.
+
+**Execution mode isolation.** `EXECUTION_MODE=simulation|staging|production` routes behaviour end-to-end: prompts, data sources, execution targets — without changing agent code.
+
+**Terraform-native consumption.** Domain repos use `module "platform" { source = "..." }` to deploy the entire stack. No CDK knowledge required; standard Terraform workflow.
+
 ---
 
 ## Next Steps

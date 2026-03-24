@@ -22,31 +22,36 @@ For development:
 pip install -e "core/[dev]"
 ```
 
-## Subsystems
+## Building Blocks
 
 | Subsystem | Key Classes | Description |
 |-----------|-------------|-------------|
-| [Runtime](runtime.md) | `AgentCoreApp`, `GenericHandler`, `SessionManager` | AgentCore container runtime — `@app.entrypoint` pattern, `/invocations` + `/ping` contract, streaming, middleware |
-| [Gateway](gateway.md) | `GatewayClient`, `TargetRegistry`, `ToolDiscovery` | Unified gateway client — Lambda, MCP, REST, and OpenAPI targets with dual auth |
-| [Identity](identity.md) | `IdentityProvider`, `IdentityClient`, `CredentialCache` | Auth flows — inbound JWT, outbound API key, 3-legged OAuth, M2M with credential caching |
-| [Memory](memory.md) | `MemoryManager`, `MemoryHookProvider`, `MemoryBranchManager` | Two-tier memory — short-term events with TTL, long-term pgvector semantic retrieval, branching for multi-agent |
-| [Tools](tools.md) | `CodeInterpreterProvider`, `BrowserProvider`, `BuiltinToolWiring` | Built-in tool providers — Code Interpreter sessions, browser CDP / Nova Act, Gateway registration |
-| [Observability](observability.md) | `LangfuseHook`, `AuditLogWriter`, `XRayTracer`, `CostTracker` | Full-stack observability — OTEL, X-Ray, CloudWatch GenAI metrics, Langfuse, audit logs, PII masking |
-| [Evaluation](evaluation.md) | `EvaluationClient`, `BuiltinEvaluators` | 13 built-in evaluators, custom LLM-as-judge, on-demand and online sampling |
-| [Policy](policy.md) | `PolicyClient`, `CedarPolicyBuilder`, `PolicyTranslator` | Cedar-based policy engine — default DENY, rate limits, role guards, NL-to-Cedar translation |
-| [A2A](a2a.md) | `A2AServerWrapper`, `A2AClient`, `A2AWiring` | Agent-to-Agent protocol — agent cards, coordinator/specialist pattern, M2M auth, remote agents as tools |
-| [MCP Base Classes](mcp.md) | `BaseMCPServer`, cache, provider routing | Base classes for building domain MCP servers — cache, routing, versioned store |
-| [Prompt Registry](prompts.md) | `PromptRegistryClient` | Versioned prompt management — draft → active → archived lifecycle, mode-gated resolution |
-| [Artifacts Server](artifacts.md) | `create_artifact`, `get_artifact` | Artifact MCP server — claim-check pattern, 6 artifact types, pre-signed URLs, idempotency |
+| [Runtime](sdk/runtime.md) | `AgentCoreApp`, `GenericHandler`, `SessionManager` | AgentCore container runtime — `@app.entrypoint` pattern, `/invocations` + `/ping` contract, streaming, middleware |
+| [Gateway](sdk/gateway.md) | `GatewayClient`, `TargetRegistry`, `ToolDiscovery` | Unified gateway client — Lambda, MCP, REST, and OpenAPI targets with dual auth |
+| [Identity](sdk/identity.md) | `IdentityWiring`, `CredentialCache`, `requires_access_token` | Auth flows — M2M OAuth, 3-legged OAuth, API key injection with credential caching |
+| [Memory](sdk/memory.md) | `MemoryManager`, `MemoryHookProvider`, `MemoryBranchManager` | Two-tier memory — short-term events with TTL, long-term pgvector semantic retrieval, branching for multi-agent |
+| [Tools](sdk/tools.md) | `CodeInterpreterProvider`, `BrowserProvider`, `BuiltinToolWiring` | Built-in tool providers — Code Interpreter sessions, browser CDP / Nova Act, Gateway registration |
+| [Observability](sdk/observability.md) | `LangfuseHook`, `AuditLogWriter`, `XRayTracer`, `CostTracker` | Full-stack observability — OTEL, X-Ray, CloudWatch GenAI metrics, Langfuse, audit logs, PII masking |
+| [Evaluation](sdk/evaluation.md) | `EvaluationClient`, `BuiltinEvaluators` | 13 built-in evaluators, custom LLM-as-judge, on-demand and online sampling |
+| [Policy](sdk/policy.md) | `PolicyClient`, `CedarPolicyBuilder`, `PolicyTranslator` | Cedar-based policy engine — default DENY, rate limits, role guards, NL-to-Cedar translation |
+| [A2A](sdk/a2a.md) | `A2AServerWrapper`, `A2AClient`, `A2AWiring` | Agent-to-Agent protocol — agent cards, coordinator/specialist pattern, M2M auth, remote agents as tools |
+| [MCP Base Classes](sdk/mcp.md) | `BaseMCPServer`, cache, provider routing | Base classes for building domain MCP servers — cache, routing, versioned store |
+| [Prompt Registry](sdk/prompts.md) | `PromptRegistryClient` | Versioned prompt management — draft to active to archived lifecycle, mode-gated resolution |
+| [Artifacts Server](sdk/artifacts.md) | `create_artifact`, `get_artifact` | Artifact MCP server — claim-check pattern, 6 artifact types, pre-signed URLs, idempotency |
 
 ## Architecture Overview
 
-All subsystems follow a consistent wiring pattern. Each subsystem exposes a `wiring.py` module that accepts blueprint configuration and returns a configured instance:
+All building blocks follow a consistent wiring pattern. Each building block exposes a `wiring.py` module that accepts blueprint configuration and returns a configured instance:
 
 ```python
 from agent_core.runtime import AgentCoreApp
+from agent_core.blueprints import BlueprintLoader
 
-app = AgentCoreApp.from_blueprint("agent.yaml")
+loader = BlueprintLoader("blueprints/")
+app = AgentCoreApp.from_blueprint(loader, "my-agent")
+
+if __name__ == "__main__":
+    app.run()
 ```
 
 Blueprint YAML drives all resource names, model IDs, feature flags, and configuration. Nothing is hardcoded in the SDK.
@@ -73,4 +78,4 @@ policy:
   enabled: true
 ```
 
-See the [Blueprints reference](../blueprints/) for the full schema.
+See the [Blueprints reference](blueprints/) for the full schema.

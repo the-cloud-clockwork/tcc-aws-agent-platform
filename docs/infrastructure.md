@@ -31,6 +31,7 @@ flowchart TB
         OBS["observability\nCloudWatch log groups, SNS alerts"]
         API["api\nAPI Gateway + Lambda (artifact store)"]
         AC["agentcore\nGateway, Memory, Cognito, built-in tools"]
+        PR["prompt_registry\nLambda Function URL, prompt store"]
     end
 
     subgraph Agents["modules/agents (deploys second)"]
@@ -77,3 +78,4 @@ flowchart TB
 | [Agents Module](./agents-module) | The `modules/agents/` reference — blueprint-driven deployment pattern |
 | [Workflows Module](./workflows-module) | The `modules/workflows/` reference — Step Functions generation |
 | [Deployment Patterns](./deployment-patterns) | Environment strategy, deployment sequence, cross-region access |
+| [Prompt Registry Module](./prompt-registry-module) | The `modules/platform/modules/prompt_registry/` reference — Lambda + DynamoDB + S3 prompt store |

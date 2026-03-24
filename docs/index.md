@@ -8,6 +8,8 @@ description: "Complete documentation for the AWS Agent Platform."
 
 Welcome to the AWS Agent Platform documentation. This platform lets you declare AI agents in YAML and deploy them on AWS with zero boilerplate — built as an abstraction layer over Strands Agents SDK and Amazon Bedrock AgentCore.
 
+The platform ships four packages: `agent-core` (SDK), `prompt-registry` (versioned prompt management via S3 + DynamoDB), `mcp-artifacts` (artifact store MCP server with claim-check pattern), and `agent-cli` (CLI tooling).
+
 ---
 
 ## Sections
@@ -16,11 +18,13 @@ Welcome to the AWS Agent Platform documentation. This platform lets you declare 
 |---------|-------------|
 | [**Getting Started**](getting-started/) | Install the SDK, create your first agent, deploy to AgentCore Runtime |
 | [**Architecture**](architecture/) | The 12 building blocks, platform vs. domain separation, end-to-end flows |
-| [**SDK Reference**](sdk/) | Detailed API reference for all 12 subsystems in the `agent-core` package |
+| [**SDK Reference**](sdk/) | Detailed API reference for all 12 building blocks in the `agent-core` package |
 | [**Infrastructure**](infrastructure/) | Terraform modules (platform, agents, workflows) and deployment patterns |
 | [**CLI Reference**](cli/) | Command reference for `agentcli` — blueprint validation, prompt management, deployment |
 | [**Blueprints**](blueprints/) | YAML specification for agent, strategy, and workflow blueprints |
 | [**Concepts**](concepts/) | Deep mental models explaining the "why" behind each AgentCore component |
+| [**Prompt Registry**](sdk/prompts/) | Versioned prompt management — S3 + DynamoDB storage, mode-gated resolution, push/get/promote lifecycle |
+| [**MCP Artifacts**](sdk/artifacts/) | Artifact store MCP server — claim-check pattern, S3 + DynamoDB, signed URLs, 8 tools |
 
 ---
 

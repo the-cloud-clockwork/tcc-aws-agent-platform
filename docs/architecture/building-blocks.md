@@ -14,12 +14,12 @@ The platform is an abstraction layer over 12 AgentCore concepts. Each one maps f
 ## Overview
 
 ```
-┌─────────────────┐     ┌──────────────┐     ┌──────────────┐
-│  Agent (microVM) │────>│   Gateway    │────>│  Lambda fn   │
-│  Long-running    │     │  (MCP proxy) │     │  Short, fast │
-│  Stateful        │     │              │     │  Stateless   │
-│  Streaming       │     │              │     │  < 30s       │
-└─────────────────┘     └──────────────┘     └──────────────┘
++-----------------+     +--------------+     +--------------+
+|  Agent (microVM) |---->|   Gateway    |---->|  Lambda fn   |
+|  Long-running    |     |  (MCP proxy) |     |  Short, fast |
+|  Stateful        |     |              |     |  Stateless   |
+|  Streaming       |     |              |     |  < 30s       |
++-----------------+     +--------------+     +--------------+
 ```
 
 Agents live on **Runtime**. Tools live on **Lambda** (or any backend). **Gateway** bridges them. Everything else — Memory, Identity, Policy, Observability, Evaluation — wraps around the agent at the Runtime layer.
@@ -138,10 +138,10 @@ memory:
 **Memory tiers:**
 
 ```
-create_event() ──> Short-Term (Raw events, TTL)
-                        │
-                        └── async extraction (~30s) ──> Long-Term (pgvector)
-                                                              │
+create_event() --> Short-Term (Raw events, TTL)
+                        |
+                        +-- async extraction (~30s) --> Long-Term (pgvector)
+                                                              |
                                                     retrieve_memories()
                                                     semantic similarity search
 ```
@@ -190,12 +190,12 @@ A trace for a single invocation captures:
 
 ```
 Trace: session_abc / invocation_1
-├── Agent Invocation (2.3s total)
-│   ├── LLM Call #1 (0.8s) — tokens: 142 in / 67 out
-│   │   └── Tool Decision: get_record(id="123")
-│   ├── Tool Call: get_record (0.1s)
-│   ├── LLM Call #2 (0.6s) — tokens: 203 in / 89 out
-│   └── Final Response
++-- Agent Invocation (2.3s total)
+|   +-- LLM Call #1 (0.8s) — tokens: 142 in / 67 out
+|   |   +-- Tool Decision: get_record(id="123")
+|   +-- Tool Call: get_record (0.1s)
+|   +-- LLM Call #2 (0.6s) — tokens: 203 in / 89 out
+|   +-- Final Response
 ```
 
 ---
@@ -335,10 +335,26 @@ Three blueprint types:
 | Type | Declares | Produces |
 |------|----------|----------|
 | **Agent** | Model, tools, prompt, memory, identity, policy, observability | AgentCore Runtime container with full Strands agent |
-| **Strategy** | Entry/exit rules, sizing logic, required signals | Evaluated by a strategy-evaluator agent |
+| **Strategy** | Trigger conditions, parameter logic, required inputs | Evaluated by a strategy-evaluator agent |
 | **Workflow** | Multi-agent DAG with parallel branches, choice routing, retry/catch | Step Functions state machine |
 
 This is the platform's differentiator. Everything else (Gateway, Memory, Identity, Policy) is AWS-managed infrastructure. The blueprint layer turns "12 separate AWS services" into "one YAML file per agent."
+
+---
+
+## Execution Mode Isolation {#execution-mode}
+
+`EXECUTION_MODE` is a first-class concept that affects every building block simultaneously. It controls which prompts are resolved, which data sources are queried, and which execution targets receive tool calls.
+
+| Mode | Prompts | Data Sources | Execution Targets |
+|------|---------|-------------|------------------|
+| `simulation` | Simulation-mode variants | Synthetic / sandboxed data | Dry-run handlers |
+| `staging` | Staging variants | Staging data stores | Staging backends |
+| `production` | Production variants | Live data | Live backends |
+
+Every prompt resolution, Gateway target call, and Memory namespace is mode-aware. Switching modes switches the entire agent's behaviour end-to-end — from the PromptRegistry returning different prompt versions to the Gateway routing to different backend environments.
+
+This means you can run a full agent pipeline in `simulation` mode against synthetic data with dry-run handlers, then promote to `staging` for integration testing, and finally to `production` — without changing any agent code or blueprint YAML. The mode is set via the `EXECUTION_MODE` environment variable at deployment time.
 
 ---
 

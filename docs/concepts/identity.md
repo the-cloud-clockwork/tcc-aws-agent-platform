@@ -40,6 +40,8 @@ identity:
       - ${CLIENT_ID}
 ```
 
+> **Under the hood:** The `cognito_jwt` and `custom_jwt` authorizer types configure a `customJWTAuthorizer` on the Runtime with a `discoveryUrl` pointing to the OIDC well-known endpoint. The Runtime fetches signing keys from the discovery URL and validates token signatures, expiry, and audience claims before routing requests to your entrypoint.
+
 Invalid tokens are rejected before your entrypoint fires. Inside the handler, the token has already been validated — you decode it to extract user identity without re-verifying the signature:
 
 ```python
@@ -55,7 +57,20 @@ async def handle(context):
 
 **Problem:** Your agent needs a third-party API key (e.g., a search service, a data API). You do not want the key in your codebase, container image, or environment variables.
 
-Identity stores the key in Secrets Manager and injects it at runtime via a decorator:
+Identity stores the key in Secrets Manager and injects it at runtime via a decorator. The first step is a **one-time credential provider setup**:
+
+```python
+# One-time setup — register the credential provider (run once, not in agent code):
+from bedrock_agentcore.services.identity import IdentityClient
+
+identity_client = IdentityClient(region="eu-west-1")
+identity_client.create_api_key_credential_provider({
+    "name": "search-api-key-provider",
+    "apiKey": "sk-..."
+})
+```
+
+After the provider is registered, your agent code retrieves the key at runtime via a decorator:
 
 ```python
 from bedrock_agentcore.identity.auth import requires_api_key

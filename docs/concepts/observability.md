@@ -13,18 +13,18 @@ A single agent invocation produces a full execution tree:
 
 ```
 Trace: session_abc / invocation_1
-├── Agent Invocation (2.3s total)
-│   ├── LLM Call #1 (0.8s)
-│   │   ├── Prompt tokens: 142
-│   │   ├── Completion tokens: 67
-│   │   └── Tool decision: search_documents(query="...")
-│   ├── Tool Call: search_documents (0.1s)
-│   │   ├── Input: {query: "..."}
-│   │   └── Output: [3 documents]
-│   ├── LLM Call #2 (0.6s)
-│   │   ├── Prompt tokens: 203
-│   │   └── Final response
-│   └── Response delivered to user
++-- Agent Invocation (2.3s total)
+|   +-- LLM Call #1 (0.8s)
+|   |   +-- Prompt tokens: 142
+|   |   +-- Completion tokens: 67
+|   |   +-- Tool decision: search_documents(query="...")
+|   +-- Tool Call: search_documents (0.1s)
+|   |   +-- Input: {query: "..."}
+|   |   +-- Output: [3 documents]
+|   +-- LLM Call #2 (0.6s)
+|   |   +-- Prompt tokens: 203
+|   |   +-- Final response
+|   +-- Response delivered to user
 ```
 
 Every LLM call records: model ID, full prompt, full response, input/output token counts, latency. Every tool call records: tool name, parameters, result, latency. Errors record: exception type, stack trace, which step failed.
@@ -146,6 +146,8 @@ model:
   guardrail_version: "1"
   guardrail_trace: enabled
 ```
+
+> **SDK note:** In the Strands SDK, guardrails are configured directly on the model: `BedrockModel(model_id=..., guardrail_id="abc123", guardrail_version="1")`. The blueprint `model:` block maps to these parameters automatically.
 
 **CloudWatch Logs Data Protection** — apply data protection policies to log groups to mask PII patterns (SSNs, credit card numbers, email addresses) at rest. This operates independently of guardrails — even if PII makes it into a trace event, it is masked before being stored.
 

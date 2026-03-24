@@ -19,11 +19,11 @@ Memory has two storage tiers that serve different purposes:
 
 ```
                 Short-Term (Events)               Long-Term (Strategies)
-                ┌─────────────────┐               ┌──────────────────────┐
-create_event()─>│ Raw turns        │──async ~30s──>│ Semantic extraction  │
-                │ TTL: 7–365 days  │               │ pgvector embeddings  │
-                │ get_last_k_turns │               │ Namespaced retrieval │
-                └─────────────────┘               └──────────────────────┘
+                +-----------------+               +----------------------+
+create_event()->| Raw turns        |--async ~30s-->| Semantic extraction  |
+                | TTL: 7–365 days  |               | pgvector embeddings  |
+                | get_last_k_turns |               | Namespaced retrieval |
+                +-----------------+               +----------------------+
 ```
 
 ### Short-Term Memory (Events)
@@ -122,10 +122,10 @@ In multi-agent setups, different agents in a pipeline need to share memory witho
 
 ```
 Coordinator writes to "main" branch
-    │
-    ├── Sub-agent A forks → writes to "sub-agent-a" branch
-    ├── Sub-agent B forks → writes to "sub-agent-b" branch
-    │
+    |
+    +-- Sub-agent A forks → writes to "sub-agent-a" branch
+    +-- Sub-agent B forks → writes to "sub-agent-b" branch
+    |
 Coordinator reads from any branch
 ```
 

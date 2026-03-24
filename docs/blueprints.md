@@ -6,7 +6,7 @@ has_children: true
 
 # Blueprints
 
-Blueprints are the core configuration abstraction of the AWS Agent Platform. A blueprint is a YAML file that declares everything a resource needs — its model, runtime behaviour, tools, memory, identity, observability, and access-control policy. The platform reads blueprint YAML at both SDK load time and Terraform plan time, driving code execution and infrastructure provisioning from a single source of truth.
+Blueprints are the core configuration abstraction of the AWS Agent Platform. A blueprint is a YAML file that declares everything a resource needs -- its model, runtime behaviour, tools, memory, identity, observability, and access-control policy. The platform reads blueprint YAML at both SDK load time and Terraform plan time, driving code execution and infrastructure provisioning from a single source of truth.
 
 ---
 
@@ -15,7 +15,7 @@ Blueprints are the core configuration abstraction of the AWS Agent Platform. A b
 | Type | File Convention | Purpose | Terraform Consumer |
 |------|-----------------|---------|-------------------|
 | **Agent** | `blueprints/agents/*.yaml` | Declares a single AI agent: model, runtime, tools, memory, identity, observability, evaluation, policy | `modules/agents` |
-| **Strategy** | `blueprints/strategies/*.yaml` | Declares a decision strategy: entry/exit conditions, parameter controls, evaluation criteria | Domain-specific modules |
+| **Strategy** | `blueprints/strategies/*.yaml` | Declares an evaluation strategy: entry/exit conditions, parameters, evaluation criteria, risk controls | Domain-specific modules |
 | **Workflow** | `blueprints/workflows/*.yaml` | Declares a multi-agent pipeline: DAG structure, agent references, parallel branches, retry logic | `modules/workflows` |
 
 ---
@@ -33,7 +33,7 @@ blueprints/
     analysis-pipeline.yaml
 ```
 
-At **SDK load time**, `BlueprintLoader` reads YAML from disk, validates it against the Pydantic schema classes in `agent_core.schemas`, and returns a typed `AgentBlueprint` object that drives runtime wiring.
+At **SDK load time**, `BlueprintLoader` reads YAML from disk, validates it against the Pydantic schema classes in `agent_core.schemas` and `agent_core.blueprints`, and returns a typed `AgentBlueprint` object that drives runtime wiring.
 
 At **Terraform plan time**, the `modules/agents` and `modules/workflows` modules call `fileset()` and `yamldecode()` to read the same YAML files and create the corresponding AWS resources per blueprint entry.
 
@@ -49,11 +49,11 @@ flowchart LR
 
 ## Blueprint Validation
 
-The platform validates blueprints at load time using Pydantic v2. Invalid blueprints fail loudly — there are no silent defaults or fallback paths. Use the CLI to validate before deploying:
+The platform validates blueprints at load time using Pydantic v2. Invalid blueprints fail loudly -- there are no silent defaults or fallback paths. Use the CLI to validate individual blueprint files before deploying:
 
 ```bash
-agent-cli blueprint validate blueprints/agents/researcher.yaml
-agent-cli blueprint validate blueprints/workflows/analysis-pipeline.yaml
+agentcli blueprint lint blueprints/agents/researcher.yaml
+agentcli blueprint lint blueprints/workflows/analysis-pipeline.yaml
 ```
 
 ---
@@ -62,6 +62,6 @@ agent-cli blueprint validate blueprints/workflows/analysis-pipeline.yaml
 
 | Page | Description |
 |------|-------------|
-| [Agent Blueprint](./agent-blueprint) | Full specification for agent blueprints — all configurable blocks |
-| [Strategy Blueprint](./strategy-blueprint) | Specification for strategy decision blueprints |
+| [Agent Blueprint](./agent-blueprint) | Full specification for agent blueprints -- all configurable blocks |
+| [Strategy Blueprint](./strategy-blueprint) | Specification for strategy evaluation blueprints |
 | [Workflow Blueprint](./workflow-blueprint) | Specification for multi-agent workflow blueprints |

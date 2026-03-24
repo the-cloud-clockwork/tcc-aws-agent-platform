@@ -19,7 +19,7 @@ Get a validated agent blueprint running in under 10 minutes.
 | AWS CLI | 2.x | Must be configured with credentials (`aws configure`) |
 | Terraform | 1.9+ | Required for infrastructure deployment |
 | Docker | 24+ | Required for building Runtime container images |
-| AWS account | — | Bedrock must be enabled in `${AWS_REGION}` |
+| AWS account | -- | Bedrock must be enabled in `${AWS_REGION}` |
 
 ---
 
@@ -61,9 +61,18 @@ mkdir -p blueprints/agents
 Create `blueprints/agents/my-agent.yaml`:
 
 ```yaml
-agent_id: my-agent
+id: my-agent
+name: My Agent
 version: "1.0.0"
 description: "A general-purpose assistant agent"
+
+prompt_ref: my-agent-system-v1
+
+model:
+  provider: bedrock
+  model_id: ${MODEL_ID}
+  temperature: 0.3
+  max_tokens: 4096
 
 runtime:
   type: agentcore
@@ -72,17 +81,14 @@ runtime:
   network_mode: PRIVATE
   protocol: HTTP
 
-model:
-  provider: bedrock
-  model_id: ${MODEL_ID}
-  region: ${BEDROCK_REGION}
-
 tools:
   - mcp: my-tools-mcp
     tools: [get_data, create_item]
 
+gateway:
+  auth_type: aws_iam
+
 memory:
-  mode: MANAGED
   strategies:
     - type: SEMANTIC
       name: FactExtractor
@@ -114,8 +120,10 @@ evaluation:
 
 ## Step 5: Validate the Blueprint
 
+The `agentcli blueprint lint` command takes a single file path:
+
 ```bash
-agentcli blueprint lint blueprints/
+agentcli blueprint lint blueprints/agents/my-agent.yaml
 ```
 
 A valid blueprint produces output like:
@@ -125,7 +133,7 @@ Validating blueprints/agents/my-agent.yaml ... OK
   runtime: agentcore
   model: ${MODEL_ID}
   tools: 1 MCP target(s)
-  memory: MANAGED, 1 strategy
+  memory: 1 strategy
   identity: cognito_jwt
   evaluation: online @ 100%
 
@@ -138,9 +146,9 @@ All blueprints valid.
 
 Blueprint validation confirms your YAML is structurally correct. To run the agent, you need:
 
-1. **Infrastructure** — Deploy the platform Terraform modules to provision Gateway, Memory, Runtime, Identity, and Observability. See [Infrastructure]({{ '/docs/infrastructure/' | relative_url }}).
-2. **Domain logic** — Write a prompt builder and a 5-line handler. See [First Agent]({{ '/docs/getting-started/first-agent' | relative_url }}).
-3. **Deployment** — `agentcli deploy --env production` builds the container, pushes to ECR, and registers the Runtime.
+1. **Infrastructure** -- Deploy the platform Terraform modules to provision Gateway, Memory, Runtime, Identity, and Observability. See [Infrastructure]({{ '/docs/infrastructure/' | relative_url }}).
+2. **Domain logic** -- Write a prompt builder and a 5-line handler. See [First Agent]({{ '/docs/getting-started/first-agent' | relative_url }}).
+3. **Deployment** -- `agentcli deploy agent blueprints/agents/my-agent.yaml --env production` builds the container, pushes to ECR, and registers the Runtime.
 
 The platform handles steps 1 and 3 end-to-end from the blueprint. You own step 2.
 
@@ -148,6 +156,6 @@ The platform handles steps 1 and 3 end-to-end from the blueprint. You own step 2
 
 ## Next Steps
 
-- [Installation]({{ '/docs/getting-started/installation' | relative_url }}) — full package reference and environment variable setup
-- [First Agent]({{ '/docs/getting-started/first-agent' | relative_url }}) — complete step-by-step tutorial
-- [Agent Blueprint Spec]({{ '/docs/blueprints/agent-blueprint' | relative_url }}) — every field documented
+- [Installation]({{ '/docs/getting-started/installation' | relative_url }}) -- full package reference and environment variable setup
+- [First Agent]({{ '/docs/getting-started/first-agent' | relative_url }}) -- complete step-by-step tutorial
+- [Agent Blueprint Spec]({{ '/docs/blueprints/agent-blueprint' | relative_url }}) -- every field documented
