@@ -169,6 +169,28 @@ sequenceDiagram
 
 **The key principle — delegation, not impersonation.** The agent authenticates as itself while carrying verifiable user context. It never pretends to be the user. The backend sees both: the agent's identity (for audit) and the user's authorisation (for access control decisions).
 
+### M2M Auth Flow (Agent-to-Agent)
+
+When agents call other agents or when the Gateway invokes MCP servers hosted on Runtime, the platform uses the `client_credentials` grant for machine-to-machine authentication:
+
+```mermaid
+sequenceDiagram
+    participant Caller as Coordinator Agent / Gateway
+    participant ID as Identity Service
+    participant Cognito as Cognito Token Endpoint
+    participant Target as Specialist Runtime
+
+    Caller->>ID: @requires_access_token(auth_flow="M2M")
+    ID->>Cognito: client_credentials grant (client_id + secret)
+    Cognito-->>ID: Access token (scopes: mcp.invoke, runtime.access)
+    ID-->>Caller: Bearer token injected
+    Caller->>Target: Request + Bearer token
+    Target->>Target: JWT authorizer validates token
+    Target-->>Caller: Response
+```
+
+Each agent or Gateway gets its own Cognito client credentials. The Identity service handles token caching and refresh automatically. No application code changes are needed for this flow.
+
 ---
 
 ## 5. Multi-Agent Flow

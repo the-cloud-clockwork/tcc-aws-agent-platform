@@ -155,7 +155,7 @@ from agent_core.gateway import GatewayClient
 from strands import Agent
 
 client = GatewayClient.from_blueprint("agent.yaml")
-mcp_client = client.as_mcp_client()
+mcp_client = client.as_tool_provider()
 
 with mcp_client:
     gateway_tools = mcp_client.list_tools_sync()

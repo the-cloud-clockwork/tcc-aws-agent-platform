@@ -32,7 +32,7 @@ app = AgentCoreApp.from_blueprint("agent.yaml")
 @app.entrypoint
 async def handle(context):
     session = context.session
-    return await session.agent.invoke(context.input_text)
+    return await session.agent.invoke(payload.get("prompt"))
 ```
 
 > **Note:** The platform vision is for `BlueprintLoader` to generate this entrypoint entirely from YAML — the `@app.entrypoint` handler shown above is what happens *under the hood*. In practice, domain developers write a 5-line `app.py` that delegates to `GenericHandler`, and the platform wires everything from the blueprint. The manual entrypoint approach is still valid for advanced use cases where you need full control.
@@ -164,7 +164,7 @@ ARM64 only means your Docker base image and all native dependencies must support
 
 ## Streaming Support
 
-Enable streaming in the blueprint and write tokens to `context.stream`:
+Enable streaming with an async generator that yields chunks:
 
 ```yaml
 runtime:
@@ -174,9 +174,8 @@ runtime:
 ```python
 @app.entrypoint
 async def handle(context):
-    async for chunk in context.session.agent.stream(context.input_text):
-        await context.stream.write(chunk)
-    await context.stream.close()
+    async for chunk in agent.stream_async(payload.get("prompt")):
+        yield chunk
 ```
 
 AgentCore handles SSE framing and buffering. The user receives tokens as they are generated.

@@ -120,7 +120,7 @@ AgentCore Memory provides two tiers: **short-term** (raw conversation events wit
 
 ```yaml
 memory:
-  mode: MANAGED
+  # (no mode field -- presence of strategies enables memory automatically)
   strategies:
     - type: USER_PREFERENCE
       name: PreferenceLearner
@@ -183,7 +183,7 @@ observability:
     enabled: true
   audit_log:
     enabled: true
-    ttl_years: 5
+    ttl_days: 1825
 ```
 
 A trace for a single invocation captures:

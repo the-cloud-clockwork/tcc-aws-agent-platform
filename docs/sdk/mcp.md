@@ -11,50 +11,52 @@ The MCP subsystem provides base classes for building domain-specific MCP (Model 
 
 | Class | Module | Purpose |
 |-------|--------|---------|
-| `BaseMCPServer` | `agent_core.mcp.base_server` | Base class for all platform MCP servers — registration, lifecycle, health |
+| `BaseMCPServer` | `agent_core.mcp.base_server` | Shared server skeleton — tool registration, transport selection, error wrapping, health endpoint |
 | `MCPCache` | `agent_core.mcp.cache` | Shared cache layer for MCP tool results |
 | `MCPProviderRouter` | `agent_core.mcp.provider_routing` | Routes tool calls to the correct backend provider |
 | `MCPVersionedStore` | `agent_core.mcp.versioned_store` | Versioned key-value store for MCP server state |
 
 ## BaseMCPServer
 
-`BaseMCPServer` handles the boilerplate of running an MCP server: starting the SSE or HTTP transport, registering tools, health checks, and graceful shutdown. Domain servers subclass it and declare their tools:
+`BaseMCPServer` handles the boilerplate of running an MCP server: transport selection (stdio, HTTP, SSE), tool registration via decorators, error wrapping on `call_tool` responses, health endpoint, background task hooks, and logging setup. It wraps the upstream `mcp.server.Server` from the `mcp` library (which itself builds on `FastMCP` from `mcp.server.fastmcp`).
+
+Domain servers instantiate `BaseMCPServer` and register tools using the `@mcp.tool()` decorator:
 
 ```python
 from agent_core.mcp.base_server import BaseMCPServer
-from mcp.server import tool
+from mcp.types import Tool
 
-class DocumentServer(BaseMCPServer):
-    """MCP server for document retrieval and indexing."""
+mcp = BaseMCPServer("document-server", default_port=8080)
 
-    server_name = "document-server"
-    server_version = "1.0"
+@mcp.tool(Tool(name="get_document", description="Retrieve a document by ID", inputSchema={
+    "type": "object",
+    "properties": {"document_id": {"type": "string"}},
+    "required": ["document_id"],
+}))
+async def get_document(arguments: dict) -> dict:
+    doc_id = arguments["document_id"]
+    doc = await store.get(doc_id)
+    return {"id": doc.id, "content": doc.content}
 
-    @tool()
-    async def get_document(self, document_id: str) -> dict:
-        """Retrieve a document by ID."""
-        # Domain-specific implementation
-        doc = await self.store.get(document_id)
-        return {"id": doc.id, "content": doc.content, "metadata": doc.metadata}
+@mcp.tool(Tool(name="search_documents", description="Search documents", inputSchema={
+    "type": "object",
+    "properties": {"query": {"type": "string"}, "top_k": {"type": "integer"}},
+    "required": ["query"],
+}))
+async def search_documents(arguments: dict) -> list:
+    results = await search_index.query(arguments["query"], arguments.get("top_k", 10))
+    return [{"id": r.id, "score": r.score} for r in results]
 
-    @tool()
-    async def search_documents(self, query: str, top_k: int = 10) -> list:
-        """Search documents by semantic similarity."""
-        results = await self.search_index.query(query, top_k=top_k)
-        return [{"id": r.id, "score": r.score, "snippet": r.snippet} for r in results]
-
-
-# Entry point
 if __name__ == "__main__":
-    server = DocumentServer.from_config("server-config.yaml")
-    server.run()
+    mcp.run()
 ```
 
 `BaseMCPServer` automatically:
-- Exposes the MCP SSE endpoint at `/sse` and HTTP at `/mcp`
-- Registers the server as a Gateway target (if `gateway.auto_register: true`)
-- Publishes a health endpoint at `/health`
-- Propagates X-Ray trace context from inbound requests
+- Selects transport based on `MCP_TRANSPORT` env var (`stdio`, `http`, or `sse`)
+- Exposes HTTP health endpoint at `/health` and MCP endpoint at `/mcp` (HTTP mode) or `/sse` + `/messages` (SSE mode)
+- Wraps tool handler errors into JSON `TextContent` responses with traceback
+- Integrates `MCPObservabilityHook` for tool call metrics
+- Supports background tasks via `add_background_task()` for polling patterns
 
 ## MCPCache
 
@@ -63,25 +65,12 @@ if __name__ == "__main__":
 ```python
 from agent_core.mcp.cache import MCPCache
 
-class DocumentServer(BaseMCPServer):
+cache = MCPCache.from_config(config)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.cache = MCPCache.from_config(self.config)
-
-    @tool()
-    async def get_document(self, document_id: str) -> dict:
-        cache_key = f"doc:{document_id}"
-
-        cached = await self.cache.get(cache_key)
-        if cached:
-            return cached
-
-        doc = await self.store.get(document_id)
-        result = {"id": doc.id, "content": doc.content}
-
-        await self.cache.set(cache_key, result, ttl_seconds=300)
-        return result
+cached = await cache.get("doc:123")
+if not cached:
+    result = await fetch_document("123")
+    await cache.set("doc:123", result, ttl_seconds=300)
 ```
 
 Cache configuration in the server config YAML:
@@ -101,17 +90,10 @@ cache:
 ```python
 from agent_core.mcp.provider_routing import MCPProviderRouter
 
-class DataServer(BaseMCPServer):
+router = MCPProviderRouter.from_config(config)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.router = MCPProviderRouter.from_config(self.config)
-
-    @tool()
-    async def query_data(self, query: str, source: str = "primary") -> list:
-        """Query data from the configured source."""
-        provider = self.router.resolve(source)
-        return await provider.query(query)
+provider = router.resolve("primary")
+result = await provider.query(query)
 ```
 
 Router configuration:
@@ -134,24 +116,17 @@ providers:
 ```python
 from agent_core.mcp.versioned_store import MCPVersionedStore
 
-class ConfigServer(BaseMCPServer):
+vstore = MCPVersionedStore.from_config(config)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.vstore = MCPVersionedStore.from_config(self.config)
+# Get current or specific version
+current = await vstore.get("config-key")
+old = await vstore.get("config-key", version="3")
 
-    @tool()
-    async def get_config(self, key: str, version: str = "latest") -> dict:
-        return await self.vstore.get(key, version=version)
+# Put new version
+version = await vstore.put("config-key", {"setting": "value"})
 
-    @tool()
-    async def set_config(self, key: str, value: dict) -> dict:
-        version = await self.vstore.put(key, value)
-        return {"key": key, "version": version}
-
-    @tool()
-    async def list_config_versions(self, key: str) -> list:
-        return await self.vstore.list_versions(key)
+# List version history
+versions = await vstore.list_versions("config-key")
 ```
 
 ## Gateway Auto-Registration
@@ -174,10 +149,9 @@ gateway:
 The recommended pattern for domain repos:
 
 1. Create a new Python package (e.g., `my-domain-mcp`)
-2. Subclass `BaseMCPServer`
-3. Declare tools with `@tool()` decorators
-4. Use `MCPCache` for expensive lookups
-5. Use `MCPProviderRouter` if you have multiple data sources
-6. Package as a Docker container and deploy via the platform's `agents/` Terraform module
+2. Instantiate `BaseMCPServer` and register tools with `@mcp.tool()`
+3. Use `MCPCache` for expensive lookups
+4. Use `MCPProviderRouter` if you have multiple data sources
+5. Package as a Docker container and deploy via the platform's `agents/` Terraform module
 
 The platform's Terraform infrastructure provisions the ECR repository, ECS service, and Gateway target registration. Domain repos only write Python.
