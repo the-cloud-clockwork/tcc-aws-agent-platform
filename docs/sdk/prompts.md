@@ -174,3 +174,9 @@ agent-cli prompts promote customer-greeting --mode production
 ```
 
 See the [CLI reference](../cli/) for the full `agent-cli prompts` command set.
+
+## Infrastructure
+
+The Prompt Registry Lambda and Function URL are deployed by the platform's `prompt_registry` Terraform submodule. The `PROMPT_REGISTRY_URL` environment variable is auto-injected into all agent and MCP runtimes when `prompt_registry_url` is passed to the agents module.
+
+See [Prompt Registry Module]({{ '/docs/infrastructure/prompt-registry-module' | relative_url }}) for deployment details, input variables, and domain seeding patterns.
