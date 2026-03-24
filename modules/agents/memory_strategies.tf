@@ -41,14 +41,25 @@ locals {
     s.api_type => s...
   }
 
-  # Deduplicated map: one entry per API type, first declaration wins.
+  # Sort entries by name within each type for deterministic "first wins" selection.
+  # Without sorting, iteration order depends on blueprint filename ordering,
+  # which causes the provider to see name changes on every apply.
+  _sorted_strategies_by_type = {
+    for api_type, entries in local._strategies_by_type :
+    api_type => [
+      for name in sort([for e in entries : e.name]) :
+      [for e in entries : e if e.name == name][0]
+    ]
+  }
+
+  # Deduplicated map: one entry per API type, alphabetically first name wins.
   # API constraint: namespaces list length <= 1.
   memory_strategy_map = {
-    for api_type, entries in local._strategies_by_type :
+    for api_type, sorted_entries in local._sorted_strategies_by_type :
     api_type => {
-      name       = entries[0].name
+      name       = sorted_entries[0].name
       api_type   = api_type
-      namespaces = entries[0].namespace != "" ? [entries[0].namespace] : []
+      namespaces = sorted_entries[0].namespace != "" ? [sorted_entries[0].namespace] : []
     }
   }
 }
