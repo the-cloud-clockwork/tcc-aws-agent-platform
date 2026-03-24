@@ -5,134 +5,96 @@ nav_order: 5
 
 # Built-in Tools
 
-The Tools subsystem provides managed providers for Amazon Bedrock AgentCore's two built-in tool types: Code Interpreter and Browser. Both integrate as Gateway targets, so they appear in the agent's tool registry alongside custom tools and MCP servers.
+The Tools subsystem provides managed providers for Amazon Bedrock AgentCore's two built-in tool types: Code Interpreter and Browser. Both integrate as **Gateway targets** — the Gateway proxies calls to AWS-managed services, so there is no local SDK client or session management.
 
 ## Key Classes
 
 | Class | Purpose |
 |-------|---------|
-| `CodeInterpreterProvider` | Manages Code Interpreter sessions — file upload, execution, result retrieval |
-| `BrowserProvider` | Manages browser sessions — CDP control and Nova Act natural-language navigation |
+| `CodeInterpreterProvider` | Discovers Code Interpreter tools from the Gateway and caches them |
+| `BrowserProvider` | Discovers Browser tools from the Gateway and caches them |
 | `BuiltinToolWiring` | Registers both providers as Gateway targets and wires them to the Strands agent |
+
+## How It Works
+
+Both providers follow the same pattern: they receive a `GatewayClient`, call `list_tools_sync()` to discover available tools, and filter for their target namespace. The agent sees these tools alongside domain tools — it doesn't know or care that they're AWS-managed services.
+
+```
+Agent --> Gateway --> Code Interpreter (AWS-managed sandbox)
+                 --> Browser (AWS-managed Chromium + Nova Act)
+                 --> Domain MCP servers
+```
 
 ## Code Interpreter
 
-The Code Interpreter runs Python in an isolated, ephemeral compute environment managed by AgentCore. Each session is sandboxed — network access, execution time, and memory are all bounded.
+The Code Interpreter runs Python and shell commands in an isolated, ephemeral sandbox managed by AgentCore. The Gateway proxies all calls — no local session management needed.
 
-### Starting a Session
+### Blueprint Declaration
+
+```yaml
+tools:
+  - builtin: code_interpreter
+  - mcp: my-domain-mcp
+    tools: [custom_tool]
+```
+
+### Provider Pattern
 
 ```python
 from agent_core.tools import CodeInterpreterProvider
 
-provider = CodeInterpreterProvider.from_blueprint("agent.yaml")
+# The provider discovers tools from Gateway — no session() or execute()
+provider = CodeInterpreterProvider(gateway_client=gateway)
+ci_tools = provider.tools  # Cached after first discovery
 
-# Start a session (returns a session context manager)
-async with provider.session() as session:
-    result = await session.execute("import pandas as pd; pd.DataFrame({'a': [1,2,3]}).describe()")
-    print(result.stdout)
-    print(result.artifacts)  # Any generated files
+# Tools are added to the agent alongside other Gateway tools
+agent = Agent(model=model, tools=local_tools + ci_tools)
 ```
 
-### File Upload
-
-Upload files into the session before execution:
-
-```python
-async with provider.session() as session:
-    # Upload a CSV for analysis
-    await session.upload_file("data.csv", content=csv_bytes, mime_type="text/csv")
-
-    result = await session.execute("""
-        import pandas as pd
-        df = pd.read_csv('data.csv')
-        print(df.describe())
-    """)
-```
-
-### As a Strands Tool
-
-When wired through `BuiltinToolWiring`, Code Interpreter is exposed to the Strands agent as a named tool. The agent can call it directly without session management code:
-
-```python
-# The agent calls this automatically when it needs to run code
-# Tool name: "code_interpreter"
-# Parameters: { "code": "...", "files": [...] }
-```
+The agent calls Code Interpreter tools by name (e.g. `code-interpreter::executeCode`). The Gateway routes the call to the managed service. Available tools include `executeCode`, `executeCommand`, `writeFiles`, `listFiles`, and `readFile`.
 
 ## Browser
 
-The Browser provider creates managed browser sessions using Amazon Bedrock AgentCore's browser service. Two control modes are available:
+The Browser provides hosted Chromium access via CDP (Chrome DevTools Protocol) and Nova Act for natural-language navigation. Like Code Interpreter, it's Gateway-mediated.
 
-| Mode | Interface | Use Case |
-|------|-----------|---------|
-| CDP | Raw Chrome DevTools Protocol | Fine-grained control, scraping, form interaction |
-| Nova Act | Natural language commands | High-level browser automation |
+### Blueprint Declaration
 
-### CDP Mode
+```yaml
+tools:
+  - builtin: browser
+  - builtin: code_interpreter
+```
+
+### Provider Pattern
 
 ```python
 from agent_core.tools import BrowserProvider
 
-provider = BrowserProvider.from_blueprint("agent.yaml")
+provider = BrowserProvider(gateway_client=gateway)
+browser_tools = provider.tools  # Cached after first discovery
 
-async with provider.session(mode="cdp") as browser:
-    await browser.navigate("https://example.com")
-    content = await browser.get_text("body")
-    screenshot = await browser.screenshot()
+agent = Agent(model=model, tools=local_tools + browser_tools)
 ```
 
-### Nova Act Mode
-
-```python
-async with provider.session(mode="nova_act") as browser:
-    # Natural language instructions
-    result = await browser.act("Go to the login page and sign in with the test credentials")
-    result = await browser.act("Find the latest report and download it as PDF")
-```
-
-### Blueprint Configuration
-
-```yaml
-tools:
-  code_interpreter:
-    enabled: true
-    timeout_seconds: 120
-    max_sessions: 5
-
-  browser:
-    enabled: true
-    mode: nova_act             # cdp | nova_act
-    timeout_seconds: 60
-```
+The agent calls Browser tools by name (e.g. `browser::navigate`, `browser::screenshot`). The Gateway routes to the managed Chromium service.
 
 ## BuiltinToolWiring
 
-`BuiltinToolWiring` handles the plumbing between the provider instances and the Strands agent. Call it during app initialization:
+`BuiltinToolWiring` automates the registration of both providers when the blueprint declares them:
 
 ```python
 from agent_core.tools import BuiltinToolWiring
 
-wiring = BuiltinToolWiring.from_blueprint("agent.yaml")
+wiring = BuiltinToolWiring(gateway_client=gateway, blueprint=blueprint)
+builtin_tools = wiring.discover_tools()
 
-# Returns list of Strands-compatible tool objects
-tools = await wiring.get_tools()
-
-agent = Agent(model=model, tools=tools)
+# Returns combined tools from all declared builtins
+agent = Agent(model=model, tools=local_tools + gateway_tools + builtin_tools)
 ```
 
-Under the hood, `BuiltinToolWiring`:
+When using `BlueprintLoader`, this wiring is handled automatically — the loader reads the `tools:` block and wires builtins without any code.
 
-1. Reads the blueprint to determine which tools are enabled
-2. Registers each enabled tool as a Gateway target (so it appears in discovery)
-3. Creates a Strands tool wrapper that manages the session lifecycle per call
-4. Returns the wrapper list ready for `Agent(tools=[...])`
+## See Also
 
-## Gateway Registration
-
-Both built-in tools are registered as Gateway targets with type `BUILTIN`. This means:
-
-- They appear in `ToolDiscovery` results alongside custom tools
-- They respect the same policy engine rules as other tools
-- Invocation metadata (latency, token count for code, navigation steps for browser) is recorded in observability
-
-See [Gateway](gateway.md) for details on target registration and tool discovery.
+- [Gateway](./gateway) — How tools are routed through Gateway
+- [Concepts: Tools](../concepts/tools) — Architecture and mental model

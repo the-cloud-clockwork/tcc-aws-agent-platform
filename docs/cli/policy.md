@@ -105,32 +105,30 @@ Policies are declared in the `policy:` block of an agent blueprint. The CLI read
 
 ```yaml
 policy:
-  engine: cedar
+  engine: DataServicePolicies
   mode: ENFORCE          # ENFORCE blocks unauthorized calls; LOG_ONLY monitors only
   target_prefix: MyTarget
   rules:
     - name: limit-search-results
       when: "context.input.limit <= 100"
-      actions:
-        - search_records
+      allow: search_records
 
     - name: admin-only-delete
       unless: "principal has scope && principal.scope.contains(\"group:Admins\")"
-      actions:
-        - delete_record
+      deny: delete_record
 ```
 
 ### Policy Block Fields
 
 | Field | Description |
 |-------|-------------|
-| `engine` | Policy engine type — currently `cedar` |
+| `engine` | Policy engine name (e.g. `DataServicePolicies`) |
 | `mode` | `ENFORCE` blocks unauthorized calls; `LOG_ONLY` logs without blocking |
 | `target_prefix` | Prefix for tool action names in Cedar (matches Gateway target name) |
 | `rules[].name` | Human-readable rule name |
 | `rules[].when` | Cedar condition that must be true to PERMIT the action |
 | `rules[].unless` | Cedar condition that, if false, causes a FORBID |
-| `rules[].actions` | Tool names this rule applies to |
+| `rules[].allow` / `rules[].deny` | Single tool name this rule permits or forbids |
 
 ## Common Cedar Patterns
 
@@ -140,7 +138,7 @@ policy:
 rules:
   - name: max-results-100
     when: "context.input.limit <= 100"
-    actions: [search_records]
+    allow: search_records
 ```
 
 ```cedar
@@ -156,7 +154,7 @@ when { context.input.limit <= 100 };
 rules:
   - name: managers-only
     unless: "principal has scope && principal.scope.contains(\"group:Managers\")"
-    actions: [approve_request]
+    deny: approve_request
 ```
 
 ### Allow all reads, restrict writes
@@ -165,10 +163,16 @@ rules:
 rules:
   - name: read-always
     when: "true"
-    actions: [get_record, list_records]
+    allow: get_record
   - name: write-admin-only
     unless: "principal has scope && principal.scope.contains(\"group:Admins\")"
-    actions: [create_record, update_record, delete_record]
+    deny: create_record
+  - name: write-admin-only-update
+    unless: "principal has scope && principal.scope.contains(\"group:Admins\")"  
+    deny: update_record
+  - name: write-admin-only-delete
+    unless: "principal has scope && principal.scope.contains(\"group:Admins\")"  
+    deny: delete_record
 ```
 
 ## See Also
