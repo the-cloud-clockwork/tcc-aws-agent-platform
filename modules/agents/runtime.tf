@@ -53,6 +53,21 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
     server_protocol = each.value.runtime.protocol
   }
 
+  # OAuth2 JWT authorizer -- MCP runtimes must validate incoming OAuth tokens
+  # from Gateway. HTTP runtimes use SigV4 (no authorizer needed).
+  dynamic "authorizer_configuration" {
+    for_each = (
+      upper(try(each.value.runtime.protocol, "HTTP")) == "MCP" &&
+      var.mcp_oauth2_discovery_url != ""
+    ) ? [1] : []
+    content {
+      custom_jwt_authorizer {
+        discovery_url   = var.mcp_oauth2_discovery_url
+        allowed_clients = var.mcp_oauth2_allowed_clients
+      }
+    }
+  }
+
   # Lifecycle timeouts -- from blueprint when specified
   lifecycle_configuration = (
     try(each.value.runtime.max_lifetime, null) != null ||

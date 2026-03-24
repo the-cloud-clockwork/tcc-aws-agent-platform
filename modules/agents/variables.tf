@@ -109,6 +109,18 @@ variable "mcp_oauth2_scopes" {
   default     = []
 }
 
+variable "mcp_oauth2_discovery_url" {
+  type        = string
+  description = "OIDC discovery URL for MCP Runtime JWT authorizer (Cognito). Empty = no authorizer."
+  default     = ""
+}
+
+variable "mcp_oauth2_allowed_clients" {
+  type        = list(string)
+  description = "Allowed OAuth2 client IDs for MCP Runtime JWT authorizer."
+  default     = []
+}
+
 # -- Build -----------------------------------------------------------
 
 variable "codebuild_source_bucket" {
