@@ -72,4 +72,14 @@ resource "aws_bedrockagentcore_memory_strategy" "this" {
   type      = each.value.api_type
 
   namespaces = each.value.namespaces
+
+  # WORKAROUND: AWS provider bug — the API returns a different strategy name
+  # on read-back when multiple agents share one memory resource with the same
+  # strategy type. The provider sees this as drift and errors with
+  # "Provider produced inconsistent result after apply". Ignoring name changes
+  # prevents this false-positive from blocking all other resource operations.
+  # Tracked: https://github.com/hashicorp/terraform-provider-aws/issues/45290
+  lifecycle {
+    ignore_changes = [name]
+  }
 }
