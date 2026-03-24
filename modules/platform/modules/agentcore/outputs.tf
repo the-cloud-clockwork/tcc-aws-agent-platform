@@ -79,3 +79,16 @@ output "mcp_oauth2_scopes" {
     "${aws_cognito_resource_server.gateway_mcp[0].identifier}/runtime.access",
   ] : []
 }
+
+output "mcp_oauth2_discovery_url" {
+  description = "OIDC discovery URL for MCP Runtime JWT authorizer. Empty if Cognito disabled."
+  value       = var.cognito_enabled ? "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.agents[0].id}/.well-known/openid-configuration" : ""
+}
+
+output "mcp_oauth2_allowed_clients" {
+  description = "Allowed client IDs for MCP Runtime JWT authorizer (user + M2M). Empty if Cognito disabled."
+  value = var.cognito_enabled ? [
+    aws_cognito_user_pool_client.agents[0].id,
+    aws_cognito_user_pool_client.gateway_m2m[0].id,
+  ] : []
+}

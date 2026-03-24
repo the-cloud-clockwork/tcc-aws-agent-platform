@@ -231,6 +231,14 @@ output "mcp_oauth2_scopes" {
   value = module.agentcore.mcp_oauth2_scopes
 }
 
+output "mcp_oauth2_discovery_url" {
+  value = module.agentcore.mcp_oauth2_discovery_url
+}
+
+output "mcp_oauth2_allowed_clients" {
+  value = module.agentcore.mcp_oauth2_allowed_clients
+}
+
 # Observability
 output "alert_topic_arn" {
   value = module.observability.alert_topic_arn
