@@ -69,6 +69,24 @@ flowchart TD
 
 ---
 
+## Gateway Target Authentication
+
+Gateway targets use different credential strategies depending on the target type:
+
+| Target Type | Credential Method | Description |
+|-------------|-------------------|-------------|
+| Lambda | `gateway_iam_role` | Gateway assumes its IAM role to invoke Lambda. No token exchange required. |
+| MCP Server (Runtime) | `oauth` | Gateway retrieves an M2M access token via Cognito and injects it as a Bearer token. |
+| OpenAPI | `api_key` or `oauth` | Depends on the external service requirements. |
+
+**Lambda targets** always use `gateway_iam_role` — this is the simplest path. The Gateway's IAM role already has `lambda:InvokeFunction` permission, so no additional credential setup is needed.
+
+**MCP server targets** (blueprints with `protocol: MCP`) require OAuth2 credentials when `mcp_oauth2_provider_arn` is set. The module attaches an `oauth {}` block to each MCP server gateway target, referencing the platform-provisioned credential provider and scopes. When `mcp_oauth2_provider_arn` is empty, MCP server targets fall back to `gateway_iam_role`.
+
+**MCP Runtime JWT authorizer** — when `mcp_oauth2_discovery_url` is set, MCP protocol Runtimes are automatically configured with a `custom_jwt_authorizer` that validates incoming OAuth tokens. This ensures that only requests bearing a valid M2M token from the Gateway can reach the MCP server. The authorizer uses the OIDC discovery URL to fetch signing keys and validates the `aud` claim against `mcp_oauth2_allowed_clients`.
+
+---
+
 ## Runtime Environment Variables
 
 Each AgentCore Runtime is created with platform outputs wired as environment variables:
@@ -110,6 +128,10 @@ Each AgentCore Runtime is created with platform outputs wired as environment var
 | `domain_artifacts_kms_key_arn` | `string` | `""` | KMS key for domain artifact encryption |
 | `storage_kms_key_arn` | `string` | `""` | KMS key for ECR repository encryption |
 | `codebuild_source_bucket` | `string` | `""` | S3 bucket for agent source code uploads |
+| `mcp_oauth2_provider_arn` | `string` | `""` | OAuth2 credential provider ARN for MCP server gateway targets. Empty uses `gateway_iam_role` fallback. |
+| `mcp_oauth2_scopes` | `list(string)` | `[]` | OAuth2 scopes for MCP server gateway targets. |
+| `mcp_oauth2_discovery_url` | `string` | `""` | OIDC discovery URL for MCP Runtime JWT authorizer. Empty disables authorizer. |
+| `mcp_oauth2_allowed_clients` | `list(string)` | `[]` | Allowed OAuth2 client IDs for MCP Runtime JWT authorizer. |
 | `tags` | `map(string)` | `{}` | Additional resource tags |
 
 ---
@@ -151,6 +173,12 @@ module "agents" {
   private_subnet_ids      = module.platform.private_subnet_ids
   agent_security_group_id = module.platform.agent_security_group_id
   storage_kms_key_arn     = module.platform.storage_kms_key_arn
+
+  # OAuth2 MCP target authentication (conditional on cognito_enabled)
+  mcp_oauth2_provider_arn    = module.platform.mcp_oauth2_provider_arn
+  mcp_oauth2_scopes          = module.platform.mcp_oauth2_scopes
+  mcp_oauth2_discovery_url   = module.platform.mcp_oauth2_discovery_url
+  mcp_oauth2_allowed_clients = module.platform.mcp_oauth2_allowed_clients
 
   tags = {
     Project   = "my-agent-platform"

@@ -44,10 +44,40 @@ Two options:
 
 **Outbound auth — how Gateway authenticates to its targets**
 
-- `GATEWAY_IAM_ROLE` — Gateway assumes its own IAM role to invoke Lambda targets. No token exchange required.
-- OAuth2 credential provider — Gateway fetches an M2M token to call OAuth-protected targets (such as another Runtime-hosted MCP server).
+Each target type uses a different credential strategy:
 
-This separation is architecturally important. An end-user authenticates with their Cognito JWT (inbound), but the actual tool calls are made using the Gateway's own IAM role (outbound). **The user's identity flows as context for policy evaluation — not as credentials for tool access.** This is the delegation model, not impersonation.
+| Target Type | Credential Method | How It Works |
+|-------------|-------------------|--------------|
+| Lambda | `GATEWAY_IAM_ROLE` | Gateway assumes its IAM role and signs the invocation with SigV4. No token exchange. |
+| MCP Server (Runtime) | `OAUTH` | Gateway retrieves an M2M access token from an OAuth2 credential provider and injects it as a Bearer token. |
+| OpenAPI | `API_KEY` or `OAUTH` | Gateway resolves the credential from Secrets Manager (API key) or an OAuth2 provider (M2M token). |
+
+This separation is architecturally important. An end-user authenticates with their Cognito JWT (inbound), but the actual tool calls are made using the Gateway's own credentials (outbound). **The user's identity flows as context for policy evaluation — not as credentials for tool access.** This is the delegation model, not impersonation.
+
+### M2M Token Flow for MCP Server Targets
+
+When Gateway invokes an MCP server target that requires OAuth, it uses the `client_credentials` grant to obtain an M2M access token. The platform provisions a Cognito Resource Server with custom scopes (e.g., `mcp.invoke`, `runtime.access`) and a confidential M2M client. Gateway calls `GetResourceOauth2Token` on the credential provider, which handles the token exchange with the Cognito token endpoint. The resulting Bearer token is injected into the request to the MCP Runtime. On the receiving side, the Runtime validates the token using a JWT authorizer configured with the Cognito OIDC discovery URL.
+
+```mermaid
+sequenceDiagram
+    participant Agent
+    participant Gateway
+    participant CredProvider as OAuth2 Credential Provider
+    participant Cognito as Cognito Token Endpoint
+    participant MCPRuntime as MCP Runtime
+
+    Agent->>Gateway: MCP tool call
+    Gateway->>CredProvider: GetResourceOauth2Token
+    CredProvider->>Cognito: client_credentials grant
+    Cognito->>CredProvider: Access token (scopes: mcp.invoke, runtime.access)
+    CredProvider->>Gateway: Bearer token
+    Gateway->>MCPRuntime: MCP request + Bearer token
+    MCPRuntime->>MCPRuntime: JWT authorizer validates token
+    MCPRuntime->>Gateway: MCP response
+    Gateway->>Agent: MCP response
+```
+
+For Lambda targets, the flow remains simpler — no token exchange is needed:
 
 ```mermaid
 sequenceDiagram
