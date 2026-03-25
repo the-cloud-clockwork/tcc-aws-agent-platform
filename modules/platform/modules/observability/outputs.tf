@@ -31,3 +31,8 @@ output "dashboard_name" {
   description = "Name of the CloudWatch overview dashboard"
   value       = aws_cloudwatch_dashboard.overview.dashboard_name
 }
+
+output "xray_group_arn" {
+  description = "ARN of the X-Ray tracing group"
+  value       = aws_xray_group.main.arn
+}

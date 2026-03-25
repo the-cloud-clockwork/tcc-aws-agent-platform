@@ -137,6 +137,10 @@ Each AgentCore Runtime is created with platform outputs wired as environment var
 | `codeartifact_domain` | `string` | `""` | CodeArtifact domain name for package resolution during builds |
 | `codeartifact_repo` | `string` | `""` | CodeArtifact repository name for Python packages |
 | `tags` | `map(string)` | `{}` | Additional resource tags |
+| `log_retention_days` | `number` | `14` | Retention in days for agent CloudWatch log groups |
+| `observability_enabled` | `bool` | `true` | Inject OTEL env vars into agent containers for CloudWatch GenAI Observability |
+| `observability_log_group_prefix` | `string` | `/aws/bedrock-agentcore/runtimes/` | CloudWatch log group prefix for OTEL. Agent ID is appended |
+| `observability_metric_namespace` | `string` | `bedrock-agentcore` | CloudWatch metric namespace for OTEL metrics |
 
 ---
 
