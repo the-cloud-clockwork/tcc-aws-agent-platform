@@ -1,6 +1,7 @@
 ---
 title: Artifacts Server
 nav_order: 12
+parent: SDK Reference
 ---
 
 # Artifacts Server

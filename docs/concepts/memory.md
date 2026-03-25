@@ -1,6 +1,7 @@
 ---
 title: Memory
 nav_order: 4
+parent: Concepts
 ---
 
 # Persistence Across Sessions

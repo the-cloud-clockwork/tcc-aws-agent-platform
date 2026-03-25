@@ -1,6 +1,7 @@
 ---
 title: Strategy Blueprint
 nav_order: 2
+parent: Blueprints
 ---
 
 # Strategy Blueprint

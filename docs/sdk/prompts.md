@@ -1,6 +1,7 @@
 ---
 title: Prompt Registry
 nav_order: 11
+parent: SDK Reference
 ---
 
 # Prompt Registry

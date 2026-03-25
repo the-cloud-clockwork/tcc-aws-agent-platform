@@ -1,6 +1,7 @@
 ---
 title: Deployment Patterns
 nav_order: 4
+parent: Infrastructure
 ---
 
 # Deployment Patterns

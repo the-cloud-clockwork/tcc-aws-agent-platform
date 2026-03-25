@@ -1,6 +1,7 @@
 ---
 title: Gateway
 nav_order: 2
+parent: SDK Reference
 ---
 
 # Gateway

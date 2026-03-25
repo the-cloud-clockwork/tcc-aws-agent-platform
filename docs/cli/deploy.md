@@ -1,6 +1,7 @@
 ---
 title: deploy
 nav_order: 4
+parent: CLI Reference
 ---
 
 # agentcli deploy

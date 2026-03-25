@@ -1,6 +1,7 @@
 ---
 title: MCP Base Classes
 nav_order: 10
+parent: SDK Reference
 ---
 
 # MCP Base Classes

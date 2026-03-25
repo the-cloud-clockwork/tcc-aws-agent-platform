@@ -1,6 +1,7 @@
 ---
 title: graph
 nav_order: 3
+parent: CLI Reference
 ---
 
 # agentcli graph

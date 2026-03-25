@@ -1,6 +1,7 @@
 ---
 title: Identity
 nav_order: 3
+parent: Concepts
 ---
 
 # How Auth Flows Through the System

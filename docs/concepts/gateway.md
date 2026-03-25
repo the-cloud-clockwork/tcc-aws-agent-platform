@@ -1,6 +1,7 @@
 ---
 title: Gateway
 nav_order: 2
+parent: Concepts
 ---
 
 # The Universal Tool Bridge

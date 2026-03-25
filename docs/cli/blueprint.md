@@ -1,6 +1,7 @@
 ---
 title: blueprint
 nav_order: 1
+parent: CLI Reference
 ---
 
 # agentcli blueprint
