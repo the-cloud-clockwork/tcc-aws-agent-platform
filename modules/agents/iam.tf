@@ -192,6 +192,36 @@ data "aws_iam_policy_document" "agent_permissions" {
       resources = [var.storage_kms_key_arn]
     }
   }
+
+  # Conditional: Prompt Registry Lambda Function URL invocation
+  dynamic "statement" {
+    for_each = var.prompt_registry_function_arn != "" ? [1] : []
+    content {
+      sid    = "PromptRegistryInvoke"
+      effect = "Allow"
+      actions = [
+        "lambda:InvokeFunctionUrl",
+      ]
+      resources = [var.prompt_registry_function_arn]
+    }
+  }
+
+  # Conditional: DynamoDB idempotency table access
+  dynamic "statement" {
+    for_each = var.idempotency_table_name != "" ? [1] : []
+    content {
+      sid    = "IdempotencyTableAccess"
+      effect = "Allow"
+      actions = [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:DeleteItem",
+      ]
+      resources = [
+        "arn:aws:dynamodb:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/${var.idempotency_table_name}",
+      ]
+    }
+  }
 }
 
 resource "aws_iam_role_policy" "agent" {

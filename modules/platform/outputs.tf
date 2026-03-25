@@ -269,6 +269,11 @@ output "prompt_registry_url" {
   value = module.prompt_registry.prompt_registry_url
 }
 
+output "prompt_registry_function_arn" {
+  description = "ARN of the Prompt Registry Lambda function. Pass to modules/agents for IAM."
+  value       = module.prompt_registry.prompt_registry_lambda_arn
+}
+
 output "artifacts_mcp_lambda_arn" {
   description = "ARN of the artifacts MCP tools Lambda (for Gateway target registration)"
   value       = module.api.mcp_tools_lambda_arn
