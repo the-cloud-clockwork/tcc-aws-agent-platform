@@ -260,11 +260,11 @@ def handle_diff(event: dict) -> dict:
 # Route patterns: (method, path_regex) -> handler
 ROUTES: list[tuple[str, str, callable]] = [
     ("POST", r"^/prompts$", handle_create_prompt),
-    ("GET", r"^/prompts/(?P<prompt_id>[^/]+)/versions$", handle_list_versions),
-    ("GET", r"^/prompts/(?P<prompt_id>[^/]+)/diff$", handle_diff),
-    ("POST", r"^/prompts/(?P<prompt_id>[^/]+)/promote$", handle_promote),
-    ("POST", r"^/prompts/(?P<prompt_id>[^/]+)/rollback$", handle_rollback),
-    ("GET", r"^/prompts/(?P<prompt_id>[^/]+)$", handle_get_prompt),
+    ("GET", r"^/prompts/(?P<prompt_id>.+)/versions$", handle_list_versions),
+    ("GET", r"^/prompts/(?P<prompt_id>.+)/diff$", handle_diff),
+    ("POST", r"^/prompts/(?P<prompt_id>.+)/promote$", handle_promote),
+    ("POST", r"^/prompts/(?P<prompt_id>.+)/rollback$", handle_rollback),
+    ("GET", r"^/prompts/(?P<prompt_id>.+)$", handle_get_prompt),
 ]
 
 
@@ -272,8 +272,14 @@ def handler(event: dict, context: Any = None) -> dict:
     """
     Lambda entry point — routes API Gateway proxy events to handlers.
     """
-    method = event.get("httpMethod", "GET")
-    path = event.get("path", "/")
+    # Normalize across invocation sources:
+    #   v1.0 (API Gateway REST): httpMethod, path
+    #   v2.0 (API Gateway HTTP / Lambda Function URL): requestContext.http.method, rawPath
+    method = (
+        event.get("httpMethod")
+        or event.get("requestContext", {}).get("http", {}).get("method", "GET")
+    )
+    path = event.get("rawPath") or event.get("path", "/")
 
     for route_method, pattern, route_handler in ROUTES:
         if method != route_method:

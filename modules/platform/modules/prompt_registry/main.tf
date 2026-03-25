@@ -73,7 +73,10 @@ resource "aws_iam_role_policy" "prompt_registry_data" {
         Sid      = "KMSDecrypt"
         Effect   = "Allow"
         Action   = ["kms:Decrypt", "kms:GenerateDataKey"]
-        Resource = var.storage_kms_key_arn != "" ? [var.storage_kms_key_arn] : ["*"]
+        Resource = compact([
+          var.storage_kms_key_arn,
+          var.data_kms_key_arn,
+        ])
       },
     ]
   })
