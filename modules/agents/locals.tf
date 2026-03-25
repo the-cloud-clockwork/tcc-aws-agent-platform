@@ -16,7 +16,9 @@ locals {
   }
 
   # Read gateway targets file if provided
-  gateway_targets = var.gateway_targets_file != "" ? yamldecode(file(var.gateway_targets_file)) : { targets = [] }
+  # NOTE: yamldecode wraps the conditional to avoid Terraform tuple length mismatch
+  # between decoded YAML (variable-length tuple) and the empty fallback.
+  gateway_targets = yamldecode(var.gateway_targets_file != "" ? file(var.gateway_targets_file) : "targets: []")
 
   # Flatten memory strategies across all agents
   agent_memory_strategies = flatten([
