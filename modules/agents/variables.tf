@@ -129,7 +129,11 @@ variable "prompt_registry_url" {
   default     = ""
 }
 
-
+variable "idempotency_table_name" {
+  type        = string
+  description = "DynamoDB table name for idempotency keys. Injected as IDEMPOTENCY_TABLE env var."
+  default     = ""
+}
 
 # -- Build -----------------------------------------------------------
 
