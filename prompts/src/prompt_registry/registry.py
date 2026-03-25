@@ -34,7 +34,7 @@ class PromptRegistry:
     ) -> PromptVersion | None:
         """Get a specific prompt version."""
         resp = self.table.get_item(
-            Key={"prompt_id": prompt_id, "version": version}
+            Key={"prompt_key": prompt_id, "version": version}
         )
         item = resp.get("Item")
         if not item:
@@ -44,7 +44,7 @@ class PromptRegistry:
     def list_versions(self, prompt_id: str) -> list[PromptVersion]:
         """List all versions for a prompt_id, sorted by version."""
         resp = self.table.query(
-            KeyConditionExpression=Key("prompt_id").eq(prompt_id)
+            KeyConditionExpression=Key("prompt_key").eq(prompt_id)
         )
         items = resp.get("Items", [])
         versions = [PromptVersion(**item) for item in items]
@@ -74,7 +74,7 @@ class PromptRegistry:
         now = datetime.now(UTC).isoformat()
         try:
             resp = self.table.update_item(
-                Key={"prompt_id": prompt_id, "version": version},
+                Key={"prompt_key": prompt_id, "version": version},
                 UpdateExpression="SET #s = :status, updated_at = :now",
                 ExpressionAttributeNames={"#s": "status"},
                 ExpressionAttributeValues={

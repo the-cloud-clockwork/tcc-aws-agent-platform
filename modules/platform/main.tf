@@ -118,5 +118,6 @@ module "prompt_registry" {
   prompt_bucket_name  = module.data.bucket_names["prompt_registry"]
   prompt_bucket_arn   = module.data.prompt_registry_bucket_arn
   storage_kms_key_arn = module.security.storage_kms_key_arn
+  data_kms_key_arn    = module.security.data_kms_key_arn
   tags                = local.tags
 }
