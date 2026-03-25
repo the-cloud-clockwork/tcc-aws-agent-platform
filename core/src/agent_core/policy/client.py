@@ -92,6 +92,17 @@ class PolicyClient:
                 "Created policy engine '%s' -> %s", name, result.get("policyEngineArn")
             )
             return result
+        except self._boto_client.exceptions.ConflictException:
+            # Engine already exists — retrieve and return it
+            logger.info("Policy engine '%s' already exists, retrieving", name)
+            engines = self._boto_client.list_policy_engines()
+            for eng in engines.get("policyEngines", []):
+                if eng.get("name") == name:
+                    return eng
+            raise PolicyError(
+                message=f"Policy engine '{name}' exists but not found in list",
+                code="CREATE_ENGINE_FAILED",
+            )
         except Exception as exc:
             raise PolicyError(
                 message=f"Failed to create policy engine '{name}': {exc}",
