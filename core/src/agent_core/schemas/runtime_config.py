@@ -28,9 +28,9 @@ class RuntimeConfig(BaseModel):
         ge=1,
         description="Session idle timeout before microVM termination.",
     )
-    network_mode: Literal["PUBLIC", "PRIVATE"] = Field(
+    network_mode: Literal["PUBLIC", "VPC"] = Field(
         default="PUBLIC",
-        description="PUBLIC for internet-facing, PRIVATE for VPC-only.",
+        description="PUBLIC for internet-facing, VPC for private subnets.",
     )
     protocol: Literal["HTTP", "MCP"] = Field(
         default="HTTP",
