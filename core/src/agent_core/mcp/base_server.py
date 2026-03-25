@@ -111,16 +111,15 @@ class BaseMCPServer:
 
         def decorator(fn: Callable[..., Coroutine[Any, Any, Any]]) -> Callable:
             # Flatten $defs -- AgentCore Gateway does not support JSON Schema $defs
-            if definition.inputSchema:
-                schema_str = json.dumps(definition.inputSchema)
-                if "$defs" in schema_str:
-                    definition = Tool(
-                        name=definition.name,
-                        description=definition.description,
-                        inputSchema=self._flatten_defs(dict(definition.inputSchema)),
-                    )
-            self._tools.append(definition)
-            self._handlers[definition.name] = fn
+            tool_def = definition
+            if tool_def.inputSchema and "$defs" in json.dumps(tool_def.inputSchema):
+                tool_def = Tool(
+                    name=tool_def.name,
+                    description=tool_def.description,
+                    inputSchema=self._flatten_defs(dict(tool_def.inputSchema)),
+                )
+            self._tools.append(tool_def)
+            self._handlers[tool_def.name] = fn
             return fn
 
         return decorator
