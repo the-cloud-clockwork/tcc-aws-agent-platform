@@ -68,6 +68,7 @@ module "agentcore" {
   cognito_enabled             = var.cognito_enabled
   code_interpreter_enabled    = var.builtin_code_interpreter_enabled
   browser_enabled             = var.builtin_browser_enabled
+  artifacts_mcp_lambda_arn    = module.api.mcp_tools_lambda_arn
   tags                        = local.tags
 }
 
@@ -98,6 +99,8 @@ module "api" {
   api_cors_origins               = var.api_cors_origins
   waf_acl_arn                    = module.security.waf_acl_arn
   waf_enabled                    = var.waf_enabled
+  artifact_queue_url             = module.data.artifact_queue_url
+  artifact_queue_arn             = module.data.artifact_queue_arn
   tags                           = local.tags
 }
 

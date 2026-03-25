@@ -14,6 +14,7 @@ from mcp_artifacts.schemas import (
     encode_content,
     filename_for_type,
 )
+from mcp_artifacts.notifications import publish_artifact_notification
 from mcp_artifacts.storage import ArtifactStorage
 
 
@@ -56,7 +57,7 @@ async def create_artifact(
 
     Returns
     -------
-    dict with artifact_id, status, s3_key.
+    dict with artifact_id, status, s3_key, signed_url.
     """
     _storage = storage or ArtifactStorage()
     _catalog = catalog or ArtifactCatalog()
@@ -75,7 +76,7 @@ async def create_artifact(
     artifact_type = ArtifactType(type)
     artifact_id = str(uuid.uuid4())
     filename = filename_for_type(artifact_type)
-    s3_key = f"{artifact_id}/{filename}"
+    s3_key = f"{tier}/{artifact_id}/{filename}"
 
     # 1. Create catalog entry (status=processing)
     _catalog.create_entry(
@@ -96,20 +97,49 @@ async def create_artifact(
         body = encode_content(artifact_type, content)
         ct = content_type_for_type(artifact_type)
         extra_args = {}
+        # Auto-resolve KMS key from tier (platform/domain).
+        # The bucket policy enforces /{tier}/* writes use the matching KMS key.
+        # Explicit kms_key_alias overrides tier-based resolution if provided.
+        tier_key_env = f"KMS_KEY_ARN_{tier.upper()}_ARTIFACTS"
+        kms_key_id = ""
         if kms_key_alias:
             kms_key_id = os.environ.get(
                 f"KMS_KEY_ARN_{kms_key_alias.upper().replace('-', '_')}",
                 kms_key_alias,
             )
+        elif os.environ.get(tier_key_env):
+            kms_key_id = os.environ[tier_key_env]
+        if kms_key_id:
             extra_args["ServerSideEncryption"] = "aws:kms"
             extra_args["SSEKMSKeyId"] = kms_key_id
         _storage.put_object(s3_key, body, ct, extra_args=extra_args)
 
         # 3. Update status to ready
         _catalog.update_status(artifact_id, "ready")
+
+        # 4. Publish SQS notification for event-driven consumers
+        publish_artifact_notification(
+            artifact_id=artifact_id,
+            status="ready",
+            artifact_type=artifact_type.value,
+            agent_id=agent_id or "",
+            execution_id=execution_id or "",
+        )
     except Exception:
         _catalog.update_status(artifact_id, "error")
+        publish_artifact_notification(
+            artifact_id=artifact_id,
+            status="error",
+            artifact_type=artifact_type.value,
+            agent_id=agent_id or "",
+            execution_id=execution_id or "",
+        )
         raise
 
+    # 5. Return signed URL immediately (synchronous — no polling needed)
+    signed_url = _storage.generate_signed_url(s3_key)
+
     result = CreateResult(artifact_id=artifact_id, status="ready", s3_key=s3_key)
-    return result.model_dump()
+    output = result.model_dump()
+    output["signed_url"] = signed_url
+    return output

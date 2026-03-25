@@ -1,3 +1,10 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# LOCAL DEVELOPMENT ONLY
+#
+# Production deployment uses Lambda behind AgentCore Gateway (see ARTIFACTS.md).
+# This Dockerfile is for local development and testing with docker-compose +
+# LocalStack. It is NOT deployed to ECS/Fargate.
+# ─────────────────────────────────────────────────────────────────────────────
 FROM python:3.11-slim AS base
 
 WORKDIR /app
@@ -10,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf 
 ARG PIP_EXTRA_INDEX_URL=""
 ENV PIP_EXTRA_INDEX_URL=${PIP_EXTRA_INDEX_URL}
 
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir ".[dev]"
 
 ENV MCP_TRANSPORT=http
 ENV MCP_HOST=0.0.0.0

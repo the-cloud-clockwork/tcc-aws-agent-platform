@@ -264,3 +264,13 @@ output "prompt_registry_url" {
   value = module.prompt_registry.prompt_registry_url
 }
 
+output "artifacts_mcp_lambda_arn" {
+  description = "ARN of the artifacts MCP tools Lambda (for Gateway target registration)"
+  value       = module.api.mcp_tools_lambda_arn
+}
+
+output "artifacts_mcp_lambda_name" {
+  description = "Name of the artifacts MCP tools Lambda"
+  value       = module.api.mcp_tools_lambda_name
+}
+

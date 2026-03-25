@@ -125,3 +125,11 @@ variable "browser_enabled" {
   type        = bool
   default     = false
 }
+
+# ── Artifacts MCP Lambda ──────────────────────────────────────────────────
+
+variable "artifacts_mcp_lambda_arn" {
+  description = "ARN of the artifacts MCP tools Lambda for Gateway target registration. Empty string disables the target."
+  type        = string
+  default     = ""
+}

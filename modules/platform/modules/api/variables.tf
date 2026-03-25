@@ -82,3 +82,15 @@ variable "waf_enabled" {
   type        = bool
   default     = false
 }
+
+# ── SQS (artifact notifications) ──────────────────────────────────────────
+
+variable "artifact_queue_url" {
+  description = "SQS queue URL for artifact status-change notifications"
+  type        = string
+}
+
+variable "artifact_queue_arn" {
+  description = "SQS queue ARN for artifact status-change notifications"
+  type        = string
+}

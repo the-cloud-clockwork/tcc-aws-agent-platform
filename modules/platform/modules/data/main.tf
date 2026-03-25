@@ -12,10 +12,12 @@ locals {
   tables = {
     artifacts = {
       hash_key  = "artifact_id"
-      range_key = "created_at"
+      range_key = null
       ttl_field = null
       gsis = [
-        { name = "agent_id-created_at-index", hash_key = "agent_id", range_key = "created_at" }
+        { name = "type-created_at-index", hash_key = "type", range_key = "created_at" },
+        { name = "agent_id-created_at-index", hash_key = "agent_id", range_key = "created_at" },
+        { name = "execution_id-agent_id-index", hash_key = "execution_id", range_key = "agent_id" }
       ]
     }
     audit_log = {
