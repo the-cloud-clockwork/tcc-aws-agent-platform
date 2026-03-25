@@ -5,8 +5,11 @@ import logging
 import os
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
+import boto3
 import httpx
+from aws_requests_auth.boto_utils import BotoAWSRequestsAuth
 
 logger = logging.getLogger("agent_core.prompt")
 
@@ -85,9 +88,31 @@ class PromptRegistryClient:
 
     def _fetch_remote(self, prompt_ref: str) -> str:
         url = f"{self.registry_url.rstrip('/')}/prompts/{prompt_ref}"
-        resp = httpx.get(url, timeout=self.timeout)
-        resp.raise_for_status()
-        data: dict[str, Any] = resp.json()
+        parsed = urlparse(url)
+        headers: dict[str, str] = {}
+
+        # Lambda Function URLs with IAM auth require SigV4 signing
+        if "lambda-url" in parsed.hostname or "amazonaws.com" in parsed.hostname:
+            region = os.environ.get("AWS_DEFAULT_REGION", "eu-west-1")
+            session = boto3.Session()
+            credentials = session.get_credentials().get_frozen_credentials()
+            auth = BotoAWSRequestsAuth(
+                aws_host=parsed.hostname,
+                aws_region=region,
+                aws_service="lambda",
+            )
+            # BotoAWSRequestsAuth works with requests, not httpx.
+            # Use requests for signed calls.
+            import requests as req_lib
+
+            resp = req_lib.get(url, auth=auth, timeout=self.timeout)
+            resp.raise_for_status()
+            data: dict[str, Any] = resp.json()
+        else:
+            resp = httpx.get(url, timeout=self.timeout)
+            resp.raise_for_status()
+            data = resp.json()
+
         text = data.get("text") or data.get("prompt_text") or data.get("body")
         if not text:
             raise PromptResolutionError(
