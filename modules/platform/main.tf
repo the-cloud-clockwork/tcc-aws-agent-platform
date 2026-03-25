@@ -95,6 +95,7 @@ module "api" {
   artifacts_bucket_arn           = module.data.artifacts_bucket_arn
   platform_artifacts_kms_key_arn = module.security.platform_artifacts_kms_key_arn
   domain_artifacts_kms_key_arn   = module.security.domain_artifacts_kms_key_arn
+  data_kms_key_arn               = module.security.data_kms_key_arn
   api_throttle_rate              = var.api_throttle_rate
   api_throttle_burst             = var.api_throttle_burst
   api_cors_origins               = var.api_cors_origins

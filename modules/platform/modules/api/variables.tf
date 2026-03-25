@@ -52,6 +52,11 @@ variable "domain_artifacts_kms_key_arn" {
   type        = string
 }
 
+variable "data_kms_key_arn" {
+  description = "KMS key ARN for DynamoDB table encryption (data-at-rest)"
+  type        = string
+}
+
 # ── API Gateway settings ─────────────────────────────────────────────────────
 
 variable "api_throttle_rate" {
