@@ -21,3 +21,13 @@ output "lambda_function_name" {
   description = "Name of the artifacts API Lambda function"
   value       = aws_lambda_function.artifacts_api.function_name
 }
+
+output "mcp_tools_lambda_arn" {
+  description = "ARN of the artifacts MCP tools Lambda function"
+  value       = aws_lambda_function.artifacts_mcp_tools.arn
+}
+
+output "mcp_tools_lambda_name" {
+  description = "Name of the artifacts MCP tools Lambda function"
+  value       = aws_lambda_function.artifacts_mcp_tools.function_name
+}

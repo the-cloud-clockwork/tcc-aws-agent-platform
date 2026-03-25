@@ -14,6 +14,7 @@ import logging
 import os
 
 import boto3
+from boto3.dynamodb.conditions import Attr, Key
 
 logger = logging.getLogger(__name__)
 
@@ -53,25 +54,44 @@ def handler(event: dict, context) -> dict:
 
 
 def _list_artifacts(params: dict) -> dict:
+    """List artifacts using GSI queries when a single filter key matches a GSI."""
     table = _get_table()
-    kwargs = {"Limit": int(params.get("limit", "50"))}
-    # Build filter expressions from params (date, agent_id, type, tier, execution_id)
-    filters = []
-    values = {}
-    names = {}
-    for key in ["agent_id", "type", "tier", "execution_id", "pipeline_date"]:
-        if key in params:
-            attr = f"#{key}"
-            val = f":{key}"
-            filters.append(f"{attr} = {val}")
-            values[val] = params[key]
-            names[attr] = key
-    if filters:
-        kwargs["FilterExpression"] = " AND ".join(filters)
-        kwargs["ExpressionAttributeValues"] = values
-        kwargs["ExpressionAttributeNames"] = names
+    limit = int(params.get("limit", "50"))
 
-    result = table.scan(**kwargs)
+    # Prefer GSI query over scan when a single primary filter is provided
+    if "agent_id" in params and "type" not in params:
+        result = table.query(
+            IndexName="agent_id-created_at-index",
+            KeyConditionExpression=Key("agent_id").eq(params["agent_id"]),
+            ScanIndexForward=False,
+            Limit=limit,
+        )
+    elif "type" in params and "agent_id" not in params:
+        result = table.query(
+            IndexName="type-created_at-index",
+            KeyConditionExpression=Key("type").eq(params["type"]),
+            ScanIndexForward=False,
+            Limit=limit,
+        )
+    else:
+        # Multi-filter or no filter — fall back to scan
+        kwargs = {"Limit": limit}
+        filters = []
+        values = {}
+        names = {}
+        for key in ["agent_id", "type", "tier", "execution_id", "pipeline_date"]:
+            if key in params:
+                attr = f"#{key}"
+                val = f":{key}"
+                filters.append(f"{attr} = {val}")
+                values[val] = params[key]
+                names[attr] = key
+        if filters:
+            kwargs["FilterExpression"] = " AND ".join(filters)
+            kwargs["ExpressionAttributeValues"] = values
+            kwargs["ExpressionAttributeNames"] = names
+        result = table.scan(**kwargs)
+
     return _response(
         200, {"artifacts": result.get("Items", []), "count": result.get("Count", 0)}
     )
@@ -83,7 +103,6 @@ def _get_artifact(artifact_id: str) -> dict:
     item = result.get("Item")
     if not item:
         return _response(404, {"error": "Artifact not found"})
-    # Generate signed URL
     item["signed_url"] = _get_signed_url(item.get("s3_key", ""))
     return _response(200, item)
 
@@ -94,7 +113,6 @@ def _get_artifact_data(artifact_id: str) -> dict:
     item = result.get("Item")
     if not item:
         return _response(404, {"error": "Artifact not found"})
-    # Fetch content from S3
     s3 = boto3.client("s3")
     bucket = os.environ.get("ARTIFACTS_BUCKET", "")
     obj = s3.get_object(Bucket=bucket, Key=item["s3_key"])
@@ -103,31 +121,34 @@ def _get_artifact_data(artifact_id: str) -> dict:
 
 
 def _list_runs(params: dict) -> dict:
+    """List pipeline runs using the type-created_at GSI."""
     table = _get_table()
-    result = table.scan(
-        FilterExpression="#t = :t",
-        ExpressionAttributeNames={"#t": "type"},
-        ExpressionAttributeValues={":t": "pipeline_run"},
-        Limit=int(params.get("limit", "20")),
+    limit = int(params.get("limit", "20"))
+
+    result = table.query(
+        IndexName="type-created_at-index",
+        KeyConditionExpression=Key("type").eq("pipeline_run"),
+        ScanIndexForward=False,
+        Limit=limit,
     )
-    items = sorted(
-        result.get("Items", []), key=lambda x: x.get("created_at", ""), reverse=True
+    return _response(
+        200, {"runs": result.get("Items", []), "count": result.get("Count", 0)}
     )
-    return _response(200, {"runs": items, "count": len(items)})
 
 
 def _get_run(execution_id: str) -> dict:
+    """Get a pipeline run by execution_id using the execution_id-agent_id GSI."""
     table = _get_table()
-    result = table.scan(
-        FilterExpression="execution_id = :eid AND #t = :t",
-        ExpressionAttributeNames={"#t": "type"},
-        ExpressionAttributeValues={":eid": execution_id, ":t": "pipeline_run"},
+
+    result = table.query(
+        IndexName="execution_id-agent_id-index",
+        KeyConditionExpression=Key("execution_id").eq(execution_id),
+        FilterExpression=Attr("type").eq("pipeline_run"),
     )
     items = result.get("Items", [])
     if not items:
         return _response(404, {"error": "Run not found"})
     item = items[0]
-    # Fetch manifest content
     s3 = boto3.client("s3")
     bucket = os.environ.get("ARTIFACTS_BUCKET", "")
     try:
@@ -143,10 +164,13 @@ def _get_run(execution_id: str) -> dict:
 
 
 def _get_run_agent(execution_id: str, agent_id: str) -> dict:
+    """Get an agent artifact from a run using the execution_id-agent_id GSI."""
     table = _get_table()
-    result = table.scan(
-        FilterExpression="execution_id = :eid AND agent_id = :aid",
-        ExpressionAttributeValues={":eid": execution_id, ":aid": agent_id},
+
+    result = table.query(
+        IndexName="execution_id-agent_id-index",
+        KeyConditionExpression=Key("execution_id").eq(execution_id)
+        & Key("agent_id").eq(agent_id),
     )
     items = result.get("Items", [])
     if not items:

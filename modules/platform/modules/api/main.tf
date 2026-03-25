@@ -649,3 +649,142 @@ resource "aws_wafv2_web_acl_association" "api_gateway" {
   resource_arn = aws_api_gateway_stage.main.arn
   web_acl_arn  = var.waf_acl_arn
 }
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Lambda Function -- Artifacts MCP Tools (AgentCore Gateway Target)
+#
+# Separate function from the REST API Lambda because this one needs full
+# read+write permissions (DynamoDB, S3, SQS, KMS encrypt). The REST API
+# Lambda is read-only. Gateway routes MCP tool calls here.
+# ═════════════════════════════════════════════════════════════════════════════
+
+# -- IAM Role ---------------------------------------------------------------
+
+data "aws_iam_policy_document" "mcp_tools_permissions" {
+  # DynamoDB full access on artifacts table
+  statement {
+    sid    = "DynamoDBFullArtifacts"
+    effect = "Allow"
+
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:UpdateItem",
+      "dynamodb:Query",
+      "dynamodb:Scan",
+      "dynamodb:BatchGetItem",
+    ]
+
+    resources = [
+      var.artifacts_table_arn,
+      "${var.artifacts_table_arn}/index/*",
+    ]
+  }
+
+  # S3 full access on artifacts bucket
+  statement {
+    sid    = "S3FullArtifacts"
+    effect = "Allow"
+
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:ListBucket",
+    ]
+
+    resources = [
+      var.artifacts_bucket_arn,
+      "${var.artifacts_bucket_arn}/*",
+    ]
+  }
+
+  # SQS send to artifact notifications queue
+  statement {
+    sid    = "SQSSendArtifactNotifications"
+    effect = "Allow"
+
+    actions = [
+      "sqs:SendMessage",
+    ]
+
+    resources = [
+      var.artifact_queue_arn,
+    ]
+  }
+
+  # KMS encrypt + decrypt for both platform and domain artifact keys
+  statement {
+    sid    = "KMSArtifactKeys"
+    effect = "Allow"
+
+    actions = [
+      "kms:Decrypt",
+      "kms:Encrypt",
+      "kms:GenerateDataKey",
+      "kms:DescribeKey",
+    ]
+
+    resources = [
+      var.platform_artifacts_kms_key_arn,
+      var.domain_artifacts_kms_key_arn,
+    ]
+  }
+}
+
+resource "aws_iam_role" "mcp_tools_lambda" {
+  name               = "${var.resource_prefix}-${var.environment}-artifacts-mcp-tools-role"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+
+  tags = merge(var.tags, {
+    Name      = "${var.resource_prefix}-${var.environment}-artifacts-mcp-tools-role"
+    Module    = "api"
+    Component = "iam"
+    Role      = "mcp-tools-lambda-execution"
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "mcp_tools_basic_execution" {
+  role       = aws_iam_role.mcp_tools_lambda.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "mcp_tools_permissions" {
+  name   = "${var.resource_prefix}-${var.environment}-artifacts-mcp-tools-permissions"
+  role   = aws_iam_role.mcp_tools_lambda.id
+  policy = data.aws_iam_policy_document.mcp_tools_permissions.json
+}
+
+# -- Lambda Function --------------------------------------------------------
+
+resource "aws_lambda_function" "artifacts_mcp_tools" {
+  function_name = "${var.resource_prefix}-${var.environment}-artifacts-mcp-tools"
+  role          = aws_iam_role.mcp_tools_lambda.arn
+  handler       = "agent_core.api.artifacts_mcp_handler.handler"
+  runtime       = "python3.12"
+  architectures = ["arm64"]
+  memory_size   = 512
+  timeout       = 60
+  filename      = "${path.module}/placeholder.zip"
+
+  environment {
+    variables = {
+      ENV_NAME                       = var.environment
+      ARTIFACTS_TABLE                = var.artifacts_table_name
+      ARTIFACTS_BUCKET               = var.artifacts_bucket_name
+      ARTIFACT_QUEUE_URL             = var.artifact_queue_url
+      KMS_KEY_ARN_PLATFORM_ARTIFACTS = var.platform_artifacts_kms_key_arn
+      KMS_KEY_ARN_DOMAIN_ARTIFACTS   = var.domain_artifacts_kms_key_arn
+    }
+  }
+
+  tags = merge(var.tags, {
+    Name      = "${var.resource_prefix}-${var.environment}-artifacts-mcp-tools"
+    Module    = "api"
+    Component = "lambda"
+    Role      = "artifacts-mcp-tools"
+  })
+
+  lifecycle {
+    ignore_changes = [filename]
+  }
+}
