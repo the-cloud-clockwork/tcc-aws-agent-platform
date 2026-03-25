@@ -14,7 +14,7 @@ resource "aws_bedrockagentcore_gateway_target" "artifacts_tools" {
   count = var.artifacts_mcp_lambda_arn != "" ? 1 : 0
 
   name               = "${local.prefix}-${local.env}-artifacts-tools"
-  gateway_identifier = aws_bedrockagentcore_gateway.this.id
+  gateway_identifier = aws_bedrockagentcore_gateway.this.gateway_id
   description        = "Platform artifact storage tools — create, get, list, search artifacts in S3 + DynamoDB"
 
   target_configuration {
