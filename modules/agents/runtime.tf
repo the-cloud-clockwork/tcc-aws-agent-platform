@@ -38,7 +38,7 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
     try(upper(each.value.runtime.protocol), "HTTP") == "MCP" ? {
       MCP_TRANSPORT = "http"
       MCP_HOST      = "0.0.0.0"
-      MCP_PORT      = "8080"
+      MCP_PORT      = "8000"
     } : {},
   )
 
