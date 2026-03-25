@@ -113,7 +113,7 @@ class PromptRegistryClient:
             resp.raise_for_status()
             data = resp.json()
 
-        text = data.get("text") or data.get("prompt_text") or data.get("body")
+        text = data.get("text") or data.get("content") or data.get("prompt_text") or data.get("body")
         if not text:
             raise PromptResolutionError(
                 f"Registry returned empty prompt for '{prompt_ref}'"
