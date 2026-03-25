@@ -34,6 +34,12 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
     var.bedrock_region != "" ? { BEDROCK_REGION = var.bedrock_region } : {},
     var.artifacts_bucket_name != "" ? { ARTIFACTS_BUCKET = var.artifacts_bucket_name } : {},
     var.prompt_registry_url != "" ? { PROMPT_REGISTRY_URL = var.prompt_registry_url } : {},
+    # MCP transport -- required for Gateway HTTP connectivity to MCP Runtimes
+    try(upper(each.value.runtime.protocol), "HTTP") == "MCP" ? {
+      MCP_TRANSPORT = "http"
+      MCP_HOST      = "0.0.0.0"
+      MCP_PORT      = "8080"
+    } : {},
   )
 
   # Network configuration -- PUBLIC or VPC
