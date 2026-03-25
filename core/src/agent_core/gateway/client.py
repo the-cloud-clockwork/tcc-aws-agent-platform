@@ -155,15 +155,21 @@ class GatewayClient:
 
     def _build_sigv4_client(self, url: str) -> MCPClient:
         """Build MCPClient with SigV4 auth transport."""
+        import boto3 as _boto3
+
         from agent_core.gateway.streamable_http_sigv4 import (
-            create_streamable_http_transport_sigv4,
+            streamablehttp_client_with_sigv4,
         )
+
+        session = _boto3.Session()
+        credentials = session.get_credentials().get_frozen_credentials()
 
         logger.info("Building Gateway MCPClient with SigV4 auth -> %s", url)
         return MCPClient(
-            lambda: create_streamable_http_transport_sigv4(
+            lambda: streamablehttp_client_with_sigv4(
                 url=url,
-                service_name=self._service_name,
+                credentials=credentials,
+                service=self._service_name,
                 region=self._region,
             )
         )
