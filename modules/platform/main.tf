@@ -53,23 +53,24 @@ module "data" {
 module "agentcore" {
   source = "./modules/agentcore"
 
-  resource_prefix             = var.resource_prefix
-  environment                 = var.environment
-  account_id                  = local.account_id
-  aws_region                  = var.aws_region
-  gateway_auth_type           = var.gateway_auth_type
-  gateway_jwt_discovery_url   = var.gateway_jwt_discovery_url
-  gateway_jwt_allowed_clients = var.gateway_jwt_allowed_clients
-  memory_event_expiry_days    = var.memory_event_expiry_days
-  memory_description          = var.memory_description
-  memory_kms_key_arn          = module.security.data_kms_key_arn
-  gateway_kms_key_arn         = module.security.data_kms_key_arn
-  ssm_root_path               = var.ssm_root_path
-  cognito_enabled             = var.cognito_enabled
-  code_interpreter_enabled    = var.builtin_code_interpreter_enabled
-  browser_enabled             = var.builtin_browser_enabled
-  artifacts_mcp_lambda_arn    = module.api.mcp_tools_lambda_arn
-  tags                        = local.tags
+  resource_prefix                 = var.resource_prefix
+  environment                     = var.environment
+  account_id                      = local.account_id
+  aws_region                      = var.aws_region
+  gateway_auth_type               = var.gateway_auth_type
+  gateway_jwt_discovery_url       = var.gateway_jwt_discovery_url
+  gateway_jwt_allowed_clients     = var.gateway_jwt_allowed_clients
+  memory_event_expiry_days        = var.memory_event_expiry_days
+  memory_description              = var.memory_description
+  memory_kms_key_arn              = module.security.data_kms_key_arn
+  gateway_kms_key_arn             = module.security.data_kms_key_arn
+  ssm_root_path                   = var.ssm_root_path
+  cognito_enabled                 = var.cognito_enabled
+  code_interpreter_enabled        = var.builtin_code_interpreter_enabled
+  browser_enabled                 = var.builtin_browser_enabled
+  artifacts_mcp_lambda_arn        = module.api.mcp_tools_lambda_arn
+  enable_artifacts_gateway_target = true
+  tags                            = local.tags
 }
 
 module "observability" {

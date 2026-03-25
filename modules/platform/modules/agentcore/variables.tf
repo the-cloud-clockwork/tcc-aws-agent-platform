@@ -133,3 +133,9 @@ variable "artifacts_mcp_lambda_arn" {
   type        = string
   default     = ""
 }
+
+variable "enable_artifacts_gateway_target" {
+  description = "Enable the artifacts MCP tools Gateway target. Separate from ARN to avoid count depending on computed values."
+  type        = bool
+  default     = false
+}

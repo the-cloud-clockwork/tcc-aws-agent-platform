@@ -11,7 +11,7 @@
 # ──────────────────────────────────────────────────────────────────────────────
 
 resource "aws_bedrockagentcore_gateway_target" "artifacts_tools" {
-  count = var.artifacts_mcp_lambda_arn != "" ? 1 : 0
+  count = var.enable_artifacts_gateway_target ? 1 : 0
 
   name               = "${local.prefix}-${local.env}-artifacts-tools"
   gateway_identifier = aws_bedrockagentcore_gateway.this.gateway_id
