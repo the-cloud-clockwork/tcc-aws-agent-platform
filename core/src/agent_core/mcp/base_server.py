@@ -54,7 +54,7 @@ class BaseMCPServer:
         self,
         name: str,
         *,
-        default_port: int = 8080,
+        default_port: int = 8000,
         observability: MCPObservabilityHook | None = None,
     ) -> None:
         self.name = name
@@ -178,8 +178,8 @@ class BaseMCPServer:
             routes=[
                 Route("/ping", endpoint=ping),
                 Route("/health", endpoint=ping),
-                Mount("/invocations", app=session_manager.handle_request),
                 Mount("/mcp", app=session_manager.handle_request),
+                Mount("/", app=session_manager.handle_request),
             ],
             lifespan=lifespan,
         )
