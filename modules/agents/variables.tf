@@ -135,6 +135,12 @@ variable "idempotency_table_name" {
   default     = ""
 }
 
+variable "prompt_registry_function_arn" {
+  type        = string
+  description = "ARN of the Prompt Registry Lambda function. Grants lambda:InvokeFunctionUrl to agent roles."
+  default     = ""
+}
+
 # -- Build -----------------------------------------------------------
 
 variable "codebuild_source_bucket" {
