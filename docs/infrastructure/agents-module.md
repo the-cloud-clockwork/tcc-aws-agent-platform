@@ -52,10 +52,16 @@ flowchart TD
     LOC --> IP_AK["aws_bedrockagentcore_api_key_credential_provider\nper api_key credential"]
     LOC --> IP_OA["aws_bedrockagentcore_oauth2_credential_provider\nper oauth credential"]
     LOC --> SSM["aws_ssm_parameter\nRuntime ARN, ECR URL, endpoint"]
+    LOC --> LG["aws_cloudwatch_log_group\n/aws/bedrock-agentcore/runtimes/{id}"]
+    LOC --> VL["Vended Logs Delivery\nSource → Destination → Delivery"]
 ```
 
 | Resource | Count | Driven By |
 |----------|-------|-----------|
+| `aws_cloudwatch_log_group` | 1 per agent | Blueprint `id` |
+| `aws_cloudwatch_log_delivery_source` | 1 per agent | Runtime ARN |
+| `aws_cloudwatch_log_delivery_destination` | 1 per agent | Log group ARN |
+| `aws_cloudwatch_log_delivery` | 1 per agent | Source → Destination link |
 | `aws_iam_role` | 1 per agent | Blueprint `id` |
 | `aws_ecr_repository` | 1 per agent | Blueprint `id` |
 | `aws_codebuild_project` | 1 per agent | Blueprint `id` |
