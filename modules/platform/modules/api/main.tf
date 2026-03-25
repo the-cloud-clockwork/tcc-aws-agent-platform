@@ -102,7 +102,9 @@ data "aws_iam_policy_document" "lambda_permissions" {
     resources = [
       var.platform_artifacts_kms_key_arn,
       var.domain_artifacts_kms_key_arn,
+      var.data_kms_key_arn,
     ]
+
   }
 }
 
@@ -116,19 +118,35 @@ resource "aws_iam_role_policy" "lambda_permissions" {
 # Lambda Function -- Artifacts API
 # ═════════════════════════════════════════════════════════════════════════════
 
-# NOTE: The deployment package (filename) is a placeholder. The actual package
-# is built by the agents module or CI pipeline and uploaded to S3 or provided
-# as a local zip. Replace the filename with an s3_bucket + s3_key reference
-# or a path to the built zip when wiring into the full deployment pipeline.
+# -- Build: artifacts-api (no external deps, just handler + boto3 from runtime)
+data "archive_file" "artifacts_api" {
+  type        = "zip"
+  output_path = "${path.module}/build/artifacts-api.zip"
+
+  source {
+    content  = ""
+    filename = "agent_core/__init__.py"
+  }
+  source {
+    content  = ""
+    filename = "agent_core/api/__init__.py"
+  }
+  source {
+    content  = file("${path.module}/../../../../core/src/agent_core/api/artifacts_api.py")
+    filename = "agent_core/api/artifacts_api.py"
+  }
+}
+
 resource "aws_lambda_function" "artifacts_api" {
-  function_name = local.function_name
-  role          = aws_iam_role.lambda.arn
-  handler       = "agent_core.api.artifacts_api.handler"
-  runtime       = "python3.12"
-  architectures = ["arm64"]
-  memory_size   = 512
-  timeout       = 30
-  filename      = "${path.module}/placeholder.zip"
+  function_name    = local.function_name
+  role             = aws_iam_role.lambda.arn
+  handler          = "agent_core.api.artifacts_api.handler"
+  runtime          = "python3.12"
+  architectures    = ["arm64"]
+  memory_size      = 512
+  timeout          = 30
+  filename         = data.archive_file.artifacts_api.output_path
+  source_code_hash = data.archive_file.artifacts_api.output_base64sha256
 
   environment {
     variables = {
@@ -144,10 +162,6 @@ resource "aws_lambda_function" "artifacts_api" {
     Component = "lambda"
     Role      = "artifacts-api"
   })
-
-  lifecycle {
-    ignore_changes = [filename]
-  }
 }
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -727,6 +741,7 @@ data "aws_iam_policy_document" "mcp_tools_permissions" {
     resources = [
       var.platform_artifacts_kms_key_arn,
       var.domain_artifacts_kms_key_arn,
+      var.data_kms_key_arn,
     ]
   }
 }
@@ -754,17 +769,50 @@ resource "aws_iam_role_policy" "mcp_tools_permissions" {
   policy = data.aws_iam_policy_document.mcp_tools_permissions.json
 }
 
+# -- Build: artifacts-mcp-tools (needs pydantic for aarch64 + mcp_artifacts)
+resource "terraform_data" "artifacts_mcp_tools_build" {
+  triggers_replace = {
+    handler_hash = filesha256("${path.module}/../../../../core/src/agent_core/api/artifacts_mcp_handler.py")
+    deps_hash    = filesha256("${path.module}/../../../../artifacts/pyproject.toml")
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -e
+      BUILD_DIR="${path.module}/build/mcp-tools"
+      rm -rf "$BUILD_DIR"
+      mkdir -p "$BUILD_DIR"
+      pip install --platform manylinux2014_aarch64 --python-version 3.12 \
+        --only-binary=:all: --target "$BUILD_DIR" "pydantic>=2.6,<3" --quiet
+      cp -r "${path.module}/../../../../artifacts/src/mcp_artifacts" "$BUILD_DIR/"
+      mkdir -p "$BUILD_DIR/agent_core/api"
+      touch "$BUILD_DIR/agent_core/__init__.py"
+      touch "$BUILD_DIR/agent_core/api/__init__.py"
+      cp "${path.module}/../../../../core/src/agent_core/api/artifacts_mcp_handler.py" \
+        "$BUILD_DIR/agent_core/api/"
+    EOT
+  }
+}
+
+data "archive_file" "artifacts_mcp_tools" {
+  type        = "zip"
+  source_dir  = "${path.module}/build/mcp-tools"
+  output_path = "${path.module}/build/artifacts-mcp-tools.zip"
+  depends_on  = [terraform_data.artifacts_mcp_tools_build]
+}
+
 # -- Lambda Function --------------------------------------------------------
 
 resource "aws_lambda_function" "artifacts_mcp_tools" {
-  function_name = "${var.resource_prefix}-${var.environment}-artifacts-mcp-tools"
-  role          = aws_iam_role.mcp_tools_lambda.arn
-  handler       = "agent_core.api.artifacts_mcp_handler.handler"
-  runtime       = "python3.12"
-  architectures = ["arm64"]
-  memory_size   = 512
-  timeout       = 60
-  filename      = "${path.module}/placeholder.zip"
+  function_name    = "${var.resource_prefix}-${var.environment}-artifacts-mcp-tools"
+  role             = aws_iam_role.mcp_tools_lambda.arn
+  handler          = "agent_core.api.artifacts_mcp_handler.handler"
+  runtime          = "python3.12"
+  architectures    = ["arm64"]
+  memory_size      = 512
+  timeout          = 60
+  filename         = data.archive_file.artifacts_mcp_tools.output_path
+  source_code_hash = data.archive_file.artifacts_mcp_tools.output_base64sha256
 
   environment {
     variables = {
@@ -783,8 +831,4 @@ resource "aws_lambda_function" "artifacts_mcp_tools" {
     Component = "lambda"
     Role      = "artifacts-mcp-tools"
   })
-
-  lifecycle {
-    ignore_changes = [filename]
-  }
 }
