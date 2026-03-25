@@ -50,6 +50,26 @@ class BaseMCPServer:
     - Optional background tasks (e.g. background polling)
     """
 
+
+    @staticmethod
+    def _flatten_defs(schema: dict) -> dict:
+        """Inline $defs references -- AgentCore Gateway rejects JSON Schema $defs."""
+        import copy as _copy
+        defs = schema.pop("$defs", {})
+        if not defs:
+            return schema
+        def _resolve(obj):
+            if isinstance(obj, dict):
+                if "$ref" in obj:
+                    ref_name = obj["$ref"].split("/")[-1]
+                    if ref_name in defs:
+                        return _resolve(_copy.deepcopy(defs[ref_name]))
+                return {k: _resolve(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [_resolve(i) for i in obj]
+            return obj
+        return _resolve(schema)
+
     def __init__(
         self,
         name: str,
@@ -90,6 +110,15 @@ class BaseMCPServer:
         """
 
         def decorator(fn: Callable[..., Coroutine[Any, Any, Any]]) -> Callable:
+            # Flatten $defs -- AgentCore Gateway does not support JSON Schema $defs
+            if definition.inputSchema:
+                schema_str = json.dumps(definition.inputSchema)
+                if "$defs" in schema_str:
+                    definition = Tool(
+                        name=definition.name,
+                        description=definition.description,
+                        inputSchema=self._flatten_defs(dict(definition.inputSchema)),
+                    )
             self._tools.append(definition)
             self._handlers[definition.name] = fn
             return fn
