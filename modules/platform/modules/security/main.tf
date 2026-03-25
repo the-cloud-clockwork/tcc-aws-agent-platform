@@ -25,6 +25,24 @@ locals {
         Principal = { AWS = "arn:aws:iam::${local.account_id}:root" }
         Action    = "kms:*"
         Resource  = "*"
+      },
+      {
+        Sid    = "AllowCloudWatchLogs"
+        Effect = "Allow"
+        Principal = { Service = "logs.${local.region}.amazonaws.com" }
+        Action = [
+          "kms:Encrypt*",
+          "kms:Decrypt*",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:Describe*"
+        ]
+        Resource = "*"
+        Condition = {
+          ArnLike = {
+            "kms:EncryptionContext:aws:logs:arn" = "arn:aws:logs:${local.region}:${local.account_id}:*"
+          }
+        }
       }
     ]
   })
