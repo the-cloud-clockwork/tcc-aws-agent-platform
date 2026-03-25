@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PromptStatus(str, Enum):
@@ -17,7 +17,9 @@ class PromptStatus(str, Enum):
 class PromptVersion(BaseModel):
     """Stored metadata for a prompt version (maps to DynamoDB item)."""
 
-    prompt_id: str
+    model_config = ConfigDict(populate_by_name=True)
+
+    prompt_id: str = Field(alias="prompt_key")
     version: str
     description: str = ""
     status: PromptStatus = PromptStatus.DRAFT
@@ -65,7 +67,9 @@ class PromptResolveResponse(BaseModel):
 class PromptVersionListItem(BaseModel):
     """Item in version list response."""
 
-    prompt_id: str
+    model_config = ConfigDict(populate_by_name=True)
+
+    prompt_id: str = Field(alias="prompt_key")
     version: str
     description: str
     status: PromptStatus
