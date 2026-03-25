@@ -1,7 +1,7 @@
 # ──────────────────────────────────────────────────────────────────────────────
 # Agents Module -- CodeBuild
 #
-# Per-agent CodeBuild projects for building x86_64 Docker images. Each project
+# Per-agent CodeBuild projects for building ARM64 Docker images. Each project
 # uses an inline buildspec that builds, tags, and pushes to the agent's ECR
 # repository. A shared IAM role grants ECR push and CloudWatch Logs access.
 # ──────────────────────────────────────────────────────────────────────────────
@@ -156,13 +156,13 @@ resource "aws_codebuild_project" "agent" {
   for_each = local.blueprints
 
   name         = "${local.name_prefix}-build-${each.key}"
-  description  = "x86_64 Docker build for agent: ${each.key}"
+  description  = "ARM64 Docker build for agent: ${each.key}"
   service_role = aws_iam_role.codebuild.arn
 
   environment {
     compute_type    = "BUILD_GENERAL1_SMALL"
-    image           = "aws/codebuild/amazonlinux2-x86_64-standard:5.0"
-    type            = "LINUX_CONTAINER"
+    image           = "aws/codebuild/amazonlinux-aarch64-standard:3.0"
+    type            = "ARM_CONTAINER"
     privileged_mode = true
 
     environment_variable {
@@ -209,7 +209,7 @@ resource "aws_codebuild_project" "agent" {
         build:
           commands:
             - export IMAGE_TAG="$${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}"
-            - docker build --platform linux/amd64 --build-arg PIP_EXTRA_INDEX_URL="$PIP_EXTRA_INDEX_URL" -t $ECR_REPO_URI:latest -t $ECR_REPO_URI:$IMAGE_TAG .
+            - docker build --platform linux/arm64 --build-arg PIP_EXTRA_INDEX_URL="$PIP_EXTRA_INDEX_URL" -t $ECR_REPO_URI:latest -t $ECR_REPO_URI:$IMAGE_TAG .
         post_build:
           commands:
             - docker push $ECR_REPO_URI:latest
