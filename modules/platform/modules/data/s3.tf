@@ -1,11 +1,12 @@
 # ──────────────────────────────────────────────────────────────────────────────
 # Data Sub-Module -- S3 Buckets
 #
-# Three buckets:
-#   1. artifacts     -- Two-tier bucket with /platform and /domain paths,
-#                      each enforcing a distinct KMS key via bucket policy.
-#   2. prompt-registry -- Versioned prompt content storage.
-#   3. historical-data -- Historical data (read-heavy workloads).
+# Four buckets:
+#   1. artifacts        -- Two-tier bucket with /platform and /domain paths,
+#                         each enforcing a distinct KMS key via bucket policy.
+#   2. prompt-registry  -- Versioned prompt content storage.
+#   3. historical-data  -- Historical data (read-heavy workloads).
+#   4. codebuild-source -- Agent/MCP source code uploads for CodeBuild.
 #
 # Naming: {prefix}-{env}-{name}-{account_id}
 # ──────────────────────────────────────────────────────────────────────────────
@@ -14,7 +15,8 @@ locals {
   bucket_names = {
     artifacts       = "${var.resource_prefix}-${var.environment}-artifacts-${var.account_id}"
     prompt_registry = "${var.resource_prefix}-${var.environment}-prompt-registry-${var.account_id}"
-    historical_data = "${var.resource_prefix}-${var.environment}-historical-data-${var.account_id}"
+    historical_data  = "${var.resource_prefix}-${var.environment}-historical-data-${var.account_id}"
+    codebuild_source = "${var.resource_prefix}-${var.environment}-codebuild-source-${var.account_id}"
   }
 }
 
@@ -296,6 +298,67 @@ resource "aws_s3_bucket_lifecycle_configuration" "historical_data" {
 
     noncurrent_version_expiration {
       noncurrent_days = 365
+    }
+  }
+}
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 4. CodeBuild Source Bucket -- Agent/MCP source code for CI/CD
+# ═════════════════════════════════════════════════════════════════════════════
+
+resource "aws_s3_bucket" "codebuild_source" {
+  bucket        = local.bucket_names.codebuild_source
+  force_destroy = var.removal_policy_destroy
+
+  tags = merge(var.tags, {
+    Name      = local.bucket_names.codebuild_source
+    Component = "data"
+    Role      = "codebuild-source"
+  })
+}
+
+resource "aws_s3_bucket_versioning" "codebuild_source" {
+  bucket = aws_s3_bucket.codebuild_source.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "codebuild_source" {
+  bucket = aws_s3_bucket.codebuild_source.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "codebuild_source" {
+  bucket = aws_s3_bucket.codebuild_source.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = var.storage_kms_key_arn
+    }
+    bucket_key_enabled = true
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "codebuild_source" {
+  bucket = aws_s3_bucket.codebuild_source.id
+
+  rule {
+    id     = "expire-old-source"
+    status = "Enabled"
+
+    expiration {
+      days = 30
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 7
     }
   }
 }
