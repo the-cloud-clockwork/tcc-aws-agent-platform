@@ -155,15 +155,9 @@ class GatewayClient:
 
     def _build_sigv4_client(self, url: str) -> MCPClient:
         """Build MCPClient with SigV4 auth transport."""
-        try:
-            from streamable_http_sigv4 import (  # type: ignore[import-untyped]
-                create_streamable_http_transport_sigv4,
-            )
-        except ImportError as exc:
-            raise GatewayConfigError(
-                "AWS_IAM auth requires the 'streamable_http_sigv4' package.  "
-                "Install it via: pip install bedrock-agentcore-toolkit"
-            ) from exc
+        from agent_core.gateway.streamable_http_sigv4 import (
+            create_streamable_http_transport_sigv4,
+        )
 
         logger.info("Building Gateway MCPClient with SigV4 auth -> %s", url)
         return MCPClient(
