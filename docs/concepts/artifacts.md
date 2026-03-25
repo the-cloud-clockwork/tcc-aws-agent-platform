@@ -131,15 +131,21 @@ The `create_artifact` tool accepts an optional `idempotency_key`. If a previous 
 
 Recommended format: `{agent_id}:{execution_id}:create_artifact:{param_hash}`
 
-## Local Development
+## Package Structure
 
-The `artifacts/` package includes a `BaseMCPServer`-based MCP server, Dockerfile, and docker-compose with LocalStack for local development:
+The `artifacts/` package is a pure Python library consumed by the Lambda handler. It has no server process, no Docker image, and no standalone runtime:
 
-```bash
-pip install -e "artifacts/[dev]"
-mcp-artifacts                     # stdio mode
-# or
-docker compose -f artifacts/docker-compose.yml up   # HTTP mode + LocalStack
+```
+artifacts/src/mcp_artifacts/
+├── schemas.py          # ArtifactType enum, Pydantic models, helpers
+├── storage.py          # S3 put/get, pre-signed URLs, CloudFront
+├── catalog.py          # DynamoDB CRUD, GSI queries
+├── notifications.py    # SQS status-change publisher
+└── tools/
+    ├── create.py       # create_artifact — S3 upload + catalog + SQS
+    ├── get.py          # get_artifact — catalog lookup + signed URL
+    ├── list_artifacts.py  # list with filters
+    └── poll.py         # poll (deprecated — use SQS or signed_url from create)
 ```
 
-In production, these are not used -- the Lambda + Gateway deployment handles all artifact operations.
+The Lambda handler at `core/src/agent_core/api/artifacts_mcp_handler.py` imports these tool functions and dispatches Gateway calls to them.
