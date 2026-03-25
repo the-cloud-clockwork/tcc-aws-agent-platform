@@ -59,6 +59,6 @@ async def list_artifacts(
             expires_at=None,
             metadata=entry.get("metadata", {}),
         )
-        results.append(meta.model_dump())
+        results.append(meta.model_dump(mode="json"))
 
     return results
