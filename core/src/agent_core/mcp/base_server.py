@@ -166,8 +166,8 @@ class BaseMCPServer:
         port = int(os.environ.get("MCP_PORT", str(self.default_port)))
         session_manager = StreamableHTTPSessionManager(app=self.server, stateless=True)
 
-        async def health(_request: Any) -> JSONResponse:
-            return JSONResponse({"status": "ok"})
+        async def ping(_request: Any) -> JSONResponse:
+            return JSONResponse({"status": "healthy"})
 
         @contextlib.asynccontextmanager
         async def lifespan(_app: Any) -> AsyncIterator[None]:
@@ -176,7 +176,9 @@ class BaseMCPServer:
 
         starlette_app = Starlette(
             routes=[
-                Route("/health", endpoint=health),
+                Route("/ping", endpoint=ping),
+                Route("/health", endpoint=ping),
+                Mount("/invocations", app=session_manager.handle_request),
                 Mount("/mcp", app=session_manager.handle_request),
             ],
             lifespan=lifespan,
