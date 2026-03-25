@@ -1,6 +1,7 @@
 ---
 title: Policy
 nav_order: 7
+parent: Concepts
 ---
 
 # Fine-Grained Access Control

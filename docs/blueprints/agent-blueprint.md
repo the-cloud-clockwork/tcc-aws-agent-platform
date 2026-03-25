@@ -1,6 +1,7 @@
 ---
 title: Agent Blueprint
 nav_order: 1
+parent: Blueprints
 ---
 
 # Agent Blueprint

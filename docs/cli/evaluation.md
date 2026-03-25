@@ -1,6 +1,7 @@
 ---
 title: evaluation
 nav_order: 6
+parent: CLI Reference
 ---
 
 # agentcli eval

@@ -1,6 +1,7 @@
 ---
 title: Agent-to-Agent
 nav_order: 9
+parent: SDK Reference
 ---
 
 # Agent-to-Agent (A2A)

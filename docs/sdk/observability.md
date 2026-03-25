@@ -1,6 +1,7 @@
 ---
 title: Observability
 nav_order: 6
+parent: SDK Reference
 ---
 
 # Observability
@@ -47,7 +48,9 @@ env_vars = generate_otel_env(blueprint)
 # }
 ```
 
-These env vars are set in the container task definition. No `configure_otel()` function call is needed — the `opentelemetry-instrument` CLI wrapper handles initialization at process start.
+These env vars are set in the container task definition. When deployed via Terraform, the `modules/agents/runtime.tf` module injects these env vars automatically when `observability_enabled = true` (the default). The values mirror the exact output of `generate_otel_env()`.
+
+> **Runtime Logging:** Terraform also creates a CloudWatch log group per agent at `/aws/bedrock-agentcore/runtimes/{agent-id}` and wires it via the CloudWatch Vended Logs delivery API (`aws_cloudwatch_log_delivery_source` + `aws_cloudwatch_log_delivery_destination` + `aws_cloudwatch_log_delivery`). This replaces the missing `logging_configuration` block on the `aws_bedrockagentcore_agent_runtime` resource. No `configure_otel()` function call is needed — the `opentelemetry-instrument` CLI wrapper handles initialization at process start.
 
 Traces are exported to AWS X-Ray via the OTEL exporter. Spans include:
 

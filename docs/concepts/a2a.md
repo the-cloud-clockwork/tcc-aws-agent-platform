@@ -1,6 +1,7 @@
 ---
 title: A2A Communication
 nav_order: 8
+parent: Concepts
 ---
 
 # Agent-to-Agent Communication

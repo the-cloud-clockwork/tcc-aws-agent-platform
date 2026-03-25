@@ -1,6 +1,7 @@
 ---
 title: Observability
 nav_order: 5
+parent: Concepts
 ---
 
 # Tracing Agent Behavior

@@ -1,6 +1,7 @@
 ---
 title: Memory
 nav_order: 4
+parent: SDK Reference
 ---
 
 # Memory

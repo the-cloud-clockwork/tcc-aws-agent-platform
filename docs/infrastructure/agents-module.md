@@ -1,6 +1,7 @@
 ---
 title: Agents Module
 nav_order: 2
+parent: Infrastructure
 ---
 
 # Agents Module

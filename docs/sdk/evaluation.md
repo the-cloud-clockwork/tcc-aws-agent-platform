@@ -1,6 +1,7 @@
 ---
 title: Evaluation
 nav_order: 7
+parent: SDK Reference
 ---
 
 # Evaluation

@@ -1,6 +1,7 @@
 ---
 title: Built-in Tools
 nav_order: 5
+parent: SDK Reference
 ---
 
 # Built-in Tools

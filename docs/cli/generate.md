@@ -1,6 +1,7 @@
 ---
 title: generate
 nav_order: 7
+parent: CLI Reference
 ---
 
 # agentcli generate

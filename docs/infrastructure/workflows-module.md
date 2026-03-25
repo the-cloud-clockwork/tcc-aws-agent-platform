@@ -1,6 +1,7 @@
 ---
 title: Workflows Module
 nav_order: 3
+parent: Infrastructure
 ---
 
 # Workflows Module

@@ -1,6 +1,7 @@
 ---
 title: policy
 nav_order: 5
+parent: CLI Reference
 ---
 
 # agentcli policy

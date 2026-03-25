@@ -1,6 +1,7 @@
 ---
 title: prompt
 nav_order: 2
+parent: CLI Reference
 ---
 
 # agentcli prompt

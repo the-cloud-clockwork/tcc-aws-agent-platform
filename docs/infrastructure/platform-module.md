@@ -1,6 +1,7 @@
 ---
 title: Platform Module
 nav_order: 1
+parent: Infrastructure
 ---
 
 # Platform Module
@@ -18,7 +19,7 @@ The module is composed of seven sub-modules that wire together automatically. Do
 | **network** | `modules/platform/modules/network` | VPC, public/private/isolated subnets, NAT gateways, security groups for agent runtimes and MCP servers, VPC endpoints (ecr.dkr, ecr.api, s3, ssm) |
 | **security** | `modules/platform/modules/security` | Five KMS keys (data, storage, secrets, platform\_artifacts, domain\_artifacts), WAF WebACL (conditional), network security group rules |
 | **data** | `modules/platform/modules/data` | DynamoDB tables (sessions, artifacts, audit\_log, evaluation, policy\_versions), S3 buckets (platform artifacts, domain artifacts), SQS queue, CloudFront distribution (conditional) |
-| **observability** | `modules/platform/modules/observability` | CloudWatch log groups, SNS alert topic, CloudWatch Alarms |
+| **observability** | `modules/platform/modules/observability` | CloudWatch log groups, SNS alert topic, X-Ray group, Transaction Search policy, CloudWatch dashboard |
 | **api** | `modules/platform/modules/api` | API Gateway HTTP API, Lambda function for artifact store (claim-check pattern), stage throttle settings |
 | **agentcore** | `modules/platform/modules/agentcore` | AgentCore Gateway (with KMS encryption + Cedar policy engine), AgentCore Memory resource, Cognito user pool (conditional), M2M OAuth2 credential provider for MCP gateway targets (conditional on Cognito), built-in Code Interpreter (conditional), built-in Browser (conditional) |
 | **prompt_registry** | `modules/platform/modules/prompt_registry` | Lambda Function URL for the Prompt Registry API — versioned prompt management backed by DynamoDB + S3 |

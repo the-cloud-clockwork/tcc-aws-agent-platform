@@ -1,6 +1,7 @@
 ---
 title: Workflow Blueprint
 nav_order: 3
+parent: Blueprints
 ---
 
 # Workflow Blueprint
