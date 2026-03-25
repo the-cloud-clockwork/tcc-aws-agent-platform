@@ -200,7 +200,7 @@ data "aws_iam_policy_document" "agent_permissions" {
       sid    = "PromptRegistryInvoke"
       effect = "Allow"
       actions = [
-        "lambda:InvokeFunctionUrl",
+        "lambda:InvokeFunction",
       ]
       resources = [var.prompt_registry_function_arn]
     }
