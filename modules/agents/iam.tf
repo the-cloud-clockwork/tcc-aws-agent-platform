@@ -120,6 +120,19 @@ data "aws_iam_policy_document" "agent_permissions" {
     resources = ["*"]
   }
 
+  # Evaluation SDK -- needs to check/create execution role for online eval
+  statement {
+    sid    = "EvaluationRoleAccess"
+    effect = "Allow"
+    actions = [
+      "iam:GetRole",
+      "iam:PassRole",
+    ]
+    resources = [
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/AgentCoreEvalsSDK-*",
+    ]
+  }
+
   # SSM parameter reads scoped to platform path
   statement {
     sid    = "SsmParameterRead"
