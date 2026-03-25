@@ -71,6 +71,25 @@ data "aws_iam_policy_document" "agent_permissions" {
     ]
   }
 
+  # AgentCore API actions -- policy engine, memory, evaluation
+  statement {
+    sid    = "AgentCoreActions"
+    effect = "Allow"
+    actions = [
+      "bedrock-agentcore:CreatePolicyEngine",
+      "bedrock-agentcore:DeletePolicyEngine",
+      "bedrock-agentcore:GetPolicyEngine",
+      "bedrock-agentcore:CreateMemory",
+      "bedrock-agentcore:GetMemory",
+      "bedrock-agentcore:IngestMemory",
+      "bedrock-agentcore:RetrieveMemory",
+      "bedrock-agentcore:CreateEvaluation",
+      "bedrock-agentcore:GetEvaluation",
+      "bedrock-agentcore:ListEvaluations",
+    ]
+    resources = ["*"]
+  }
+
   # ECR auth token -- must be wildcard per API requirement
   statement {
     sid       = "EcrAuth"
