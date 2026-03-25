@@ -137,7 +137,13 @@ variable "idempotency_table_name" {
 
 variable "prompt_registry_function_arn" {
   type        = string
-  description = "ARN of the Prompt Registry Lambda function. Grants lambda:InvokeFunctionUrl to agent roles."
+  description = "ARN of the Prompt Registry Lambda function. Grants lambda:InvokeFunction to agent roles."
+  default     = ""
+}
+
+variable "prompt_registry_function_name" {
+  type        = string
+  description = "Name of the Prompt Registry Lambda function. Injected as PROMPT_REGISTRY_FUNCTION env var for direct boto3 invocation."
   default     = ""
 }
 

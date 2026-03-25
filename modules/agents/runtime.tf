@@ -34,6 +34,7 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
     var.bedrock_region != "" ? { BEDROCK_REGION = var.bedrock_region } : {},
     var.artifacts_bucket_name != "" ? { ARTIFACTS_BUCKET = var.artifacts_bucket_name } : {},
     var.prompt_registry_url != "" ? { PROMPT_REGISTRY_URL = var.prompt_registry_url } : {},
+    var.prompt_registry_function_name != "" ? { PROMPT_REGISTRY_FUNCTION = var.prompt_registry_function_name } : {},
     var.idempotency_table_name != "" ? { IDEMPOTENCY_TABLE = var.idempotency_table_name } : {},
     # MCP transport -- required for Gateway HTTP connectivity to MCP Runtimes
     try(upper(each.value.runtime.protocol), "HTTP") == "MCP" ? {
