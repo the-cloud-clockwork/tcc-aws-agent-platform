@@ -34,3 +34,9 @@ variable "kms_key_arn" {
   type        = string
   default     = ""
 }
+
+variable "enable_transaction_search" {
+  description = "Create CloudWatch Logs resource policy for X-Ray Transaction Search (GenAI Observability)."
+  type        = bool
+  default     = true
+}

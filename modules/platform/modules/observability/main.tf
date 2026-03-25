@@ -128,3 +128,33 @@ resource "aws_cloudwatch_dashboard" "overview" {
 # ── Data Sources ─────────────────────────────────────────────────────────────
 
 data "aws_region" "current" {}
+
+data "aws_caller_identity" "current" {}
+
+# ── CloudWatch Transaction Search -- X-Ray Resource Policy ────────────────
+#
+# Allows X-Ray to write spans to CloudWatch Logs (aws/spans log group).
+# This is a one-time account-level setup required for GenAI Observability.
+
+resource "aws_cloudwatch_log_resource_policy" "xray_transaction_search" {
+  count = var.enable_transaction_search ? 1 : 0
+
+  policy_name = "${var.resource_prefix}-${var.environment}-xray-spans"
+  policy_document = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "XRayTransactionSearch"
+      Effect    = "Allow"
+      Principal = { Service = "xray.amazonaws.com" }
+      Action    = "logs:PutLogEvents"
+      Resource = [
+        "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:aws/spans:*",
+        "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/application-signals/data:*",
+      ]
+      Condition = {
+        ArnLike      = { "aws:SourceArn" = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*" }
+        StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
+      }
+    }]
+  })
+}

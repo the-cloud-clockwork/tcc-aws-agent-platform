@@ -40,6 +40,12 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
       MCP_HOST      = "0.0.0.0"
       MCP_PORT      = "8000"
     } : {},
+    # OTEL observability -- mirrors SDK generate_otel_env()
+    local.otel_env_vars,
+    var.observability_enabled ? {
+      OTEL_RESOURCE_ATTRIBUTES        = "service.name=${each.key},aws.log.group.names=${var.observability_log_group_prefix}${each.key}"
+      OTEL_EXPORTER_OTLP_LOGS_HEADERS = "x-aws-log-group=${var.observability_log_group_prefix}${each.key},x-aws-log-stream=runtime-logs,x-aws-metric-namespace=${var.observability_metric_namespace}"
+    } : {},
   )
 
   # Network configuration -- PUBLIC or VPC
@@ -114,4 +120,53 @@ resource "aws_bedrockagentcore_agent_runtime_endpoint" "agent" {
     Component = "runtime-endpoint"
     AgentId   = each.key
   })
+}
+
+# ── CloudWatch Log Group per Agent ─────────────────────────────────────────
+#
+# The aws_bedrockagentcore_agent_runtime resource has no logging_configuration
+# block (provider issue #44742). We use CloudWatch Vended Logs delivery API
+# to wire runtime logs to a CloudWatch log group per agent.
+
+resource "aws_cloudwatch_log_group" "agent" {
+  for_each = local.blueprints
+
+  name              = "/aws/bedrock-agentcore/runtimes/${each.key}"
+  retention_in_days = var.log_retention_days
+
+  tags = merge(local.tags, {
+    Name      = "${local.name_prefix}-${each.key}-logs"
+    Component = "runtime-logs"
+    AgentId   = each.key
+  })
+}
+
+# ── Vended Logs Delivery: Source → Destination → Delivery ──────────────────
+#
+# AgentCore Runtimes are "vended log" sources. The CloudWatch Logs delivery
+# API connects the runtime ARN (source) to a log group (destination).
+
+resource "aws_cloudwatch_log_delivery_source" "agent" {
+  for_each = local.blueprints
+
+  name         = "${local.name_prefix}-${each.key}-logs"
+  log_type     = "APPLICATION_LOGS"
+  resource_arn = aws_bedrockagentcore_agent_runtime.agent[each.key].agent_runtime_arn
+}
+
+resource "aws_cloudwatch_log_delivery_destination" "agent" {
+  for_each = local.blueprints
+
+  name = "${local.name_prefix}-${each.key}-logs-dst"
+
+  delivery_destination_configuration {
+    destination_resource_arn = aws_cloudwatch_log_group.agent[each.key].arn
+  }
+}
+
+resource "aws_cloudwatch_log_delivery" "agent_logs" {
+  for_each = local.blueprints
+
+  delivery_source_name     = aws_cloudwatch_log_delivery_source.agent[each.key].name
+  delivery_destination_arn = aws_cloudwatch_log_delivery_destination.agent[each.key].arn
 }

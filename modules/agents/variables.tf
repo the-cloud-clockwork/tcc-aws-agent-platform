@@ -157,3 +157,29 @@ variable "tags" {
   type    = map(string)
   default = {}
 }
+
+# -- Observability ---------------------------------------------------
+
+variable "log_retention_days" {
+  type        = number
+  default     = 14
+  description = "Retention in days for agent CloudWatch log groups."
+}
+
+variable "observability_enabled" {
+  type        = bool
+  default     = true
+  description = "Inject OTEL environment variables into agent containers for CloudWatch GenAI Observability."
+}
+
+variable "observability_log_group_prefix" {
+  type        = string
+  default     = "/aws/bedrock-agentcore/runtimes/"
+  description = "CloudWatch log group prefix for agent OTEL logs. Agent ID is appended."
+}
+
+variable "observability_metric_namespace" {
+  type        = string
+  default     = "bedrock-agentcore"
+  description = "CloudWatch metric namespace for agent OTEL metrics."
+}

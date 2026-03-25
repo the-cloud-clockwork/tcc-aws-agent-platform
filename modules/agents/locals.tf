@@ -64,6 +64,15 @@ locals {
     ]
   ])
 
+  # Per-agent OTEL env vars (mirrors SDK generate_otel_env output)
+  otel_env_vars = var.observability_enabled ? {
+    AGENT_OBSERVABILITY_ENABLED = "true"
+    OTEL_PYTHON_DISTRO          = "aws_distro"
+    OTEL_PYTHON_CONFIGURATOR    = "aws_configurator"
+    OTEL_EXPORTER_OTLP_PROTOCOL = "http/protobuf"
+    OTEL_TRACES_EXPORTER        = "otlp"
+  } : {}
+
   name_prefix = "${var.resource_prefix}-${var.environment}"
 
   tags = merge(var.tags, {

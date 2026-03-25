@@ -187,6 +187,47 @@ observability:
     log_group: ${AUDIT_LOG_GROUP}
 ```
 
+## Activation Checklist
+
+### Prerequisites (one-time per AWS account)
+
+1. **CloudWatch Transaction Search** must be enabled. The platform Terraform module creates the required IAM resource policy automatically (`enable_transaction_search = true` in the observability sub-module).
+
+2. **ADOT dependency** must be in your container. Add to `requirements.txt`:
+   ```
+   aws-opentelemetry-distro>=0.10.1
+   ```
+
+3. **Dockerfile entrypoint** must use the OTEL wrapper. The SDK's `generate_dockerfile()` handles this automatically when `runtime.observability_enabled: true` (the default).
+
+### Environment Variables (injected by Terraform)
+
+When `observability_enabled = true` in the agents module (default), these env vars are automatically set on every agent container:
+
+| Variable | Value | Purpose |
+|----------|-------|---------|
+| `AGENT_OBSERVABILITY_ENABLED` | `true` | Master toggle for ADOT auto-instrumentation |
+| `OTEL_PYTHON_DISTRO` | `aws_distro` | Use AWS OTEL distro |
+| `OTEL_PYTHON_CONFIGURATOR` | `aws_configurator` | Use AWS OTEL configurator |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` | OTLP transport protocol |
+| `OTEL_TRACES_EXPORTER` | `otlp` | Export traces via OTLP |
+| `OTEL_RESOURCE_ATTRIBUTES` | `service.name={agent_id},aws.log.group.names=...` | Resource identity for CloudWatch |
+| `OTEL_EXPORTER_OTLP_LOGS_HEADERS` | `x-aws-log-group=...,x-aws-log-stream=runtime-logs,...` | Log routing to correct CloudWatch group |
+
+### To Disable ADOT (for external platforms only)
+
+Set `DISABLE_ADOT_OBSERVABILITY=true` in the blueprint's custom env vars to use Langfuse/Dynatrace exclusively instead of CloudWatch.
+
+### Runtime Logging (Vended Logs)
+
+The agents Terraform module creates a CloudWatch log group per agent at `/aws/bedrock-agentcore/runtimes/{agent-id}` and wires it via the CloudWatch Vended Logs delivery API. Container startup errors, runtime exceptions, and application logs appear here automatically.
+
+### Viewing Traces
+
+1. **CloudWatch Console** > GenAI Observability > Bedrock AgentCore
+2. **Transaction Search** > filter by agent name or session ID
+3. **Trace timeline** shows: Agent invocation > LLM calls > Tool calls > Memory ops
+
 ## See Also
 
 - [Evaluation Concepts](evaluation) — how evaluation reads OTEL traces to score agent behavior
