@@ -173,6 +173,11 @@ output "artifacts_bucket_arn" {
   value = module.data.artifacts_bucket_arn
 }
 
+output "codebuild_source_bucket" {
+  description = "S3 bucket name for CodeBuild source code uploads. Pass to modules/agents codebuild_source_bucket variable."
+  value       = module.data.codebuild_source_bucket_name
+}
+
 output "bucket_names" {
   value = module.data.bucket_names
 }

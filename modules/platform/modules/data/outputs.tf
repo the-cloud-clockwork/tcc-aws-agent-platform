@@ -57,12 +57,23 @@ output "historical_data_bucket_arn" {
 
 # ── S3 Buckets -- Combined Map ────────────────────────────────────────────────
 
+output "codebuild_source_bucket_name" {
+  description = "Name of the S3 bucket for CodeBuild source code uploads."
+  value       = aws_s3_bucket.codebuild_source.id
+}
+
+output "codebuild_source_bucket_arn" {
+  description = "ARN of the S3 bucket for CodeBuild source code uploads."
+  value       = aws_s3_bucket.codebuild_source.arn
+}
+
 output "bucket_names" {
   description = "Map of bucket key to S3 bucket name."
   value = {
-    artifacts       = aws_s3_bucket.artifacts.id
-    prompt_registry = aws_s3_bucket.prompt_registry.id
-    historical_data = aws_s3_bucket.historical_data.id
+    artifacts        = aws_s3_bucket.artifacts.id
+    prompt_registry  = aws_s3_bucket.prompt_registry.id
+    historical_data  = aws_s3_bucket.historical_data.id
+    codebuild_source = aws_s3_bucket.codebuild_source.id
   }
 }
 
