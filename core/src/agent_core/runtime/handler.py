@@ -161,18 +161,14 @@ class GenericHandler:
             ).to_response()
 
         except Exception as exc:
-            logger.exception("Agent '%s' failed", agent_id)
-            # Surface chained causes for debugging (MCPClient swallows real errors)
-            error_chain = [str(exc)]
-            cause = exc.__cause__
-            while cause is not None:
-                error_chain.append(f"Caused by: {type(cause).__name__}: {cause}")
-                cause = cause.__cause__
-            error_msg = " | ".join(error_chain)
+            import traceback as _tb
+            # Surface FULL traceback + cause chain (MCPClient swallows real errors)
+            tb_str = "".join(_tb.format_exception(type(exc), exc, exc.__traceback__))
+            logger.error("Agent '%s' failed:\n%s", agent_id, tb_str)
             # Do NOT persist session on error — avoid storing partial state
             return AgentResult(
                 status="error",
                 agent_id=agent_id,
                 session_id=session_id,
-                error=error_msg,
+                error=tb_str[-2000:],  # Last 2000 chars of full traceback
             ).to_response()
