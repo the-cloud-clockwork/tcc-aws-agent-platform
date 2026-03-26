@@ -8,7 +8,7 @@ from mcp_artifacts.catalog import ArtifactCatalog
 from mcp_artifacts.schemas import ArtifactMeta, ArtifactType
 
 
-async def list_artifacts(
+def list_artifacts(
     type: str | None = None,
     agent_id: str | None = None,
     date: str | None = None,
