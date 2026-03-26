@@ -123,10 +123,14 @@ class CostTracker:
             return pricing
         if self._default_pricing is not None:
             return self._default_pricing
-        raise ValueError(
-            f"No pricing configured for model '{model_id}'.  "
-            f"Set BEDROCK_MODEL_PRICING or BEDROCK_DEFAULT_PRICING env var."
+        # Return zero pricing instead of crashing — cost tracking is
+        # observability, not critical path. Log a warning once.
+        logger.warning(
+            "No pricing configured for model '%s' — cost tracking disabled. "
+            "Set BEDROCK_MODEL_PRICING or BEDROCK_DEFAULT_PRICING env var.",
+            model_id,
         )
+        return (0.0, 0.0)
 
     def compute_cost(
         self,
