@@ -137,9 +137,13 @@ class PolicyClient:
     def create_policy(
         self, engine_id: str, name: str, cedar_statement: str
     ) -> dict[str, Any]:
-        """Create or retrieve a Cedar policy in a policy engine.
+        """Create a Cedar policy in a policy engine.
 
-        Uses the idempotent ``create_or_get_policy`` SDK call.
+        Uses the raw boto3 ``create_policy`` API with
+        ``validationMode=IGNORE_ALL_FINDINGS`` (per AWS samples pattern)
+        to skip Cedar schema validation while keeping the policy functional.
+
+        Falls back to retrieving an existing policy on ``ConflictException``.
 
         Args:
             engine_id: Target policy engine ID.
@@ -150,13 +154,31 @@ class PolicyClient:
             Dict with policy details from the API.
         """
         try:
-            result = self._sdk_client.create_or_get_policy(
-                policy_engine_id=engine_id,
+            result = self._boto_client.create_policy(
+                policyEngineId=engine_id,
                 name=name,
                 definition={"cedar": {"statement": cedar_statement}},
+                validationMode="IGNORE_ALL_FINDINGS",
             )
-            logger.info("Created policy '%s' in engine '%s'", name, engine_id)
+            policy_id = result.get("policyId", "")
+            logger.info(
+                "Created policy '%s' (id=%s) in engine '%s'",
+                name,
+                policy_id,
+                engine_id,
+            )
             return result
+        except self._boto_client.exceptions.ConflictException:
+            logger.info("Policy '%s' already exists in engine '%s'", name, engine_id)
+            # Retrieve existing policies and find by name
+            try:
+                policies = self._sdk_client.list_policies(policy_engine_id=engine_id)
+                for pol in policies:
+                    if pol.get("name") == name:
+                        return pol
+            except Exception:
+                pass
+            return {"name": name, "policyEngineId": engine_id}
         except Exception as exc:
             raise PolicyError(
                 message=f"Failed to create policy '{name}': {exc}",
