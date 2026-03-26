@@ -172,12 +172,16 @@ class GatewayClient:
             ) from exc
 
         session = _boto3.Session()
-        credentials = session.get_credentials().get_frozen_credentials()
-        logger.info(
-            "Building Gateway MCPClient with SigV4 auth -> %s (creds=%s)",
-            url,
-            "present" if credentials.access_key else "MISSING",
-        )
+        # Use get_credentials() WITHOUT freeze — per AWS samples pattern.
+        # Frozen credentials may not work with RefreshableCredentials in
+        # AgentCore Runtime (IMDS-based credential provider).
+        credentials = session.get_credentials()
+        if credentials is None:
+            raise GatewayConfigError(
+                "No AWS credentials available for SigV4 signing. "
+                "Check IAM role attachment on the AgentCore Runtime."
+            )
+        logger.info("Building Gateway MCPClient with SigV4 auth -> %s", url)
         return MCPClient(
             lambda: streamablehttp_client_with_sigv4(
                 url=url,
