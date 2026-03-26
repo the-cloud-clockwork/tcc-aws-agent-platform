@@ -153,11 +153,11 @@ class GenericHandler:
                 status="success",
                 agent_id=agent_id,
                 session_id=session_id,
-                output=output.get("output", output),
-                claim_check=output.get("claim_check", False),
-                artifact_id=output.get("artifact_id", ""),
-                s3_key=output.get("s3_key", ""),
-                tier=output.get("tier", artifact_tier),
+                output=dict(output).get("output", output),
+                claim_check=dict(output).get("claim_check", False),
+                artifact_id=dict(output).get("artifact_id", ""),
+                s3_key=dict(output).get("s3_key", ""),
+                tier=dict(output).get("tier", artifact_tier),
             ).to_response()
 
         except Exception as exc:
