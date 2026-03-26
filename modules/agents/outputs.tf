@@ -38,3 +38,8 @@ output "runtime_endpoint_urls" {
     id => try(ep.endpoint_url, ep.agent_runtime_endpoint_arn)
   }
 }
+
+output "observe_script_path" {
+  description = "Path to the observe-runtime.sh script shipped with this module."
+  value       = "${path.module}/scripts/observe-runtime.sh"
+}
