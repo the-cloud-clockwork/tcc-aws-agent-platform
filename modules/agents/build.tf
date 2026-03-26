@@ -12,10 +12,10 @@
 
 locals {
   # Determine which blueprints to build
-  build_targets = var.build_enabled ? {
+  build_targets = {
     for id, bp in local.blueprints : id => bp
-    if length(var.build_services) == 0 || lookup(var.build_services, id, false)
-  } : {}
+    if var.build_enabled && (length(var.build_services) == 0 || lookup(var.build_services, id, false))
+  }
 
   # S3 key prefix for build source zips
   build_s3_prefix = "${local.name_prefix}-source"
