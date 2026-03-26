@@ -50,8 +50,10 @@ def translate_rule(
         msg = f"Rule '{rule.name}': one of 'allow' or 'deny' is required."
         raise CedarTranslationError(msg)
 
-    if target_prefix:
-        action_str = f"{target_prefix}___{tool_name}"
+    # Per-rule target overrides global target_prefix
+    effective_prefix = rule.target if rule.target else target_prefix
+    if effective_prefix:
+        action_str = f"{effective_prefix}___{tool_name}"
     else:
         action_str = tool_name
 

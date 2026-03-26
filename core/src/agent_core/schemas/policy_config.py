@@ -46,6 +46,14 @@ class PolicyRuleConfig(BaseModel):
         default=None,
         description="Cedar 'unless' condition expression (raw Cedar syntax).",
     )
+    target: str | None = Field(
+        default=None,
+        description=(
+            "Gateway target name for this rule's action prefix. "
+            "When set, the Cedar action becomes '{target}___{tool_name}'. "
+            "Overrides the global target_prefix for this specific rule."
+        ),
+    )
     principal: str | None = Field(
         default=None,
         description=(
