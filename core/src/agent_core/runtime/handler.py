@@ -162,10 +162,17 @@ class GenericHandler:
 
         except Exception as exc:
             logger.exception("Agent '%s' failed", agent_id)
+            # Surface chained causes for debugging (MCPClient swallows real errors)
+            error_chain = [str(exc)]
+            cause = exc.__cause__
+            while cause is not None:
+                error_chain.append(f"Caused by: {type(cause).__name__}: {cause}")
+                cause = cause.__cause__
+            error_msg = " | ".join(error_chain)
             # Do NOT persist session on error — avoid storing partial state
             return AgentResult(
                 status="error",
                 agent_id=agent_id,
                 session_id=session_id,
-                error=str(exc),
+                error=error_msg,
             ).to_response()
