@@ -51,7 +51,7 @@ class A2AServerWrapper:
         resolved_http_url = (
             http_url
             or os.environ.get("A2A_HTTP_URL", "")
-            or f"http://{resolved_host}:{resolved_port}/"
+            or f"http://localhost:{resolved_port}/"
         )
 
         from strands.multiagent.a2a import A2AServer
