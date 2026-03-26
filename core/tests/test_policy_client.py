@@ -20,16 +20,20 @@ class TestPolicyClientInit:
             with pytest.raises(PolicyConfigError, match="Region required"):
                 PolicyClient()
 
-    @patch("agent_core.policy.client.boto3")
-    @patch(
-        "agent_core.policy.client.PolicyClient.__init__",
-        return_value=None,
-    )
-    def test_init_from_env(self, mock_init, mock_boto):
-        # Verify the class can be instantiated (constructor mocked)
-        client = PolicyClient.__new__(PolicyClient)
-        client.__init__()
-        mock_init.assert_called_once()
+    def test_init_from_env(self):
+        """Verify PolicyClient can be instantiated when region is set."""
+        import sys
+
+        mock_boto3 = MagicMock()
+        conflict_exc = type("ConflictException", (Exception,), {})
+        mock_client = MagicMock()
+        mock_client.exceptions.ConflictException = conflict_exc
+        mock_boto3.client.return_value = mock_client
+
+        with patch.dict(sys.modules, {"boto3": mock_boto3}):
+            with patch.dict("os.environ", {"AWS_REGION": "eu-west-1"}):
+                client = PolicyClient()
+                assert client._region == "eu-west-1"
 
 
 class TestPolicyMode:
@@ -45,23 +49,18 @@ class TestPolicyClientOperations:
 
     @pytest.fixture()
     def client(self):
-        with (
-            patch("agent_core.policy.client.boto3") as mock_boto,
-            patch(
-                "bedrock_agentcore_starter_toolkit.operations.policy.client.PolicyClient",
-                create=True,
-            ) as mock_sdk,
-        ):
-            mock_boto_client = MagicMock()
-            mock_boto.client.return_value = mock_boto_client
-            mock_sdk_instance = MagicMock()
-            mock_sdk.return_value = mock_sdk_instance
+        mock_boto_client = MagicMock()
+        mock_sdk_instance = MagicMock()
 
-            c = PolicyClient.__new__(PolicyClient)
-            c._region = "eu-west-1"
-            c._boto_client = mock_boto_client
-            c._sdk_client = mock_sdk_instance
-            yield c
+        # Create proper exception classes so `except client.exceptions.X` works
+        conflict_exc = type("ConflictException", (Exception,), {})
+        mock_boto_client.exceptions.ConflictException = conflict_exc
+
+        c = PolicyClient.__new__(PolicyClient)
+        c._region = "eu-west-1"
+        c._boto_client = mock_boto_client
+        c._sdk_client = mock_sdk_instance
+        yield c
 
     def test_create_engine(self, client):
         client._boto_client.create_policy_engine.return_value = {
@@ -80,13 +79,14 @@ class TestPolicyClientOperations:
             client.create_engine("TestEngine")
 
     def test_create_policy(self, client):
-        client._sdk_client.create_or_get_policy.return_value = {"policyId": "p1"}
+        client._boto_client.create_policy.return_value = {"policyId": "p1"}
         result = client.create_policy("pe-123", "my-policy", "permit(...);")
         assert result["policyId"] == "p1"
-        client._sdk_client.create_or_get_policy.assert_called_once_with(
-            policy_engine_id="pe-123",
+        client._boto_client.create_policy.assert_called_once_with(
+            policyEngineId="pe-123",
             name="my-policy",
             definition={"cedar": {"statement": "permit(...);"}},
+            validationMode="IGNORE_ALL_FINDINGS",
         )
 
     def test_list_policies(self, client):
