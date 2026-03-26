@@ -54,4 +54,4 @@ node_modules/
 .env.local
 *.zip
 !modules/platform/modules/api/placeholder.zip
-.terraform
+.terraform.claude/worktrees/
