@@ -209,7 +209,7 @@ resource "aws_codebuild_project" "agent" {
         build:
           commands:
             - export IMAGE_TAG="$${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}"
-            - docker build --platform linux/arm64 --build-arg PIP_EXTRA_INDEX_URL="$PIP_EXTRA_INDEX_URL" -t $ECR_REPO_URI:latest -t $ECR_REPO_URI:$IMAGE_TAG .
+            - docker build --no-cache --platform linux/arm64 --build-arg PIP_EXTRA_INDEX_URL="$PIP_EXTRA_INDEX_URL" -t $ECR_REPO_URI:latest -t $ECR_REPO_URI:$IMAGE_TAG .
         post_build:
           commands:
             - docker push $ECR_REPO_URI:latest
