@@ -22,8 +22,11 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
   }
 
   # Environment variables -- merge platform wiring with optional artifact config
+  # DEPLOY_TIMESTAMP forces a new Runtime version on every apply,
+  # ensuring :latest image is always re-pulled (dev phase — no image tags).
   environment_variables = merge(
     {
+      DEPLOY_TIMESTAMP      = timestamp()
       AGENTCORE_GATEWAY_URL = var.gateway_url
       AGENTCORE_GATEWAY_ARN = "arn:aws:bedrock-agentcore:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:gateway/${var.gateway_id}"
       AGENTCORE_MEMORY_ID   = var.memory_id
