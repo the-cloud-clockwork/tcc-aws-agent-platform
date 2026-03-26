@@ -95,6 +95,11 @@ resource "aws_bedrockagentcore_gateway_target" "mcp_runtime" {
     }
   }
 
+  timeouts {
+    create = "5m"
+    update = "5m"
+  }
+
   depends_on = [
     aws_bedrockagentcore_agent_runtime.agent,
     aws_bedrockagentcore_agent_runtime_endpoint.agent,
