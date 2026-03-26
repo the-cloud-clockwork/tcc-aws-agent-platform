@@ -75,129 +75,82 @@ class WorkflowExecutor:
             lambda state_id, lambda_ref, input_data: {}
         )
 
+    def _make_result(
+        self,
+        state_id: str,
+        visited: list[str],
+        outputs: dict[str, Any],
+        status: Literal["succeeded", "failed"],
+    ) -> WorkflowExecutionResult:
+        return WorkflowExecutionResult(
+            final_state_id=state_id,
+            states_visited=visited,
+            outputs=outputs,
+            status=status,
+        )
+
+    def _handle_task(
+        self, state: Any, current_id: str, data: dict[str, Any], outputs: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Execute a task state: invoke handler, apply result_path, return updated data."""
+        lambda_ref = state.lambda_ref or state.id
+        task_output = self._task_handler(current_id, lambda_ref, copy.deepcopy(data))
+        outputs[current_id] = task_output
+        if state.result_path:
+            return _set_path(data, state.result_path, task_output)
+        data.update(task_output)
+        return data
+
+    def _advance_or_terminate(
+        self, state: Any, current_id: str, visited: list[str], outputs: dict[str, Any]
+    ) -> str | WorkflowExecutionResult:
+        """Move to next state or return terminal success if no next."""
+        if state.next:
+            return state.next
+        return self._make_result(current_id, visited, outputs, "succeeded")
+
     def execute(
         self, blueprint: WorkflowBlueprint, initial_input: dict[str, Any]
     ) -> WorkflowExecutionResult:
         """Execute a workflow blueprint with given input."""
         if not blueprint.states:
-            return WorkflowExecutionResult(
-                final_state_id="",
-                states_visited=[],
-                status="succeeded",
-            )
+            return self._make_result("", [], {}, "succeeded")
 
         states_by_id = {s.id: s for s in blueprint.states}
         current_id = blueprint.states[0].id
         data = copy.deepcopy(initial_input)
         visited: list[str] = []
         outputs: dict[str, Any] = {}
-        max_steps = 100  # safety limit
 
-        for _ in range(max_steps):
+        for _ in range(100):
             if current_id not in states_by_id:
-                return WorkflowExecutionResult(
-                    final_state_id=current_id,
-                    states_visited=visited,
-                    outputs=outputs,
-                    status="failed",
-                )
+                return self._make_result(current_id, visited, outputs, "failed")
 
             state = states_by_id[current_id]
             visited.append(current_id)
 
             if state.type == "succeed":
-                return WorkflowExecutionResult(
-                    final_state_id=current_id,
-                    states_visited=visited,
-                    outputs=outputs,
-                    status="succeeded",
-                )
-
+                return self._make_result(current_id, visited, outputs, "succeeded")
             if state.type == "fail":
-                return WorkflowExecutionResult(
-                    final_state_id=current_id,
-                    states_visited=visited,
-                    outputs=outputs,
-                    status="failed",
-                )
+                return self._make_result(current_id, visited, outputs, "failed")
 
             if state.type == "task":
-                lambda_ref = state.lambda_ref or state.id
-                task_output = self._task_handler(
-                    current_id, lambda_ref, copy.deepcopy(data)
-                )
-                outputs[current_id] = task_output
-
-                # Apply result_path if specified
-                if state.result_path:
-                    data = _set_path(data, state.result_path, task_output)
-                else:
-                    data.update(task_output)
-
-                # Move to next state
-                if state.next:
-                    current_id = state.next
-                else:
-                    return WorkflowExecutionResult(
-                        final_state_id=current_id,
-                        states_visited=visited,
-                        outputs=outputs,
-                        status="succeeded",
-                    )
-
+                data = self._handle_task(state, current_id, data, outputs)
+                step = self._advance_or_terminate(state, current_id, visited, outputs)
             elif state.type == "choice":
                 next_state = self._evaluate_choice(state, data)
                 if next_state is None:
-                    return WorkflowExecutionResult(
-                        final_state_id=current_id,
-                        states_visited=visited,
-                        outputs=outputs,
-                        status="failed",
-                    )
-                current_id = next_state
-
-            elif state.type == "parallel":
-                # Simplified: just move to next
-                if state.next:
-                    current_id = state.next
-                else:
-                    return WorkflowExecutionResult(
-                        final_state_id=current_id,
-                        states_visited=visited,
-                        outputs=outputs,
-                        status="succeeded",
-                    )
-
-            elif state.type == "wait":
-                # Skip wait in test executor
-                if state.next:
-                    current_id = state.next
-                else:
-                    return WorkflowExecutionResult(
-                        final_state_id=current_id,
-                        states_visited=visited,
-                        outputs=outputs,
-                        status="succeeded",
-                    )
-
+                    return self._make_result(current_id, visited, outputs, "failed")
+                step = next_state
             else:
-                # Unknown state type, move to next if available
-                if state.next:
-                    current_id = state.next
-                else:
-                    return WorkflowExecutionResult(
-                        final_state_id=current_id,
-                        states_visited=visited,
-                        outputs=outputs,
-                        status="succeeded",
-                    )
+                # parallel, wait, unknown — advance or terminate
+                step = self._advance_or_terminate(state, current_id, visited, outputs)
 
-        return WorkflowExecutionResult(
-            final_state_id=current_id,
-            states_visited=visited,
-            outputs=outputs,
-            status="failed",
-        )
+            if isinstance(step, WorkflowExecutionResult):
+                return step
+            current_id = step
+
+        return self._make_result(current_id, visited, outputs, "failed")
 
     def _evaluate_choice(self, state: Any, data: dict[str, Any]) -> str | None:
         """Evaluate choice state rules against current data."""

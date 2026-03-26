@@ -18,7 +18,7 @@ from mcp_artifacts.notifications import publish_artifact_notification
 from mcp_artifacts.storage import ArtifactStorage
 
 
-async def create_artifact(
+def create_artifact(
     type: str,
     content: str,
     metadata: dict[str, Any] | None = None,

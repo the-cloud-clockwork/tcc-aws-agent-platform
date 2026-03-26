@@ -42,32 +42,45 @@ def _get_node_id(node: dict) -> str:
     return node.get("id", node.get("node_id", "?"))
 
 
-def _topological_sort(node_ids: list[str], edges: list[dict], adjacency: dict[str, list[tuple[str, str]]]) -> list[str]:
-    """BFS topological sort of node IDs."""
+def _count_incoming(node_ids: list[str], edges: list[dict]) -> dict[str, int]:
+    """Count incoming edges per node."""
     incoming = dict.fromkeys(node_ids, 0)
     for edge in edges:
         tgt = edge.get("to") or edge.get("target", "?")
         if tgt in incoming:
             incoming[tgt] += 1
+    return incoming
 
-    queue = deque([nid for nid, cnt in incoming.items() if cnt == 0])
+
+def _enqueue_successors(
+    nid: str, adjacency: dict[str, list[tuple[str, str]]],
+    incoming: dict[str, int], visited: set[str], queue: deque[str],
+) -> None:
+    """Decrement incoming counts for successors and enqueue those with zero."""
+    for tgt, _ in adjacency.get(nid, []):
+        if tgt not in incoming:
+            continue
+        incoming[tgt] -= 1
+        if incoming[tgt] <= 0 and tgt not in visited:
+            queue.append(tgt)
+
+
+def _topological_sort(node_ids: list[str], edges: list[dict], adjacency: dict[str, list[tuple[str, str]]]) -> list[str]:
+    """BFS topological sort of node IDs."""
+    incoming = _count_incoming(node_ids, edges)
+    queue = deque(nid for nid, cnt in incoming.items() if cnt == 0)
     ordered: list[str] = []
     visited: set[str] = set()
+
     while queue:
         nid = queue.popleft()
         if nid in visited:
             continue
         visited.add(nid)
         ordered.append(nid)
-        for tgt, _ in adjacency.get(nid, []):
-            if tgt in incoming:
-                incoming[tgt] -= 1
-                if incoming[tgt] <= 0 and tgt not in visited:
-                    queue.append(tgt)
+        _enqueue_successors(nid, adjacency, incoming, visited, queue)
 
-    for nid in node_ids:
-        if nid not in visited:
-            ordered.append(nid)
+    ordered.extend(nid for nid in node_ids if nid not in visited)
     return ordered
 
 

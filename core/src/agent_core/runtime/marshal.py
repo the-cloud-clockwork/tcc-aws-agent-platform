@@ -91,11 +91,15 @@ def marshal_output(
     try:
         import boto3
 
+        sts = boto3.client("sts")
+        account_id = sts.get_caller_identity()["Account"]
+
         put_kwargs: dict[str, Any] = {
             "Bucket": bucket,
             "Key": s3_key,
             "Body": serialized.encode("utf-8"),
             "ContentType": "application/json",
+            "ExpectedBucketOwner": account_id,
         }
         if kms_key_alias:
             put_kwargs["ServerSideEncryption"] = "aws:kms"

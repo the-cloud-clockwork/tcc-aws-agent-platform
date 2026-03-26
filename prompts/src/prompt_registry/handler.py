@@ -25,6 +25,8 @@ from prompt_registry.storage import PromptStorage
 TABLE_NAME = os.environ.get("DYNAMODB_TABLE", "prompt_registry")
 BUCKET_NAME = os.environ.get("S3_BUCKET", "prompt-registry")
 
+_ERR_PROMPT_ID_REQUIRED = "prompt_id is required"
+
 
 def _get_registry() -> PromptRegistry:
     return PromptRegistry(table_name=TABLE_NAME)
@@ -110,7 +112,7 @@ def handle_get_prompt(event: dict) -> dict:
     """GET /prompts/{prompt_id} — get prompt text (optionally pinned version)."""
     prompt_id = _get_path_param(event, "prompt_id")
     if not prompt_id:
-        return _response(400, {"error": "prompt_id is required"})
+        return _response(400, {"error": _ERR_PROMPT_ID_REQUIRED})
 
     version = _get_query_param(event, "version")
     mode_str = _get_query_param(event, "mode") or "production"
@@ -140,7 +142,7 @@ def handle_list_versions(event: dict) -> dict:
     """GET /prompts/{prompt_id}/versions — list all versions."""
     prompt_id = _get_path_param(event, "prompt_id")
     if not prompt_id:
-        return _response(400, {"error": "prompt_id is required"})
+        return _response(400, {"error": _ERR_PROMPT_ID_REQUIRED})
 
     registry = _get_registry()
     versions = registry.list_versions(prompt_id)
@@ -164,7 +166,7 @@ def handle_promote(event: dict) -> dict:
     """POST /prompts/{prompt_id}/promote — promote a version to stable."""
     prompt_id = _get_path_param(event, "prompt_id")
     if not prompt_id:
-        return _response(400, {"error": "prompt_id is required"})
+        return _response(400, {"error": _ERR_PROMPT_ID_REQUIRED})
 
     body = _parse_body(event)
     try:
@@ -195,7 +197,7 @@ def handle_rollback(event: dict) -> dict:
     """POST /prompts/{prompt_id}/rollback — rollback to a previous version."""
     prompt_id = _get_path_param(event, "prompt_id")
     if not prompt_id:
-        return _response(400, {"error": "prompt_id is required"})
+        return _response(400, {"error": _ERR_PROMPT_ID_REQUIRED})
 
     body = _parse_body(event)
     try:
@@ -221,7 +223,7 @@ def handle_diff(event: dict) -> dict:
     """GET /prompts/{prompt_id}/diff?v1=X&v2=Y — diff two versions."""
     prompt_id = _get_path_param(event, "prompt_id")
     if not prompt_id:
-        return _response(400, {"error": "prompt_id is required"})
+        return _response(400, {"error": _ERR_PROMPT_ID_REQUIRED})
 
     v1 = _get_query_param(event, "v1")
     v2 = _get_query_param(event, "v2")
