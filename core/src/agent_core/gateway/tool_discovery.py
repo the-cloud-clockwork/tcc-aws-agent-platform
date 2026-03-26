@@ -178,7 +178,7 @@ class ToolDiscovery:
                 if agent_id and term in target_lower:
                     score += 2.0
 
-            if score == 0.0:
+            if not score:
                 continue
 
             normalised = score / len(query_terms)
