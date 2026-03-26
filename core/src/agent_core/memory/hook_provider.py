@@ -45,7 +45,7 @@ class MemoryHookProvider:
 
     def _on_agent_initialized(self, event: Any) -> None:
         """Load short-term history + long-term semantic memories into system prompt."""
-        agent_state = getattr(event.agent, "state", {})
+        agent_state = dict(getattr(event.agent, "state", {}))
         actor_id = agent_state.get("actor_id", "unknown")
         session_id = agent_state.get("session_id", "unknown")
 
@@ -79,14 +79,14 @@ class MemoryHookProvider:
         if not messages:
             return
 
-        last = messages[-1]
+        last = dict(messages[-1]) if hasattr(messages[-1], "keys") else messages[-1]
         role = last.get("role", "user")
         content_blocks = last.get("content", [])
         text = _extract_text(content_blocks)
         if not text:
             return
 
-        agent_state = getattr(event.agent, "state", {})
+        agent_state = dict(getattr(event.agent, "state", {}))
         actor_id = agent_state.get("actor_id", "unknown")
         session_id = agent_state.get("session_id", "unknown")
 
