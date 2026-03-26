@@ -177,4 +177,9 @@ resource "aws_cloudwatch_log_delivery" "agent_logs" {
 
   delivery_source_name     = aws_cloudwatch_log_delivery_source.agent[each.key].name
   delivery_destination_arn = aws_cloudwatch_log_delivery_destination.agent[each.key].arn
+
+  depends_on = [
+    aws_cloudwatch_log_delivery_source.agent,
+    aws_cloudwatch_log_delivery_destination.agent,
+  ]
 }
