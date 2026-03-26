@@ -22,15 +22,18 @@ class ArtifactType(str, Enum):
     PIPELINE_RUN = "pipeline_run"
 
 
+_EXT_JSON = ".json"
+_CT_JSON = "application/json"
+
 # Map artifact type to file extension and content-type
 ARTIFACT_TYPE_MAP: dict[ArtifactType, tuple[str, str]] = {
     ArtifactType.CHART: (".jsx", "text/jsx"),
     ArtifactType.REPORT: (".md", "text/markdown"),
-    ArtifactType.SIMULATION_RESULT: (".json", "application/json"),
-    ArtifactType.RECOMMENDATION: (".json", "application/json"),
+    ArtifactType.SIMULATION_RESULT: (_EXT_JSON, _CT_JSON),
+    ArtifactType.RECOMMENDATION: (_EXT_JSON, _CT_JSON),
     ArtifactType.IMAGE: (".png", "image/png"),
     ArtifactType.DATA_EXPORT: (".csv", "text/csv"),
-    ArtifactType.PIPELINE_RUN: (".json", "application/json"),
+    ArtifactType.PIPELINE_RUN: (_EXT_JSON, _CT_JSON),
 }
 
 

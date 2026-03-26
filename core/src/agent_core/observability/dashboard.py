@@ -35,6 +35,7 @@ def _metric_widget(
         "height": height,
         "properties": {
             "title": title,
+            "namespace": namespace,
             "metrics": metrics,
             "stat": stat,
             "period": period,

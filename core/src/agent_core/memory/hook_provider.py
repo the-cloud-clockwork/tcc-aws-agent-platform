@@ -22,6 +22,16 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _extract_state(agent: Any) -> dict[str, Any]:
+    """Extract agent state dict, handling to_dict() and raw dict variants."""
+    raw = getattr(agent, "state", {})
+    if hasattr(raw, "to_dict"):
+        return raw.to_dict()
+    if isinstance(raw, dict):
+        return dict(raw)
+    return {}
+
+
 @dataclass
 class MemoryHookProvider:
     """Strands-compatible hook provider for AgentCore Memory.
@@ -45,8 +55,7 @@ class MemoryHookProvider:
 
     def _on_agent_initialized(self, event: Any) -> None:
         """Load short-term history + long-term semantic memories into system prompt."""
-        _raw_state = getattr(event.agent, "state", {})
-        agent_state = _raw_state.to_dict() if hasattr(_raw_state, "to_dict") else (dict(_raw_state) if isinstance(_raw_state, dict) else {})
+        agent_state = _extract_state(event.agent)
         actor_id = agent_state.get("actor_id", "unknown")
         session_id = agent_state.get("session_id", "unknown")
 
@@ -87,8 +96,7 @@ class MemoryHookProvider:
         if not text:
             return
 
-        _raw_state = getattr(event.agent, "state", {})
-        agent_state = _raw_state.to_dict() if hasattr(_raw_state, "to_dict") else (dict(_raw_state) if isinstance(_raw_state, dict) else {})
+        agent_state = _extract_state(event.agent)
         actor_id = agent_state.get("actor_id", "unknown")
         session_id = agent_state.get("session_id", "unknown")
 

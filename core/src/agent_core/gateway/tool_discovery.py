@@ -116,6 +116,41 @@ class ToolDiscovery:
         "out off over under need please get make use".split()
     )
 
+    @staticmethod
+    def _score_tool(
+        raw: dict[str, Any],
+        query_terms: list[str],
+        agent_id: str | None,
+    ) -> DiscoveredTool | None:
+        """Score a single raw tool against query terms. Returns None if no match."""
+        name = str(raw.get("name", ""))
+        description = str(raw.get("description", ""))
+
+        fqn = name
+        target, short_name = (name.split("::", 1) if "::" in name else ("", name))
+
+        name_parts = set(short_name.lower().replace("-", "_").split("_"))
+        desc_lower = description.lower()
+        target_lower = target.lower()
+
+        score = sum(
+            (3.0 if term in name_parts else 0.0)
+            + (1.0 if term in desc_lower else 0.0)
+            + (2.0 if agent_id and term in target_lower else 0.0)
+            for term in query_terms
+        )
+        if not score:
+            return None
+
+        return DiscoveredTool(
+            fqn=fqn,
+            target=target,
+            name=short_name,
+            description=description,
+            input_schema=raw.get("inputSchema", raw.get("input_schema", {})),
+            relevance_score=round(score / len(query_terms), 4),
+        )
+
     def find_tools_for_task(
         self,
         task_description: str,
@@ -156,43 +191,9 @@ class ToolDiscovery:
         scored: list[DiscoveredTool] = []
 
         for raw in all_tools:
-            name = str(raw.get("name", ""))
-            description = str(raw.get("description", ""))
-
-            fqn = name
-            target = ""
-            short_name = name
-            if "::" in name:
-                target, short_name = name.split("::", 1)
-
-            name_parts = set(short_name.lower().replace("-", "_").split("_"))
-            desc_lower = description.lower()
-            target_lower = target.lower()
-
-            score = 0.0
-            for term in query_terms:
-                if term in name_parts:
-                    score += 3.0
-                if term in desc_lower:
-                    score += 1.0
-                if agent_id and term in target_lower:
-                    score += 2.0
-
-            if not score:
-                continue
-
-            normalised = score / len(query_terms)
-
-            scored.append(
-                DiscoveredTool(
-                    fqn=fqn,
-                    target=target,
-                    name=short_name,
-                    description=description,
-                    input_schema=raw.get("inputSchema", raw.get("input_schema", {})),
-                    relevance_score=round(normalised, 4),
-                )
-            )
+            tool = self._score_tool(raw, query_terms, agent_id)
+            if tool is not None:
+                scored.append(tool)
 
         scored.sort(key=lambda t: t.relevance_score, reverse=True)
         logger.info(

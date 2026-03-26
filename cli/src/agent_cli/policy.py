@@ -6,6 +6,7 @@ Validates and translates Cedar policy rules from blueprint YAML.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import typer
 import yaml
@@ -14,6 +15,33 @@ from rich.syntax import Syntax
 
 policy_app = typer.Typer(no_args_is_help=True)
 console = Console()
+
+
+def _validate_and_preview_rules(config: Any) -> None:
+    """Validate Cedar expressions in rules and print a preview."""
+    from agent_core.policy.translator import translate_rules, validate_cedar_expression
+
+    cedar = translate_rules(config.rules, "<GATEWAY_ARN>", config.target_prefix)
+
+    for rule in config.rules:
+        _check_cedar_condition(rule.name, rule.when)
+        _check_cedar_condition(rule.name, rule.unless)
+
+    console.print("\n[bold]Generated Cedar (preview):[/bold]")
+    console.print(Syntax(cedar, "cedar", theme="monokai"))
+
+
+def _check_cedar_condition(rule_name: str, condition: str | None) -> None:
+    """Validate a single Cedar condition expression."""
+    if not condition:
+        return
+    from agent_core.policy.translator import validate_cedar_expression
+
+    errors = validate_cedar_expression(condition)
+    if errors:
+        console.print(f"  [yellow]Warning in rule '{rule_name}':[/yellow]")
+        for err in errors:
+            console.print(f"    {err}")
 
 
 @policy_app.command("lint")
@@ -56,27 +84,7 @@ def lint(
     console.print(f"  Rules: {len(config.rules)}")
 
     if config.rules:
-        from agent_core.policy.translator import (
-            translate_rules,
-            validate_cedar_expression,
-        )
-
-        gateway_arn = "<GATEWAY_ARN>"
-        cedar = translate_rules(config.rules, gateway_arn, config.target_prefix)
-
-        for rule in config.rules:
-            for condition in (rule.when, rule.unless):
-                if condition:
-                    errors = validate_cedar_expression(condition)
-                    if errors:
-                        console.print(
-                            f"  [yellow]Warning in rule '{rule.name}':[/yellow]"
-                        )
-                        for err in errors:
-                            console.print(f"    {err}")
-
-        console.print("\n[bold]Generated Cedar (preview):[/bold]")
-        console.print(Syntax(cedar, "cedar", theme="monokai"))
+        _validate_and_preview_rules(config)
 
 
 @policy_app.command("generate")
