@@ -41,13 +41,14 @@ def marshal_output(
     Returns:
         JSON-serializable dict with artifact_id, s3_key, bucket, tier, and output.
     """
-    # Serialize result to dict
+    # Serialize result to plain dict (Strands returns JSONSerializableDict
+    # which has a non-standard .get() signature — always convert to dict)
     if hasattr(result, "to_dict") and hasattr(result, "status"):
-        output = result.to_dict()
+        output = dict(result.to_dict())
     elif hasattr(result, "model_dump"):
         output = result.model_dump()
     elif isinstance(result, dict):
-        output = result
+        output = dict(result)
     else:
         try:
             output = json.loads(str(result))
