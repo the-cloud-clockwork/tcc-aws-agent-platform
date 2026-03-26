@@ -35,6 +35,24 @@ class GenericHandler:
         self._idempotency = idempotency_store
         self._session_manager = session_manager
 
+    def _resolve_artifact_config(self, agent_id: str) -> tuple[str, str | None]:
+        """Resolve artifact tier and KMS key from blueprint and env."""
+        tier = "platform"
+        kms: str | None = None
+        try:
+            bp = self._loader.load_agent(agent_id)
+            tier = bp.artifacts.tier
+            kms = bp.artifacts.kms_key_alias
+        except Exception as bp_err:
+            logger.warning("Could not load blueprint for artifact config: %s", bp_err)
+
+        tier_kms_arn = os.environ.get(f"{tier.upper()}_ARTIFACTS_KMS_KEY_ARN", "")
+        if tier_kms_arn:
+            kms = tier_kms_arn
+        elif kms and not kms.startswith("arn:"):
+            kms = f"alias/{kms}"
+        return tier, kms
+
     def handle(
         self, payload_data: dict[str, Any], context: InvocationContext | None = None
     ) -> dict[str, Any]:
@@ -105,32 +123,8 @@ class GenericHandler:
                     execution_mode=get_execution_mode().value,
                 )
 
-            # Load blueprint to get artifact config
-            artifact_tier = "platform"
-            artifact_kms = None
-            try:
-                blueprint = self._loader.load_agent(agent_id)
-                artifact_tier = blueprint.artifacts.tier
-                artifact_kms = blueprint.artifacts.kms_key_alias
-            except Exception as bp_err:
-                logger.warning(
-                    "Could not load blueprint for artifact config: %s", bp_err
-                )
-
-            # Resolve KMS key: prefer tier-based env var (full ARN), fall back to alias
-            tier_env = f"{artifact_tier.upper()}_ARTIFACTS_KMS_KEY_ARN"
-            tier_kms_arn = os.environ.get(tier_env, "")
-            if tier_kms_arn:
-                artifact_kms = tier_kms_arn
-            elif artifact_kms and not artifact_kms.startswith("arn:"):
-                artifact_kms = f"alias/{artifact_kms}"
-
-            # Extract date from payload params
-            artifact_date = (
-                params.get("analysis_date")
-                or params.get("date")
-                or params.get("pipeline_date")
-            )
+            artifact_tier, artifact_kms = self._resolve_artifact_config(agent_id)
+            artifact_date = params.get("analysis_date") or params.get("date") or params.get("pipeline_date")
 
             with self._loader.build_agent_session(agent_id) as session:
                 result = session.run(user_prompt)

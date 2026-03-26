@@ -479,6 +479,58 @@ class BlueprintLoader:
     # Agent Session builder
     # ------------------------------------------------------------------
 
+    def _wire_identity(self, blueprint: AgentBlueprint, agent_id: str) -> Any:
+        if not blueprint.identity.credentials:
+            return None
+        from agent_core.identity.cache import CredentialCache
+        from agent_core.identity.wiring import IdentityWiring
+
+        wiring = IdentityWiring(credentials=blueprint.identity.credentials, cache=CredentialCache())
+        logger.info("Wired %d credential providers for %s", len(blueprint.identity.credentials), agent_id)
+        return wiring
+
+    def _wire_memory(self, blueprint: AgentBlueprint, agent_id: str) -> Any:
+        if not blueprint.memory.strategies:
+            return None
+        from agent_core.memory.wiring import MemoryWiring
+
+        memory_id = os.environ.get("AGENTCORE_MEMORY_ID", "")
+        if not memory_id:
+            raise BlueprintLoadError(
+                f"Agent '{agent_id}' declares memory strategies but AGENTCORE_MEMORY_ID env var is not set."
+            )
+        wiring = MemoryWiring(config=blueprint.memory, memory_id=memory_id)
+        logger.info("Wired %d memory strategies for %s (memory_id=%s)", len(blueprint.memory.strategies), agent_id, memory_id)
+        return wiring
+
+    def _wire_evaluation(self, blueprint: AgentBlueprint, agent_id: str) -> Any:
+        if not blueprint.evaluation.custom_evaluators and not blueprint.evaluation.online:
+            return None
+        from agent_core.evaluation.wiring import EvaluationWiring
+
+        eval_table = None
+        if blueprint.evaluation.persistence is not None and blueprint.evaluation.persistence.enabled:
+            eval_table = os.environ.get(blueprint.evaluation.persistence.table_env)
+        wiring = EvaluationWiring(config=blueprint.evaluation, agent_id=agent_id, results_table_name=eval_table)
+        logger.info("Wired evaluation for %s", agent_id)
+        return wiring
+
+    def _wire_policy(self, blueprint: AgentBlueprint, agent_id: str) -> Any:
+        if not blueprint.policy or not blueprint.policy.rules:
+            return None
+        from agent_core.policy.wiring import PolicyWiring
+
+        versions_table = None
+        if blueprint.policy.versioning is not None and blueprint.policy.versioning.enabled:
+            versions_table = os.environ.get(blueprint.policy.versioning.table_env)
+        gateway_arn = os.environ.get("AGENTCORE_GATEWAY_ARN", "")
+        if not gateway_arn:
+            logger.warning("AGENTCORE_GATEWAY_ARN not set — using agent_id '%s' as resource", agent_id)
+            gateway_arn = agent_id
+        wiring = PolicyWiring(config=blueprint.policy, agent_id=agent_id, gateway_identifier=gateway_arn, region=None, versions_table_name=versions_table)
+        logger.info("Wired policy for %s", agent_id)
+        return wiring
+
     def build_agent_session(
         self,
         agent_id: str,
@@ -527,93 +579,10 @@ class BlueprintLoader:
             mcp_clients.extend(local_tools)
         builtin_wiring = self._last_builtin_wiring
 
-        # -- wire identity --
-        identity_wiring = None
-        if blueprint.identity.credentials:
-            from agent_core.identity.cache import CredentialCache
-            from agent_core.identity.wiring import IdentityWiring
-
-            identity_wiring = IdentityWiring(
-                credentials=blueprint.identity.credentials,
-                cache=CredentialCache(),
-            )
-            logger.info(
-                "Wired %d credential providers for %s",
-                len(blueprint.identity.credentials),
-                agent_id,
-            )
-
-        # -- wire memory --
-        memory_wiring = None
-        if blueprint.memory.strategies:
-            from agent_core.memory.wiring import MemoryWiring
-
-            memory_id = os.environ.get("AGENTCORE_MEMORY_ID", "")
-            if not memory_id:
-                raise BlueprintLoadError(
-                    f"Agent '{agent_id}' declares memory strategies but "
-                    "AGENTCORE_MEMORY_ID env var is not set."
-                )
-
-            memory_wiring = MemoryWiring(
-                config=blueprint.memory,
-                memory_id=memory_id,
-            )
-            logger.info(
-                "Wired %d memory strategies for %s (memory_id=%s)",
-                len(blueprint.memory.strategies),
-                agent_id,
-                memory_id,
-            )
-
-        # -- wire evaluation --
-        evaluation_wiring = None
-        if blueprint.evaluation.custom_evaluators or blueprint.evaluation.online:
-            from agent_core.evaluation.wiring import EvaluationWiring
-
-            eval_table = None
-            if (
-                blueprint.evaluation.persistence is not None
-                and blueprint.evaluation.persistence.enabled
-            ):
-                eval_table = os.environ.get(blueprint.evaluation.persistence.table_env)
-
-            evaluation_wiring = EvaluationWiring(
-                config=blueprint.evaluation,
-                agent_id=agent_id,
-                results_table_name=eval_table,
-            )
-            logger.info("Wired evaluation for %s", agent_id)
-
-        # -- wire policy (Cedar rules → Gateway policy engine) --
-        policy_wiring = None
-        if blueprint.policy and blueprint.policy.rules:
-            from agent_core.policy.wiring import PolicyWiring
-
-            versions_table = None
-            if (
-                blueprint.policy.versioning is not None
-                and blueprint.policy.versioning.enabled
-            ):
-                versions_table = os.environ.get(blueprint.policy.versioning.table_env)
-
-            gateway_arn = os.environ.get("AGENTCORE_GATEWAY_ARN", "")
-            if not gateway_arn:
-                logger.warning(
-                    "AGENTCORE_GATEWAY_ARN not set — Cedar policies will use "
-                    "agent_id '%s' as resource (may fail validation)",
-                    agent_id,
-                )
-                gateway_arn = agent_id
-
-            policy_wiring = PolicyWiring(
-                config=blueprint.policy,
-                agent_id=agent_id,
-                gateway_identifier=gateway_arn,
-                region=None,
-                versions_table_name=versions_table,
-            )
-            logger.info("Wired policy for %s", agent_id)
+        identity_wiring = self._wire_identity(blueprint, agent_id)
+        memory_wiring = self._wire_memory(blueprint, agent_id)
+        evaluation_wiring = self._wire_evaluation(blueprint, agent_id)
+        policy_wiring = self._wire_policy(blueprint, agent_id)
 
         # -- wire session bridge for multi-turn --
         session_bridge = None

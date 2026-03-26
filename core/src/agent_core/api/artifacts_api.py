@@ -19,32 +19,32 @@ from boto3.dynamodb.conditions import Attr, Key
 logger = logging.getLogger(__name__)
 
 
+def _route(path: str, method: str, params: dict) -> dict:
+    """Match a request to the correct handler."""
+    if path == "/api/artifacts" and method == "GET":
+        return _list_artifacts(params)
+    if path.startswith("/api/artifacts/") and path.endswith("/data"):
+        return _get_artifact_data(path.split("/")[3])
+    if path.startswith("/api/artifacts/"):
+        return _get_artifact(path.split("/")[3])
+    if path == "/api/runs" and method == "GET":
+        return _list_runs(params)
+    if path.startswith("/api/runs/"):
+        parts = path.split("/")
+        execution_id = parts[3] if len(parts) > 3 else ""
+        agent_id = parts[4] if len(parts) > 4 else ""
+        return _get_run_agent(execution_id, agent_id) if agent_id else _get_run(execution_id)
+    return _response(404, {"error": "Not found"})
+
+
 def handler(event: dict, context) -> dict:
     """API Gateway Lambda proxy handler."""
-    path = event.get("path", "")
-    method = event.get("httpMethod", "GET")
-    params = event.get("queryStringParameters") or {}
-
     try:
-        if path == "/api/artifacts" and method == "GET":
-            return _list_artifacts(params)
-        elif path.startswith("/api/artifacts/") and path.endswith("/data"):
-            artifact_id = path.split("/")[3]
-            return _get_artifact_data(artifact_id)
-        elif path.startswith("/api/artifacts/"):
-            artifact_id = path.split("/")[3]
-            return _get_artifact(artifact_id)
-        elif path == "/api/runs" and method == "GET":
-            return _list_runs(params)
-        elif path.startswith("/api/runs/"):
-            parts = path.split("/")
-            execution_id = parts[3] if len(parts) > 3 else ""
-            agent_id = parts[4] if len(parts) > 4 else ""
-            if agent_id:
-                return _get_run_agent(execution_id, agent_id)
-            return _get_run(execution_id)
-        else:
-            return _response(404, {"error": "Not found"})
+        return _route(
+            event.get("path", ""),
+            event.get("httpMethod", "GET"),
+            event.get("queryStringParameters") or {},
+        )
     except (KeyError, ValueError, IndexError) as exc:
         logger.warning("Bad request: %s", exc)
         return _response(400, {"error": str(exc)})

@@ -14,6 +14,21 @@ import boto3
 logger = logging.getLogger(__name__)
 
 
+def _summarize_agent(agent_result: Any) -> dict[str, Any]:
+    """Build a summary dict for a single agent result."""
+    if not isinstance(agent_result, dict):
+        return {"artifact_id": "", "s3_key": "", "success": False, "error": "invalid_result"}
+    success = agent_result.get("success", False)
+    summary: dict[str, Any] = {
+        "artifact_id": agent_result.get("artifact_id", ""),
+        "s3_key": agent_result.get("s3_key", ""),
+        "success": success,
+    }
+    if not success:
+        summary["error"] = agent_result.get("error", "unknown")
+    return summary
+
+
 def handler(event: dict, context) -> dict:
     """Generate and store pipeline manifest.
 
@@ -45,25 +60,9 @@ def handler(event: dict, context) -> dict:
             pass
 
     # Build agent summary from results
-    agents = {}
-    succeeded = 0
-    failed = 0
-    for agent_name, agent_result in results.items():
-        if isinstance(agent_result, dict):
-            success = agent_result.get("success", False)
-            agents[agent_name] = {
-                "artifact_id": agent_result.get("artifact_id", ""),
-                "s3_key": agent_result.get("s3_key", ""),
-                "success": success,
-            }
-            if not success:
-                agents[agent_name]["error"] = agent_result.get("error", "unknown")
-                failed += 1
-            else:
-                succeeded += 1
-        else:
-            agents[agent_name] = {"artifact_id": "", "s3_key": "", "success": False, "error": "invalid_result"}
-            failed += 1
+    agents = {name: _summarize_agent(res) for name, res in results.items()}
+    succeeded = sum(1 for a in agents.values() if a["success"])
+    failed = len(agents) - succeeded
 
     manifest = {
         "execution_id": execution_id,

@@ -10,14 +10,33 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-MAX_OUTPUT_BYTES = 256 * 1024
+
+def _serialize_result(result: Any) -> dict[str, Any]:
+    """Convert an agent result to a plain dict."""
+    if hasattr(result, "to_dict"):
+        output = result.to_dict()
+        if hasattr(output, "to_dict"):
+            output = output.to_dict()
+        return output if isinstance(output, dict) else {"raw_output": str(output)}
+    if hasattr(result, "model_dump"):
+        return result.model_dump()
+    if isinstance(result, dict):
+        try:
+            return dict(result)
+        except TypeError:
+            if hasattr(result, "__getitem__"):
+                return {k: result[k] for k in result}
+            return {"raw_output": str(result)}
+    try:
+        return json.loads(str(result))
+    except (json.JSONDecodeError, TypeError):
+        return {"raw_output": str(result)}
 
 
 def marshal_output(
     result: Any,
     agent_id: str,
     execution_id: str,
-    max_bytes: int = MAX_OUTPUT_BYTES,
     s3_bucket: str | None = None,
     tier: str = "platform",
     kms_key_alias: str | None = None,
@@ -26,13 +45,11 @@ def marshal_output(
     """Convert agent result to dict and always upload to S3.
 
     Every agent execution produces a JSON artifact in S3 — unconditionally.
-    The old size gate (only upload if > 256KB) is removed.
 
     Args:
         result: Agent output (Pydantic model, dict, or str).
         agent_id: Agent identifier for S3 key prefix.
         execution_id: Execution/session ID for S3 key.
-        max_bytes: Kept for backward compatibility (no longer controls upload).
         s3_bucket: S3 bucket for storage. Falls back to ARTIFACTS_BUCKET env var.
         tier: Storage tier — "platform" or "domain".
         kms_key_alias: KMS key alias for server-side encryption (optional).
@@ -41,27 +58,7 @@ def marshal_output(
     Returns:
         JSON-serializable dict with artifact_id, s3_key, bucket, tier, and output.
     """
-    # Serialize result to plain dict (Strands returns JSONSerializableDict
-    # which has a non-standard .get() signature — always convert to dict)
-    if hasattr(result, "to_dict"):
-        output = result.to_dict()
-        if hasattr(output, "to_dict"):
-            output = output.to_dict()
-        if not isinstance(output, dict):
-            output = {"raw_output": str(output)}
-    elif hasattr(result, "model_dump"):
-        output = result.model_dump()
-    elif isinstance(result, dict):
-        try:
-            output = dict(result)
-        except TypeError:
-            output = {k: result[k] for k in result} if hasattr(result, "__getitem__") else {"raw_output": str(result)}
-    else:
-        try:
-            output = json.loads(str(result))
-        except (json.JSONDecodeError, TypeError):
-            output = {"raw_output": str(result)}
-
+    output = _serialize_result(result)
     serialized = json.dumps(output, default=str)
 
     # Resolve date and execution_id

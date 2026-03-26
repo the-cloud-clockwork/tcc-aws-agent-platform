@@ -258,7 +258,7 @@ class _PolicyVersionWriter:
             )
         except Exception:
             logger.exception("Failed to persist policy version")
-            return version_number
+            return -1
 
         if len(existing) >= self._max_versions:
             self._prune_oldest(agent_id, existing)
