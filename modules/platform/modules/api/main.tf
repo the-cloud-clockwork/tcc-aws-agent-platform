@@ -769,7 +769,20 @@ resource "aws_iam_role_policy" "mcp_tools_permissions" {
   policy = data.aws_iam_policy_document.mcp_tools_permissions.json
 }
 
-# -- Build: artifacts-mcp-tools (needs pydantic for aarch64 + mcp_artifacts)
+# -- Build: artifacts-mcp-tools (pydantic aarch64 + mcp_artifacts + handler)
+#
+# Single local-exec builds AND zips in one step.  No data.archive_file —
+# that evaluates at plan time before the build directory exists.
+# On first-ever plan the Lambda uses placeholder.zip; after first apply
+# the real zip exists and is used on subsequent plans.
+# --------------------------------------------------------------------------
+
+locals {
+  mcp_tools_zip_path    = "${path.module}/build/artifacts-mcp-tools.zip"
+  mcp_tools_placeholder = "${path.module}/placeholder.zip"
+  mcp_tools_zip         = fileexists("${path.module}/build/artifacts-mcp-tools.zip") ? "${path.module}/build/artifacts-mcp-tools.zip" : "${path.module}/placeholder.zip"
+}
+
 resource "terraform_data" "artifacts_mcp_tools_build" {
   triggers_replace = {
     handler_hash = filesha256("${path.module}/../../../../core/src/agent_core/api/artifacts_mcp_handler.py")
@@ -780,25 +793,24 @@ resource "terraform_data" "artifacts_mcp_tools_build" {
     command = <<-EOT
       set -e
       BUILD_DIR="${path.module}/build/mcp-tools"
-      rm -rf "$BUILD_DIR"
+      ZIP_PATH="${path.module}/build/artifacts-mcp-tools.zip"
+      rm -rf "$BUILD_DIR" "$ZIP_PATH"
       mkdir -p "$BUILD_DIR"
+
       pip install --platform manylinux2014_aarch64 --python-version 3.12 \
         --only-binary=:all: --target "$BUILD_DIR" "pydantic>=2.6,<3" --quiet
+
       cp -r "${path.module}/../../../../artifacts/src/mcp_artifacts" "$BUILD_DIR/"
       mkdir -p "$BUILD_DIR/agent_core/api"
       touch "$BUILD_DIR/agent_core/__init__.py"
       touch "$BUILD_DIR/agent_core/api/__init__.py"
       cp "${path.module}/../../../../core/src/agent_core/api/artifacts_mcp_handler.py" \
         "$BUILD_DIR/agent_core/api/"
+
+      cd "$BUILD_DIR" && zip -qr "$ZIP_PATH" .
+      echo "Built artifacts-mcp-tools.zip ($(du -h "$ZIP_PATH" | cut -f1))"
     EOT
   }
-}
-
-data "archive_file" "artifacts_mcp_tools" {
-  type        = "zip"
-  source_dir  = "${path.module}/build/mcp-tools"
-  output_path = "${path.module}/build/artifacts-mcp-tools.zip"
-  depends_on  = [terraform_data.artifacts_mcp_tools_build]
 }
 
 # -- Lambda Function --------------------------------------------------------
@@ -811,8 +823,9 @@ resource "aws_lambda_function" "artifacts_mcp_tools" {
   architectures    = ["arm64"]
   memory_size      = 512
   timeout          = 60
-  filename         = data.archive_file.artifacts_mcp_tools.output_path
-  source_code_hash = data.archive_file.artifacts_mcp_tools.output_base64sha256
+  filename         = local.mcp_tools_zip
+  source_code_hash = filebase64sha256(local.mcp_tools_zip)
+  depends_on       = [terraform_data.artifacts_mcp_tools_build]
 
   environment {
     variables = {
