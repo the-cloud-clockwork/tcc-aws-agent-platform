@@ -86,6 +86,7 @@ data "aws_iam_policy_document" "gateway_permissions" {
     effect = "Allow"
     actions = [
       "bedrock-agentcore:GetPolicyEngine",
+      "bedrock-agentcore:CheckAuthorizePermissions",
     ]
     resources = [
       "arn:aws:bedrock-agentcore:${var.aws_region}:${var.account_id}:policy-engine/*",
