@@ -60,6 +60,14 @@ This platform is an abstraction layer over 12 AgentCore concepts. Each maps from
 
 ## Quick Start
 
+### 0. Create a Domain Repo
+
+```bash
+bash <(curl -sL https://raw.githubusercontent.com/The-Cloud-Clock-Work/tccw-aws-agent-platform/main/scripts/create-domain.sh)
+```
+
+This scaffolds a complete domain repo with agents, MCPs, lambdas, and Terraform — ready for `terraform init`. See [Domain Repo Guide](#domain-repo-guide) for the full structure reference.
+
 ### 1. Deploy the Platform
 
 ```bash
@@ -148,24 +156,270 @@ agentcli blueprint lint blueprints/agents/my-agent.yaml
 agentcli deploy agent blueprints/agents/my-agent.yaml --env production
 ```
 
-## How Domain Repos Consume This
+## Domain Repo Guide
+
+Domain-specific repos consume this platform by following a **convention-driven folder structure**. The Terraform modules, build scripts, and SDK all rely on specific directory layouts and naming patterns. This section documents every convention.
+
+### Required Folder Structure
+
+```
+my-domain-repo/
+├── agents/                            # Agent runtimes (monorepo layout)
+│   ├── Dockerfile                     # Shared container image for all agents
+│   ├── pyproject.toml                 # Python package (depends on agent-core)
+│   ├── src/my_domain_agents/          # Domain agent source code
+│   │   ├── app.py                     # Entrypoint — identical across domains
+│   │   ├── agent_configs.py           # AgentConfigRegistry + prompt builders
+│   │   └── ...
+│   ├── blueprints/
+│   │   ├── agents/                    # One YAML per agent runtime
+│   │   │   ├── my-agent.yaml
+│   │   │   └── another-agent.yaml
+│   │   ├── strategies/                # Evaluation strategy YAMLs
+│   │   │   └── my-strategy.yaml
+│   │   └── workflows/                 # Step Functions workflow YAMLs
+│   │       └── my-pipeline.yaml
+│   └── prompts/
+│       └── my-domain/                 # Prompt text files (namespace = prompt_ref prefix)
+│           ├── my-agent.txt
+│           └── another-agent.txt
+├── mcps/                              # MCP servers (polyrepo layout)
+│   ├── blueprints/                    # One YAML per MCP server
+│   │   ├── data-service-mcp.yaml
+│   │   └── another-mcp.yaml
+│   ├── data-service/                  # Per-MCP subdirectory (name = blueprint ID minus suffix)
+│   │   ├── Dockerfile
+│   │   ├── pyproject.toml
+│   │   ├── src/
+│   │   └── tests/
+│   └── another/
+│       ├── Dockerfile
+│       └── ...
+├── lambdas/                           # Lambda functions (domain-managed)
+│   ├── my-function/
+│   │   └── handler.py
+│   └── stubs/                         # Placeholder handlers for workflow steps
+│       └── handler.py
+├── infra/                             # Terraform — consumes platform modules
+│   ├── main.tf                        # 3 module calls: platform, agents, mcps, workflows
+│   ├── variables.tf
+│   ├── providers.tf
+│   ├── backend.tf
+│   ├── envs/
+│   │   ├── dev.tfvars
+│   │   ├── staging.tfvars
+│   │   └── production.tfvars
+│   ├── domain_*.tf                    # Domain-specific resources (DynamoDB, Lambda, etc.)
+│   └── scripts/                       # Domain infra helper scripts
+├── scripts/                           # Domain automation scripts
+└── pyproject.toml                     # Root-level dev tooling (ruff, mypy)
+```
+
+### Agents — Monorepo Layout
+
+All agents share a **single Docker image**. The YAML blueprint determines behavior at runtime.
+
+| Convention | Expected By |
+|-----------|-------------|
+| `agents/Dockerfile` at root | `build-runtime.sh` — fails if missing |
+| `agents/pyproject.toml` | Zipped into CodeBuild source |
+| `agents/src/` | Zipped into CodeBuild source |
+| `agents/blueprints/` | Zipped into image + loaded by `BlueprintLoader` |
+| `agents/prompts/` | Zipped into image (optional, for local prompt fallback) |
+
+**Terraform wiring:**
 
 ```hcl
-# Domain repo: infra/main.tf
-module "platform" {
-  source = "git::https://github.com/org/aws-agent-platform//modules/platform?ref=v1.0.0"
-
-  environment = "production"
-  vpc_id      = module.network.vpc_id
-}
-
 module "agents" {
   source = "git::https://github.com/org/aws-agent-platform//modules/agents?ref=v1.0.0"
 
-  platform_outputs = module.platform.outputs
-  blueprints_dir   = "./blueprints/"
+  blueprint_dir  = "${path.module}/../agents/blueprints/agents"
+  source_dir     = "${path.root}/../agents"
+  source_layout  = "monorepo"              # Single shared Dockerfile
+  build_enabled  = var.build_enabled
+  # ... platform outputs wired from module.platform.*
 }
 ```
+
+**The `app.py` entrypoint is identical for every domain:**
+
+```python
+from agent_core import BlueprintLoader
+from agent_core.runtime.entrypoint import AgentCoreApp
+
+app = AgentCoreApp()
+loader = BlueprintLoader("blueprints", prompt_dir="prompts")
+
+@app.entrypoint
+def handler(payload, context):
+    return loader.build_entrypoint(payload["agent_id"])
+
+if __name__ == "__main__":
+    app.run()
+```
+
+**Build flow:** `terraform apply -var="build_enabled=true"` triggers `build-runtime.sh` which:
+1. Zips `Dockerfile`, `pyproject.toml`, `src/`, `blueprints/`, `prompts/`
+2. Uploads to S3 (`codebuild_source_bucket`)
+3. Triggers CodeBuild with `sourceLocationOverride` (NO_SOURCE pattern)
+4. CodeBuild authenticates to CodeArtifact, builds ARM64 image, pushes to ECR
+
+### MCP Servers — Polyrepo Layout
+
+Each MCP server has its **own subdirectory with its own Dockerfile**.
+
+| Convention | Expected By |
+|-----------|-------------|
+| `mcps/blueprints/` contains `*.yaml` | Terraform `fileset()` for `for_each` |
+| Blueprint `id` field ends with configured suffix (default: `-mcp`) | `build-runtime.sh` strips suffix to find subdir |
+| `mcps/{name}/Dockerfile` | `build-runtime.sh` — fails if missing |
+
+**Name derivation:** The build system strips `polyrepo_suffix` from the blueprint ID to find the subdirectory:
+- Blueprint ID `data-service-mcp` with suffix `-mcp` → looks for `mcps/data-service/Dockerfile`
+
+**Terraform wiring:**
+
+```hcl
+module "mcps" {
+  source = "git::https://github.com/org/aws-agent-platform//modules/agents?ref=v1.0.0"
+
+  resource_prefix  = "${var.resource_prefix}-mcp"    # Distinguish from agent resources
+  blueprint_dir    = "${path.module}/../mcps/blueprints"
+  source_dir       = "${path.root}/../mcps"
+  source_layout    = "polyrepo"                       # Per-service Dockerfiles
+  polyrepo_suffix  = "-mcp"                           # Strip to find subdir name
+  build_enabled    = var.build_enabled
+
+  # Shared code injection (optional)
+  extra_build_deps = {
+    "my-mcp" = "shared-lib:deps/shared-lib"           # src_path:zip_path
+  }
+}
+```
+
+### Lambdas
+
+Lambda functions are **not managed by platform modules** — the domain's `infra/` declares `aws_lambda_function` resources directly.
+
+Lambdas integrate with the platform through **workflow blueprints**:
+- Workflow YAML references functions via `lambda_ref: my-function`
+- `infra/main.tf` passes `lambda_arns = { "my-function" = aws_lambda_function.my_fn.arn }` to the workflows module
+
+Convention: one directory per function under `lambdas/`. A `stubs/` directory holds placeholder handlers for workflow steps not yet implemented.
+
+### Infrastructure (infra/)
+
+The `infra/` directory makes **three to four module calls** in dependency order:
+
+```
+platform  →  agents  →  workflows
+              mcps  ↗
+```
+
+```hcl
+# 1. Platform foundation (VPC, KMS, DynamoDB, Gateway, Memory, API)
+module "platform" {
+  source = "git::https://github.com/org/aws-agent-platform//modules/platform?ref=v1.0.0"
+  environment     = var.environment
+  resource_prefix = var.resource_prefix
+  # ...
+}
+
+# 2a. Agent runtimes (depends on platform)
+module "agents" {
+  source     = "git::https://github.com/org/aws-agent-platform//modules/agents?ref=v1.0.0"
+  depends_on = [module.platform]
+
+  blueprint_dir           = "${path.module}/../agents/blueprints/agents"
+  gateway_id              = module.platform.gateway_id
+  gateway_url             = module.platform.gateway_url
+  memory_id               = module.platform.memory_id
+  vpc_id                  = module.platform.vpc_id
+  private_subnet_ids      = module.platform.private_subnet_ids
+  agent_security_group_id = module.platform.agent_security_group_id
+  # ... remaining platform outputs
+}
+
+# 2b. MCP runtimes (depends on platform, uses same agents module)
+module "mcps" {
+  source     = "git::https://github.com/org/aws-agent-platform//modules/agents?ref=v1.0.0"
+  depends_on = [module.platform]
+
+  resource_prefix         = "${var.resource_prefix}-mcp"
+  blueprint_dir           = "${path.module}/../mcps/blueprints"
+  source_layout           = "polyrepo"
+  polyrepo_suffix         = "-mcp"
+  # ... same platform outputs
+}
+
+# 3. Workflows (depends on agents for runtime ARNs)
+module "workflows" {
+  source     = "git::https://github.com/org/aws-agent-platform//modules/workflows?ref=v1.0.0"
+  depends_on = [module.agents]
+
+  workflow_dir       = "${path.module}/../agents/blueprints/workflows"
+  agent_runtime_arns = module.agents.runtime_arns
+  lambda_arns        = { "my-fn" = aws_lambda_function.my_fn.arn }
+}
+```
+
+**Domain-specific resources** go in `domain_*.tf` files (e.g., `domain_data.tf` for DynamoDB tables, `domain_lambdas.tf` for Lambda functions).
+
+### Blueprint Conventions
+
+Blueprints are the platform's core abstraction. Both Terraform and the SDK rely on these conventions:
+
+| Rule | Enforced By |
+|------|-------------|
+| Files must be `*.yaml` (not `.yml` for Terraform) | `fileset(dir, "*.yaml")` in `locals.tf` |
+| Each file must have a top-level `id` field | Terraform `yamldecode().id` for `for_each` key |
+| The `id` is used for all resource naming | ECR repos, CodeBuild projects, IAM roles, runtimes |
+| Agent blueprints live in `blueprints/agents/` | `BlueprintLoader._find_yaml("agents", id)` |
+| Strategy blueprints live in `blueprints/strategies/` | `BlueprintLoader._find_yaml("strategies", id)` |
+| Workflow blueprints live in `blueprints/workflows/` | `BlueprintLoader._find_yaml("workflows", id)` |
+
+The SDK's `BlueprintLoader` accepts both `.yaml` and `.yml` extensions and also falls back to scanning by `id` field. Terraform's `fileset()` only matches `*.yaml`.
+
+### Build System
+
+Builds are triggered by Terraform and executed by CodeBuild:
+
+```bash
+# Build all agents/MCPs
+terraform apply -var="build_enabled=true"
+
+# Build a single service
+terraform apply -var="build_enabled=true" -var='build_services={"my-agent":true}'
+```
+
+The `build-runtime.sh` script (embedded in the agents module) handles:
+1. **Zip** — source code into a temporary archive
+2. **Upload** — zip to S3 (`codebuild_source_bucket`)
+3. **Trigger** — CodeBuild with `--source-type-override S3 --source-location-override`
+4. **Poll** — wait for build completion
+
+CodeBuild projects authenticate to CodeArtifact automatically via the inline buildspec, so `agent-core` (and any other platform packages) resolve during `pip install`.
+
+### Observability
+
+The platform includes `observe-runtime.sh` for runtime monitoring:
+
+```bash
+# Summary table of all runtimes
+./modules/agents/scripts/observe-runtime.sh
+
+# Filter by type
+./modules/agents/scripts/observe-runtime.sh --agents
+./modules/agents/scripts/observe-runtime.sh --mcps
+
+# Drill into a specific runtime
+./modules/agents/scripts/observe-runtime.sh my-agent --logs
+./modules/agents/scripts/observe-runtime.sh my-agent --traces
+./modules/agents/scripts/observe-runtime.sh my-agent --metrics
+./modules/agents/scripts/observe-runtime.sh my-agent --all
+```
+
+Log groups follow the pattern: `/aws/bedrock-agentcore/runtimes/{runtime-short-name}`
 
 Platform deploys FIRST. Domain repos deploy SECOND.
 
