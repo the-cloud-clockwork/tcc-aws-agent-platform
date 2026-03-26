@@ -117,10 +117,10 @@ class GenericHandler:
                     "Could not load blueprint for artifact config: %s", bp_err
                 )
 
-            # Resolve KMS alias to ARN if available
-            if artifact_kms:
-                env_key = f"KMS_KEY_ARN_{artifact_kms.upper().replace('-', '_')}"
-                artifact_kms = os.environ.get(env_key, artifact_kms)
+            # Resolve KMS key ARN from tier-based env vars
+            if not artifact_kms:
+                tier_env = f"{artifact_tier.upper()}_ARTIFACTS_KMS_KEY_ARN"
+                artifact_kms = os.environ.get(tier_env, "")
 
             # Extract date from payload params
             artifact_date = (
