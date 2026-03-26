@@ -618,10 +618,16 @@ class BlueprintLoader:
         # -- wire session bridge for multi-turn --
         session_bridge = None
         if memory_wiring is not None:
+            import uuid
+
             from agent_core.runtime.session import SessionState
             from agent_core.runtime.strands_session_bridge import StrandsSessionBridge
 
-            session_state = SessionState()
+            session_state = SessionState(
+                session_id=str(uuid.uuid4()),
+                agent_id=agent_id,
+                execution_mode=current_mode.value,
+            )
             session_bridge = StrandsSessionBridge(session_state)
 
         # -- build agent kwargs --
