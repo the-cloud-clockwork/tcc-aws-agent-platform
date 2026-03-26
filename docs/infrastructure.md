@@ -25,8 +25,8 @@ The AWS Agent Platform infrastructure is implemented as three composable Terrafo
 ```mermaid
 flowchart TB
     subgraph Platform["modules/platform (deploys first)"]
-        NET["network\nVPC, subnets, NAT, VPC endpoints"]
-        SEC["security\nKMS keys x5, WAF, security groups"]
+        DS["data_sources\nVPC lookup (pre-existing)"]
+        SEC["security\nKMS keys x5, WAF, agent/MCP security groups"]
         DATA["data\nDynamoDB tables, S3 buckets, SQS, CloudFront"]
         OBS["observability\nCloudWatch log groups, SNS alerts"]
         API["api\nAPI Gateway + Lambda (artifact store)"]

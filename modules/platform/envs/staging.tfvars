@@ -5,7 +5,7 @@ bedrock_region  = "us-west-2"
 ssm_root_path   = "/platform/staging"
 
 # Network (from tccw-networking: terraform output -raw vpc_id)
-vpc_id = "PLACEHOLDER"
+vpc_id = "vpc-xxxxxxxxx"  # from tccw-networking output
 
 # Security
 kms_key_deletion_window_days = 30
