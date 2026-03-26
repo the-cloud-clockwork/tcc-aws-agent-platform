@@ -157,14 +157,27 @@ class GatewayClient:
         """Build MCPClient with SigV4 auth transport."""
         import boto3 as _boto3
 
-        from agent_core.gateway.streamable_http_sigv4 import (
-            streamablehttp_client_with_sigv4,
-        )
+        try:
+            from agent_core.gateway.streamable_http_sigv4 import (
+                streamablehttp_client_with_sigv4,
+            )
+        except ImportError as exc:
+            logger.error(
+                "Cannot import streamable_http_sigv4: %s. "
+                "Ensure mcp>=1.10.0 is installed.",
+                exc,
+            )
+            raise GatewayConfigError(
+                f"SigV4 transport not available: {exc}"
+            ) from exc
 
         session = _boto3.Session()
         credentials = session.get_credentials().get_frozen_credentials()
-
-        logger.info("Building Gateway MCPClient with SigV4 auth -> %s", url)
+        logger.info(
+            "Building Gateway MCPClient with SigV4 auth -> %s (creds=%s)",
+            url,
+            "present" if credentials.access_key else "MISSING",
+        )
         return MCPClient(
             lambda: streamablehttp_client_with_sigv4(
                 url=url,
