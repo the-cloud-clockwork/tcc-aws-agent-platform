@@ -43,12 +43,19 @@ def marshal_output(
     """
     # Serialize result to plain dict (Strands returns JSONSerializableDict
     # which has a non-standard .get() signature — always convert to dict)
-    if hasattr(result, "to_dict") and hasattr(result, "status"):
-        output = dict(result.to_dict())
+    if hasattr(result, "to_dict"):
+        output = result.to_dict()
+        if hasattr(output, "to_dict"):
+            output = output.to_dict()
+        if not isinstance(output, dict):
+            output = {"raw_output": str(output)}
     elif hasattr(result, "model_dump"):
         output = result.model_dump()
     elif isinstance(result, dict):
-        output = dict(result)
+        try:
+            output = dict(result)
+        except TypeError:
+            output = {k: result[k] for k in result} if hasattr(result, "__getitem__") else {"raw_output": str(result)}
     else:
         try:
             output = json.loads(str(result))
