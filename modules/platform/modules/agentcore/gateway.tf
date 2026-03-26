@@ -80,6 +80,18 @@ data "aws_iam_policy_document" "gateway_permissions" {
     ]
   }
 
+  # Allow Gateway to read policy engines for policy enforcement
+  statement {
+    sid    = "PolicyEngineAccess"
+    effect = "Allow"
+    actions = [
+      "bedrock-agentcore:GetPolicyEngine",
+    ]
+    resources = [
+      "arn:aws:bedrock-agentcore:${var.aws_region}:${var.account_id}:policy-engine/*",
+    ]
+  }
+
   # Allow KMS operations for gateway encryption
   statement {
     sid    = "KmsGatewayEncryption"
