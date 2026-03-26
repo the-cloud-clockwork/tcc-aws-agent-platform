@@ -165,14 +165,23 @@ show_runtime_detail() {
   echo -e "  Version: $version"
   echo -e "  Updated: $updated"
 
-  # Detect type
+  # Detect type and derive short name (strip prefix like qitp_dev_ or qitp_mcp_dev_)
   local runtime_type="agent"
-  [[ "$full_name" == *"_mcp"* ]] && runtime_type="mcp"
+  local short_name
+  if [[ "$full_name" == *"_mcp_"* ]] || [[ "$full_name" == *"_mcp" ]]; then
+    runtime_type="mcp"
+    # qitp_mcp_dev_market_data_mcp → market-data-mcp
+    short_name=$(echo "$full_name" | sed 's/^.*_mcp_dev_//' | tr '_' '-')
+  else
+    # qitp_dev_watchlist_screener → watchlist-screener
+    short_name=$(echo "$full_name" | sed 's/^.*_dev_//' | tr '_' '-')
+  fi
   echo -e "  Type:    $runtime_type"
+  echo -e "  Short:   $short_name"
   echo
 
-  # Log group info
-  local log_group="${OTEL_LOG_PREFIX}${name}"
+  # Log group uses the short name
+  local log_group="${OTEL_LOG_PREFIX}${short_name}"
   local log_info
   log_info=$(aws logs describe-log-groups \
     --log-group-name-prefix "$log_group" \
@@ -202,21 +211,44 @@ show_logs() {
   echo -e "${CYAN}═══ Logs (last $LOG_LINES lines, since $SINCE) ═══${NC}"
   echo
 
-  aws logs tail "$log_group" \
-    --since "$SINCE" \
-    --format short \
-    --region "$REGION" 2>&1 | tail -"$LOG_LINES" | while read -r line; do
-    # Color errors red, warnings yellow
-    if echo "$line" | grep -qi "error\|exception\|traceback\|failed"; then
-      echo -e "${RED}$line${NC}"
-    elif echo "$line" | grep -qi "warn"; then
-      echo -e "${YELLOW}$line${NC}"
-    elif echo "$line" | grep -qi "otel\|trace\|span\|export"; then
-      echo -e "${BLUE}$line${NC}"
-    else
-      echo "$line"
-    fi
-  done
+  # Convert SINCE to milliseconds ago
+  local start_ms
+  if [[ "$SINCE" == *h ]]; then
+    start_ms=$(( $(date +%s%3N) - ${SINCE%h} * 3600000 ))
+  elif [[ "$SINCE" == *m ]]; then
+    start_ms=$(( $(date +%s%3N) - ${SINCE%m} * 60000 ))
+  elif [[ "$SINCE" == *d ]]; then
+    start_ms=$(( $(date +%s%3N) - ${SINCE%d} * 86400000 ))
+  else
+    start_ms=$(( $(date +%s%3N) - 3600000 ))
+  fi
+
+  aws logs filter-log-events \
+    --log-group-name "$log_group" \
+    --start-time "$start_ms" \
+    --limit "$LOG_LINES" \
+    --region "$REGION" \
+    --output json 2>/dev/null | \
+  python3 -c "
+import json, sys, datetime
+data = json.load(sys.stdin)
+events = data.get('events', [])
+if not events:
+    print('  No log events in this time window.')
+    print(f'  Log group: $log_group')
+    print(f'  Try: --since 24h or --since 7d')
+    sys.exit(0)
+
+print(f'  {len(events)} event(s)')
+print()
+for e in events:
+    ts = datetime.datetime.fromtimestamp(e['timestamp']/1000).strftime('%H:%M:%S')
+    msg = e.get('message','').strip()
+    # Truncate long lines
+    if len(msg) > 200:
+        msg = msg[:200] + '...'
+    print(f'  {ts}  {msg}')
+" 2>&1
   echo
 }
 
@@ -251,7 +283,7 @@ data = json.load(sys.stdin)
 traces = data.get('TraceSummaries', [])
 if not traces:
     print('  No traces found for this runtime in the time window.')
-    print(f'  Filter: {\"$filter\"}')
+    print('  Filter: $filter')
     sys.exit(0)
 
 print(f'  Found {len(traces)} trace(s)')
@@ -331,12 +363,21 @@ else
   # Show runtime detail
   show_runtime_detail "$TARGET"
 
+  # Derive short name for log/trace/metric lookups
+  _rt_info=$(list_runtimes | grep "$TARGET" | head -1)
+  _full_name=$(echo "$_rt_info" | cut -f1)
+  if [[ "$_full_name" == *"_mcp_"* ]] || [[ "$_full_name" == *"_mcp" ]]; then
+    _short_name=$(echo "$_full_name" | sed 's/^.*_mcp_dev_//' | tr '_' '-')
+  else
+    _short_name=$(echo "$_full_name" | sed 's/^.*_dev_//' | tr '_' '-')
+  fi
+
   # Default: if no specific flags, show logs
   if ! $DO_LOGS && ! $DO_TRACES && ! $DO_METRICS; then
     DO_LOGS=true
   fi
 
-  $DO_LOGS && show_logs "$TARGET"
-  $DO_TRACES && show_traces "$TARGET"
-  $DO_METRICS && show_metrics "$TARGET"
+  $DO_LOGS && show_logs "$_short_name"
+  $DO_TRACES && show_traces "$_short_name"
+  $DO_METRICS && show_metrics "$_short_name"
 fi
