@@ -8,7 +8,7 @@
 resource "aws_ssm_parameter" "vpc_id" {
   name  = "${local.ssm_prefix}/network/vpc-id"
   type  = "String"
-  value = module.network.vpc_id
+  value = var.vpc_id
   tags  = local.tags
 }
 
@@ -106,33 +106,29 @@ resource "aws_ssm_parameter" "cloudfront_domain" {
 
 # -- Terraform Outputs -----------------------------------------------
 
-# Network
+# Network (derived from data sources)
 output "vpc_id" {
-  value = module.network.vpc_id
+  value = module.data_sources.vpc_id
 }
 
 output "vpc_cidr_block" {
-  value = module.network.vpc_cidr_block
+  value = module.data_sources.vpc_cidr_block
 }
 
 output "public_subnet_ids" {
-  value = module.network.public_subnet_ids
+  value = module.data_sources.public_subnet_ids
 }
 
 output "private_subnet_ids" {
-  value = module.network.private_subnet_ids
-}
-
-output "isolated_subnet_ids" {
-  value = module.network.isolated_subnet_ids
+  value = module.data_sources.private_subnet_ids
 }
 
 output "agent_security_group_id" {
-  value = module.network.agent_security_group_id
+  value = module.security.agent_security_group_id
 }
 
 output "mcp_security_group_id" {
-  value = module.network.mcp_security_group_id
+  value = module.security.mcp_security_group_id
 }
 
 # Security
@@ -288,4 +284,3 @@ output "artifacts_mcp_lambda_name" {
   description = "Name of the artifacts MCP tools Lambda"
   value       = module.api.mcp_tools_lambda_name
 }
-

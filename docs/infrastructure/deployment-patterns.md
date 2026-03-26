@@ -48,7 +48,7 @@ aws_region     = "${AWS_REGION}"
 bedrock_region = "${AWS_BEDROCK_REGION}"
 ssm_root_path  = "/platform/dev"
 
-nat_gateway_count      = 1
+vpc_id                 = "vpc-xxxxx"  # from tccw-networking
 waf_enabled            = false
 cloudfront_enabled     = false
 removal_policy_destroy = true
@@ -63,7 +63,7 @@ aws_region     = "${AWS_REGION}"
 bedrock_region = "${AWS_BEDROCK_REGION}"
 ssm_root_path  = "/platform/staging"
 
-nat_gateway_count      = 1
+vpc_id                 = "vpc-xxxxx"  # from tccw-networking
 waf_enabled            = true
 cloudfront_enabled     = true
 removal_policy_destroy = false
@@ -78,7 +78,7 @@ aws_region     = "${AWS_REGION}"
 bedrock_region = "${AWS_BEDROCK_REGION}"
 ssm_root_path  = "/platform/production"
 
-nat_gateway_count      = 3    # One per AZ for HA
+vpc_id                 = "vpc-xxxxx"  # from tccw-networking
 waf_enabled            = true
 cloudfront_enabled     = true
 removal_policy_destroy = false

@@ -5,16 +5,15 @@
 ##   source = "git::repo.git//modules/platform?ref=v1.0.0"
 ## -----------------------------------------------------
 
-module "network" {
-  source = "./modules/network"
+# -- Data Sources (VPC lookup) ----------------------------------------
 
-  resource_prefix    = var.resource_prefix
-  environment        = var.environment
-  vpc_cidr           = var.vpc_cidr
-  availability_zones = var.availability_zones
-  nat_gateway_count  = var.nat_gateway_count
-  tags               = local.tags
+module "data_sources" {
+  source = "./modules/data_sources"
+
+  vpc_id = var.vpc_id
 }
+
+# -- Security ----------------------------------------------------------
 
 module "security" {
   source = "./modules/security"
@@ -25,11 +24,11 @@ module "security" {
   waf_enabled                  = var.waf_enabled
   waf_rate_limit               = var.waf_rate_limit
   waf_ip_whitelist             = var.waf_ip_whitelist
-  vpc_id                       = module.network.vpc_id
-  vpc_cidr_block               = module.network.vpc_cidr_block
-  private_subnet_ids           = module.network.private_subnet_ids
+  vpc_id                       = var.vpc_id
   tags                         = local.tags
 }
+
+# -- Data --------------------------------------------------------------
 
 module "data" {
   source = "./modules/data"
@@ -49,6 +48,8 @@ module "data" {
   removal_policy_destroy         = var.removal_policy_destroy
   tags                           = local.tags
 }
+
+# -- AgentCore ---------------------------------------------------------
 
 module "agentcore" {
   source = "./modules/agentcore"
@@ -73,6 +74,8 @@ module "agentcore" {
   tags                            = local.tags
 }
 
+# -- Observability -----------------------------------------------------
+
 module "observability" {
   source = "./modules/observability"
 
@@ -83,6 +86,8 @@ module "observability" {
   kms_key_arn        = module.security.data_kms_key_arn
   tags               = local.tags
 }
+
+# -- API ---------------------------------------------------------------
 
 module "api" {
   source = "./modules/api"
@@ -106,7 +111,7 @@ module "api" {
   tags                           = local.tags
 }
 
-# -- Prompt Registry (AI-DLC: prompts as first-class artifacts) --
+# -- Prompt Registry (AI-DLC: prompts as first-class artifacts) --------
 
 module "prompt_registry" {
   source = "./modules/prompt_registry"

@@ -75,3 +75,15 @@ output "waf_acl_arn" {
   description = "ARN of the WAF Web ACL. Empty string when WAF is disabled."
   value       = var.waf_enabled ? aws_wafv2_web_acl.main[0].arn : ""
 }
+
+# ── Platform Security Groups ─────────────────────────────────────────────────
+
+output "agent_security_group_id" {
+  description = "ID of the agent security group (all outbound, no inbound)."
+  value       = aws_security_group.agent.id
+}
+
+output "mcp_security_group_id" {
+  description = "ID of the MCP service security group (inbound 8080 from agents)."
+  value       = aws_security_group.mcp.id
+}

@@ -50,19 +50,9 @@ variable "waf_ip_whitelist" {
   default     = []
 }
 
-# ── VPC Endpoints ────────────────────────────────────────────────────────────
+# ── Network ──────────────────────────────────────────────────────────────────
 
 variable "vpc_id" {
-  description = "VPC ID where interface endpoints and gateway endpoints are created."
+  description = "VPC ID for platform security groups."
   type        = string
-}
-
-variable "vpc_cidr_block" {
-  description = "CIDR block of the VPC, used to allow inbound HTTPS on endpoint security groups."
-  type        = string
-}
-
-variable "private_subnet_ids" {
-  description = "Private subnet IDs where interface VPC endpoints are placed."
-  type        = list(string)
 }

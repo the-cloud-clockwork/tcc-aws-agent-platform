@@ -276,7 +276,7 @@ module "platform" {
   source = "git::https://github.com/org/aws-agent-platform//modules/platform"
 
   environment    = "production"
-  vpc_id         = module.network.vpc_id
+  vpc_id         = "vpc-xxxxx"  # from tccw-networking
   agents_config  = "./blueprints/agents/"
   gateway_config = "./gateway-targets.yaml"
 }

@@ -32,21 +32,15 @@ variable "ssm_root_path" {
   description = "Root SSM parameter path (e.g. /platform/dev)"
 }
 
-# -- Network ---------------------------------------------------------
+# -- Network (pre-existing VPC from tccw-networking) ---------------------
 
-variable "vpc_cidr" {
-  type    = string
-  default = "10.0.0.0/16"
-}
-
-variable "availability_zones" {
-  type    = list(string)
-  default = []
-}
-
-variable "nat_gateway_count" {
-  type    = number
-  default = 1
+variable "vpc_id" {
+  type        = string
+  description = "ID of the pre-existing VPC. All networking properties (CIDR, subnets) are derived via data sources."
+  validation {
+    condition     = can(regex("^vpc-[a-f0-9]+$", var.vpc_id))
+    error_message = "vpc_id must be a valid VPC ID (vpc-xxxx)."
+  }
 }
 
 # -- Security --------------------------------------------------------

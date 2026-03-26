@@ -156,7 +156,7 @@ module "platform" {
   source = "git::https://github.com/org/aws-agent-platform//modules/platform?ref=v1.0.0"
 
   environment = "production"
-  vpc_id      = module.network.vpc_id
+  vpc_id      = "vpc-xxxxx"  # from tccw-networking
 }
 
 module "agents" {

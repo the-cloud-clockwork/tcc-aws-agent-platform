@@ -16,8 +16,8 @@ The module is composed of seven sub-modules that wire together automatically. Do
 
 | Sub-Module | Path | What It Provisions |
 |------------|------|--------------------|
-| **network** | `modules/platform/modules/network` | VPC, public/private/isolated subnets, NAT gateways, security groups for agent runtimes and MCP servers, VPC endpoints (ecr.dkr, ecr.api, s3, ssm) |
-| **security** | `modules/platform/modules/security` | Five KMS keys (data, storage, secrets, platform\_artifacts, domain\_artifacts), WAF WebACL (conditional), network security group rules |
+| **data_sources** | `modules/platform/modules/data_sources` | Looks up pre-existing VPC and subnets by ID and tier tags. Input: `vpc_id`. Derives CIDR, public/private subnet IDs. |
+| **security** | `modules/platform/modules/security` | Five KMS keys (data, storage, secrets, platform\_artifacts, domain\_artifacts), WAF WebACL (conditional), agent and MCP security groups |
 | **data** | `modules/platform/modules/data` | DynamoDB tables (sessions, artifacts, audit\_log, evaluation, policy\_versions), S3 buckets (platform artifacts, domain artifacts), SQS queue, CloudFront distribution (conditional) |
 | **observability** | `modules/platform/modules/observability` | CloudWatch log groups, SNS alert topic, X-Ray group, Transaction Search policy, CloudWatch dashboard |
 | **api** | `modules/platform/modules/api` | API Gateway HTTP API, Lambda function for artifact store (claim-check pattern), stage throttle settings |
@@ -37,9 +37,7 @@ All platform outputs are also written as SSM parameters under `${var.ssm_root_pa
 | `aws_region` | `string` | — | Primary AWS region for deployment |
 | `bedrock_region` | `string` | — | Region for Bedrock model access (may differ from primary) |
 | `ssm_root_path` | `string` | — | Root SSM parameter path (e.g. `/platform/dev`) |
-| `vpc_cidr` | `string` | `"10.0.0.0/16"` | VPC CIDR block |
-| `availability_zones` | `list(string)` | `[]` | AZs to deploy subnets into. Auto-resolved if empty. |
-| `nat_gateway_count` | `number` | `1` | Number of NAT gateways (1 for dev, 3 for production HA) |
+| `vpc_id` | `string` | — | ID of the pre-existing VPC (from tccw-networking). All networking properties derived via data sources. |
 | `kms_key_deletion_window_days` | `number` | `30` | KMS key deletion window |
 | `waf_enabled` | `bool` | `false` | Enable WAF WebACL (attach to API Gateway and CloudFront) |
 | `waf_rate_limit` | `number` | `1000` | WAF rate-limit rule threshold (requests per 5 minutes) |
@@ -70,13 +68,11 @@ All platform outputs are also written as SSM parameters under `${var.ssm_root_pa
 
 ### Network
 
-| Output | Description |
 |--------|-------------|
 | `vpc_id` | VPC ID |
 | `vpc_cidr_block` | VPC CIDR block |
 | `public_subnet_ids` | List of public subnet IDs |
 | `private_subnet_ids` | List of private subnet IDs |
-| `isolated_subnet_ids` | List of isolated subnet IDs (no internet access) |
 | `agent_security_group_id` | Security group ID for agent runtime containers |
 | `mcp_security_group_id` | Security group ID for MCP server containers |
 
@@ -156,9 +152,7 @@ module "platform" {
   ssm_root_path   = "/myplatform/${var.environment}"
 
   # Network
-  vpc_cidr          = "10.10.0.0/16"
-  availability_zones = ["${var.aws_region}a", "${var.aws_region}b", "${var.aws_region}c"]
-  nat_gateway_count  = var.environment == "production" ? 3 : 1
+  vpc_id             = var.vpc_id  # from tccw-networking
 
   # Security
   waf_enabled = var.environment != "dev"

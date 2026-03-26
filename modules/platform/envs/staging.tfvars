@@ -4,9 +4,8 @@ aws_region      = "eu-west-1"
 bedrock_region  = "us-west-2"
 ssm_root_path   = "/platform/staging"
 
-# Network
-vpc_cidr          = "10.1.0.0/16"
-nat_gateway_count = 1
+# Network (from tccw-networking: terraform output -raw vpc_id)
+vpc_id = "PLACEHOLDER"
 
 # Security
 kms_key_deletion_window_days = 30
