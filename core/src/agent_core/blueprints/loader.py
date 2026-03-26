@@ -597,12 +597,19 @@ class BlueprintLoader:
             ):
                 versions_table = os.environ.get(blueprint.policy.versioning.table_env)
 
-            gateway_id = getattr(self._gateway_client, "gateway_url", "") or agent_id
+            gateway_arn = os.environ.get("AGENTCORE_GATEWAY_ARN", "")
+            if not gateway_arn:
+                logger.warning(
+                    "AGENTCORE_GATEWAY_ARN not set — Cedar policies will use "
+                    "agent_id '%s' as resource (may fail validation)",
+                    agent_id,
+                )
+                gateway_arn = agent_id
 
             policy_wiring = PolicyWiring(
                 config=blueprint.policy,
                 agent_id=agent_id,
-                gateway_identifier=gateway_id,
+                gateway_identifier=gateway_arn,
                 region=None,
                 versions_table_name=versions_table,
             )
