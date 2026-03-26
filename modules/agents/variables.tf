@@ -199,3 +199,46 @@ variable "observability_metric_namespace" {
   default     = "bedrock-agentcore"
   description = "CloudWatch metric namespace for agent OTEL metrics."
 }
+
+# -- Build -----------------------------------------------------------
+
+variable "source_dir" {
+  type        = string
+  description = "Path to agent/MCP source code root. Monorepo: dir with Dockerfile. Polyrepo: parent dir with per-service subdirs."
+  default     = ""
+}
+
+variable "source_layout" {
+  type        = string
+  description = "Source layout: 'monorepo' (single Dockerfile at root) or 'polyrepo' (per-service subdirs)."
+  default     = "monorepo"
+
+  validation {
+    condition     = contains(["monorepo", "polyrepo"], var.source_layout)
+    error_message = "source_layout must be 'monorepo' or 'polyrepo'."
+  }
+}
+
+variable "polyrepo_suffix" {
+  type        = string
+  description = "Suffix to strip from blueprint ID to derive subdirectory name (polyrepo only)."
+  default     = "-mcp"
+}
+
+variable "build_enabled" {
+  type        = bool
+  description = "Build Docker images on terraform apply. Set false for infra-only changes."
+  default     = false
+}
+
+variable "build_services" {
+  type        = map(bool)
+  description = "Per-service build override. Key = blueprint ID, value = true. Empty map = build all when build_enabled=true."
+  default     = {}
+}
+
+variable "extra_build_deps" {
+  type        = map(string)
+  description = "Extra dirs for polyrepo builds. Key = blueprint ID, value = 'src_path:zip_path'. Multiple deps comma-separated."
+  default     = {}
+}
