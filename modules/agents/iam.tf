@@ -58,16 +58,20 @@ resource "aws_iam_role" "agent" {
 data "aws_iam_policy_document" "agent_permissions" {
   for_each = local.blueprints
 
-  # Bedrock model invocation -- scoped to agent's configured model
+  # Bedrock model invocation -- Converse API (Strands) + InvokeModel
+  # Supports both foundation-model and cross-region inference-profile ARNs
   statement {
     sid    = "BedrockInvoke"
     effect = "Allow"
     actions = [
       "bedrock:InvokeModel",
       "bedrock:InvokeModelWithResponseStream",
+      "bedrock:Converse",
+      "bedrock:ConverseStream",
     ]
     resources = [
-      "arn:aws:bedrock:${var.bedrock_region != "" ? var.bedrock_region : data.aws_region.current.name}::foundation-model/${try(each.value.model.model_id, "*")}",
+      "arn:aws:bedrock:${var.bedrock_region != "" ? var.bedrock_region : data.aws_region.current.name}::foundation-model/*",
+      "arn:aws:bedrock:${var.bedrock_region != "" ? var.bedrock_region : data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:inference-profile/*",
     ]
   }
 
