@@ -171,25 +171,24 @@ class GatewayClient:
                 f"SigV4 transport not available: {exc}"
             ) from exc
 
-        session = _boto3.Session()
-        # Use get_credentials() WITHOUT freeze — per AWS samples pattern.
-        # Frozen credentials may not work with RefreshableCredentials in
-        # AgentCore Runtime (IMDS-based credential provider).
-        credentials = session.get_credentials()
-        if credentials is None:
-            raise GatewayConfigError(
-                "No AWS credentials available for SigV4 signing. "
-                "Check IAM role attachment on the AgentCore Runtime."
-            )
+        # Per AWS samples pattern: create fresh credentials INSIDE the
+        # lambda factory, not outside. This ensures RefreshableCredentials
+        # from IMDS are resolved at connection time, not at build time.
+        _service = self._service_name
+        _region = self._region
         logger.info("Building Gateway MCPClient with SigV4 auth -> %s", url)
-        return MCPClient(
-            lambda: streamablehttp_client_with_sigv4(
+
+        def _sigv4_factory():
+            session = _boto3.Session()
+            creds = session.get_credentials()
+            return streamablehttp_client_with_sigv4(
                 url=url,
-                credentials=credentials,
-                service=self._service_name,
-                region=self._region,
+                credentials=creds,
+                service=_service,
+                region=_region,
             )
-        )
+
+        return MCPClient(_sigv4_factory)
 
     def _build_anonymous_client(self, url: str) -> MCPClient:
         """Build MCPClient without auth (local development)."""
