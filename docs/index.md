@@ -76,6 +76,7 @@ graph TB
 
 ## Quick Links
 
+- **Starting a new project?** Run the [Domain Repo Scaffolder](getting-started/create-domain-repo) — one command, full project
 - **New to the platform?** Start with the [Quickstart](getting-started/quickstart)
 - **Building your first agent?** Follow [First Agent](getting-started/first-agent)
 - **Writing a blueprint?** See the [Agent Blueprint Spec](blueprints/agent-blueprint)

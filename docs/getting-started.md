@@ -14,6 +14,7 @@ This section covers everything you need to go from zero to a running AI agent on
 
 | Page | What It Covers |
 |------|----------------|
+| [**Create a Domain Repo**]({{ '/docs/getting-started/create-domain-repo' | relative_url }}) | One command scaffolds a full project — agents, MCPs, lambdas, Terraform. Start here. |
 | [Quickstart]({{ '/docs/getting-started/quickstart' | relative_url }}) | Prerequisites, install the SDK and CLI, write a minimal blueprint, validate with `agentcli` |
 | [Installation]({{ '/docs/getting-started/installation' | relative_url }}) | All four SDK packages, development installs, Terraform module setup, environment variables |
 | [First Agent]({{ '/docs/getting-started/first-agent' | relative_url }}) | Step-by-step tutorial: blueprint YAML, prompt builder, handler, validate, build, deploy |
@@ -37,4 +38,4 @@ You define agents as YAML blueprints in your domain repo. The platform reads tho
 
 ## Next Steps
 
-Start with the [Quickstart]({{ '/docs/getting-started/quickstart' | relative_url }}) for the fastest path to a running agent. If you want the full installation reference first, go to [Installation]({{ '/docs/getting-started/installation' | relative_url }}).
+Start with [Create a Domain Repo]({{ '/docs/getting-started/create-domain-repo' | relative_url }}) — one command gives you a full project ready for `terraform init`. Then follow [First Agent]({{ '/docs/getting-started/first-agent' | relative_url }}) to customize your first agent.
