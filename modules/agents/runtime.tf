@@ -25,6 +25,7 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
   environment_variables = merge(
     {
       AGENTCORE_GATEWAY_URL = var.gateway_url
+      AGENTCORE_GATEWAY_ARN = "arn:aws:bedrock-agentcore:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:gateway/${var.gateway_id}"
       AGENTCORE_MEMORY_ID   = var.memory_id
       EXECUTION_MODE        = var.environment
       AGENT_ID              = each.key
