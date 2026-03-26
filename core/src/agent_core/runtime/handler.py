@@ -129,25 +129,8 @@ class GenericHandler:
                 or params.get("pipeline_date")
             )
 
-            try:
-                session_ctx = self._loader.build_agent_session(agent_id)
-            except Exception as build_err:
-                logger.error("Failed to build agent session: %s", build_err, exc_info=True)
-                raise
-
-            try:
-                session = session_ctx.__enter__()
-            except Exception as enter_err:
-                import traceback
-                print(f"DIAG: Failed to enter agent session (MCP init): {enter_err}", flush=True)
-                traceback.print_exc()
-                logger.error("Failed to enter agent session (MCP init): %s", enter_err, exc_info=True)
-                raise
-
-            try:
+            with self._loader.build_agent_session(agent_id) as session:
                 result = session.run(user_prompt)
-            finally:
-                session_ctx.__exit__(None, None, None)
 
             output = marshal_output(
                 result,

@@ -154,41 +154,52 @@ class GatewayClient:
         )
 
     def _build_sigv4_client(self, url: str) -> MCPClient:
-        """Build MCPClient with SigV4 auth transport."""
-        import boto3 as _boto3
+        """Build MCPClient with SigV4 auth via ``mcp-proxy-for-aws``.
 
-        try:
-            from agent_core.gateway.streamable_http_sigv4 import (
-                streamablehttp_client_with_sigv4,
-            )
-        except ImportError as exc:
-            logger.error(
-                "Cannot import streamable_http_sigv4: %s. "
-                "Ensure mcp>=1.10.0 is installed.",
-                exc,
-            )
-            raise GatewayConfigError(
-                f"SigV4 transport not available: {exc}"
-            ) from exc
+        Uses the AWS-recommended ``aws_iam_streamablehttp_client`` which
+        handles container credential resolution (ECS-style credential
+        endpoint) correctly — unlike the raw ``streamable_http_sigv4``
+        transport which can fail inside AgentCore Runtime microVMs.
 
-        # Per AWS samples pattern: create fresh credentials INSIDE the
-        # lambda factory, not outside. This ensures RefreshableCredentials
-        # from IMDS are resolved at connection time, not at build time.
+        Falls back to the bundled ``streamable_http_sigv4`` if the AWS
+        library is not installed.
+        """
         _service = self._service_name
         _region = self._region
         logger.info("Building Gateway MCPClient with SigV4 auth -> %s", url)
 
+        try:
+            from mcp_proxy_for_aws.client import aws_iam_streamablehttp_client
+
+            logger.info("Using mcp-proxy-for-aws for SigV4 transport")
+            return MCPClient(
+                lambda: aws_iam_streamablehttp_client(
+                    endpoint=url,
+                    aws_region=_region,
+                    aws_service=_service,
+                ),
+                startup_timeout=60,
+            )
+        except ImportError:
+            logger.info("mcp-proxy-for-aws not available, falling back to bundled SigV4")
+
+        # Fallback: bundled streamable_http_sigv4 transport
+        import boto3 as _boto3
+
+        from agent_core.gateway.streamable_http_sigv4 import (
+            streamablehttp_client_with_sigv4,
+        )
+
         def _sigv4_factory():
             session = _boto3.Session()
             creds = session.get_credentials()
+            if creds is not None:
+                creds = creds.get_frozen_credentials()
             return streamablehttp_client_with_sigv4(
-                url=url,
-                credentials=creds,
-                service=_service,
-                region=_region,
+                url=url, credentials=creds, service=_service, region=_region,
             )
 
-        return MCPClient(_sigv4_factory)
+        return MCPClient(_sigv4_factory, startup_timeout=60)
 
     def _build_anonymous_client(self, url: str) -> MCPClient:
         """Build MCPClient without auth (local development)."""
