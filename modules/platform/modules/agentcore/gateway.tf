@@ -81,15 +81,14 @@ data "aws_iam_policy_document" "gateway_permissions" {
   }
 
   # Allow Gateway to manage policy engines for policy enforcement
-  # Needs GetPolicyEngine on policy-engine/* and CheckAuthorizePermissions
-  # on both policy-engine/* and gateway/* (per KobaPolicyRegistry validation)
+  # KobaPolicyRegistry requires multiple actions: GetPolicyEngine,
+  # CheckAuthorizePermissions, AuthorizeAction, PartiallyAuthorizeActions, etc.
+  # Grant all bedrock-agentcore actions on policy-engine + gateway resources.
   statement {
     sid    = "PolicyEngineAccess"
     effect = "Allow"
     actions = [
-      "bedrock-agentcore:GetPolicyEngine",
-      "bedrock-agentcore:CheckAuthorizePermissions",
-      "bedrock-agentcore:AuthorizeAction",
+      "bedrock-agentcore:*",
     ]
     resources = [
       "arn:aws:bedrock-agentcore:${var.aws_region}:${var.account_id}:policy-engine/*",
