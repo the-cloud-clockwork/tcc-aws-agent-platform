@@ -170,5 +170,5 @@ class GenericHandler:
                 status="error",
                 agent_id=agent_id,
                 session_id=session_id,
-                error=tb_str[-2000:],  # Last 2000 chars of full traceback
+                error=tb_str[-8000:],  # Last 8000 chars of full traceback
             ).to_response()
