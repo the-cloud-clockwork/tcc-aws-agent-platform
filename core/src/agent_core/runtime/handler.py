@@ -138,6 +138,9 @@ class GenericHandler:
             try:
                 session = session_ctx.__enter__()
             except Exception as enter_err:
+                import traceback
+                print(f"DIAG: Failed to enter agent session (MCP init): {enter_err}", flush=True)
+                traceback.print_exc()
                 logger.error("Failed to enter agent session (MCP init): %s", enter_err, exc_info=True)
                 raise
 
