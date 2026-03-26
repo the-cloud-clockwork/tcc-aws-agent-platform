@@ -26,6 +26,8 @@ set -euo pipefail
 # Optional:
 #   SOURCE_LAYOUT         — "monorepo" (default) or "polyrepo"
 #   POLYREPO_SUFFIX       — suffix to strip from blueprint ID to get subdir (default: "-mcp")
+#   POLYREPO_EXTRA_DEPS   — associative array mapping runtime names to extra dirs
+#                           Example: declare -A POLYREPO_EXTRA_DEPS=(["backtest-mcp"]="simulation:deps/simulation")
 
 # ── Defaults ─────────────────────────────────────────────────────────────────
 SOURCE_LAYOUT="${SOURCE_LAYOUT:-monorepo}"
@@ -75,6 +77,42 @@ _zip_polyrepo() {
   zip -r "$tmpzip" Dockerfile pyproject.toml src/ \
     -x '*__pycache__*' '*/.git/*' '*.pyc' 2>/dev/null
   cd "$REPO_ROOT"
+
+  # Add extra dependencies if declared (e.g., sibling packages)
+  if [[ -n "${POLYREPO_EXTRA_DEPS[$runtime_name]+x}" ]]; then
+    local dep_spec="${POLYREPO_EXTRA_DEPS[$runtime_name]}"
+    IFS=',' read -ra deps <<< "$dep_spec"
+    for dep in "${deps[@]}"; do
+      local src_path="${dep%%:*}"
+      local zip_path="${dep##*:}"
+      if [[ -d "$REPO_ROOT/$src_path" ]]; then
+        log "  Adding dependency: $src_path → $zip_path"
+        cd "$REPO_ROOT"
+        # Add to existing zip with the target path prefix
+        (cd "$REPO_ROOT" && zip -r "$tmpzip" "$src_path/" \
+          -x '*__pycache__*' '*/.git/*' '*.pyc' 2>/dev/null)
+        # Rename entries inside zip: src_path/ → zip_path/
+        if [[ "$src_path" != "$zip_path" ]]; then
+          python3 -c "
+import zipfile, os, sys
+src, dst = '$src_path/', '$zip_path/'
+tmp = '$tmpzip.tmp'
+with zipfile.ZipFile('$tmpzip', 'r') as zin, zipfile.ZipFile(tmp, 'w') as zout:
+    for item in zin.infolist():
+        data = zin.read(item.filename)
+        if item.filename.startswith(src):
+            item.filename = dst + item.filename[len(src):]
+        zout.writestr(item, data)
+os.replace(tmp, '$tmpzip')
+"
+        fi
+        cd "$REPO_ROOT"
+      else
+        err "Extra dependency not found: $REPO_ROOT/$src_path"
+        return 1
+      fi
+    done
+  fi
 }
 
 # Public: build and upload source zip to S3.
