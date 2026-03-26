@@ -242,6 +242,13 @@ resource "aws_sfn_state_machine" "workflows" {
               for rule in try(state.choices, []) :
               merge(
                 { Variable = rule.condition.path },
+                # Presence check (IsPresent / IsNull) — before type coercion
+                try(rule.condition.op, "") == "is_present" ? {
+                  IsPresent = tobool(rule.condition.value)
+                } : {},
+                try(rule.condition.op, "") == "is_null" ? {
+                  IsNull = tobool(rule.condition.value)
+                } : {},
                 # Boolean comparison (check first — tobool is strictest)
                 can(tobool(rule.condition.value)) && try(rule.condition.op, "eq") == "eq" ? {
                   BooleanEquals = tobool(rule.condition.value)
