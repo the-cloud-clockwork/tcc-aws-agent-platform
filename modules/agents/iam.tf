@@ -131,16 +131,18 @@ data "aws_iam_policy_document" "agent_permissions" {
   }
 
   # Evaluation SDK -- needs to check/create execution role for online eval
+  # Gateway policy attachment -- needs PassRole on gateway execution role
   statement {
-    sid    = "EvaluationRoleAccess"
+    sid    = "EvaluationAndGatewayRoleAccess"
     effect = "Allow"
     actions = [
       "iam:GetRole",
       "iam:PassRole",
     ]
-    resources = [
+    resources = compact([
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/AgentCoreEvalsSDK-*",
-    ]
+      var.gateway_role_arn,
+    ])
   }
 
   # SSM parameter reads scoped to platform path
