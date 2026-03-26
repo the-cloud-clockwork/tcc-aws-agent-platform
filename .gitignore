@@ -55,3 +55,5 @@ node_modules/
 *.zip
 !modules/platform/modules/api/placeholder.zip
 .terraform.claude/worktrees/
+.claude
+.terraform
