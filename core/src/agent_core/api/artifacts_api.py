@@ -115,7 +115,8 @@ def _get_artifact_data(artifact_id: str) -> dict:
         return _response(404, {"error": "Artifact not found"})
     s3 = boto3.client("s3")
     bucket = os.environ.get("ARTIFACTS_BUCKET", "")
-    obj = s3.get_object(Bucket=bucket, Key=item["s3_key"])
+    account_id = boto3.client("sts").get_caller_identity()["Account"]
+    obj = s3.get_object(Bucket=bucket, Key=item["s3_key"], ExpectedBucketOwner=account_id)
     content = json.loads(obj["Body"].read().decode("utf-8"))
     return _response(200, content)
 
@@ -151,8 +152,9 @@ def _get_run(execution_id: str) -> dict:
     item = items[0]
     s3 = boto3.client("s3")
     bucket = os.environ.get("ARTIFACTS_BUCKET", "")
+    account_id = boto3.client("sts").get_caller_identity()["Account"]
     try:
-        obj = s3.get_object(Bucket=bucket, Key=item["s3_key"])
+        obj = s3.get_object(Bucket=bucket, Key=item["s3_key"], ExpectedBucketOwner=account_id)
         item["manifest"] = json.loads(obj["Body"].read().decode("utf-8"))
     except s3.exceptions.NoSuchKey:
         logger.warning("Manifest S3 key not found: %s", item.get("s3_key"))

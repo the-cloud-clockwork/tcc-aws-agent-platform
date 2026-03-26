@@ -87,11 +87,13 @@ def handler(event: dict, context) -> dict:
     if bucket:
         try:
             s3 = boto3.client("s3")
+            account_id = boto3.client("sts").get_caller_identity()["Account"]
             s3.put_object(
                 Bucket=bucket,
                 Key=s3_key,
                 Body=json.dumps(manifest, indent=2),
                 ContentType="application/json",
+                ExpectedBucketOwner=account_id,
             )
             logger.info("Manifest stored: s3://%s/%s", bucket, s3_key)
         except Exception as e:
