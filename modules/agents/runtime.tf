@@ -55,10 +55,15 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
       OTEL_EXPORTER_OTLP_LOGS_HEADERS = "x-aws-log-group=${var.observability_log_group_prefix}${each.key},x-aws-log-stream=runtime-logs,x-aws-metric-namespace=${var.observability_metric_namespace}"
     } : {},
     # Langfuse via OTEL -- route traces to Langfuse OTLP endpoint
+    # Overrides AWS distro so traces go to Langfuse, not CloudWatch
     var.langfuse_host != "" ? {
       DISABLE_ADOT_OBSERVABILITY  = "true"
+      OTEL_PYTHON_DISTRO          = ""
+      OTEL_PYTHON_CONFIGURATOR    = ""
       OTEL_EXPORTER_OTLP_ENDPOINT = "${var.langfuse_host}/api/public/otel"
-      OTEL_EXPORTER_OTLP_HEADERS  = "Authorization=Basic ${base64encode("${var.langfuse_public_key}:${var.langfuse_secret_key}")}"
+      OTEL_EXPORTER_OTLP_HEADERS  = "Authorization=Basic ${base64encode("${var.langfuse_public_key}:${var.langfuse_secret_key}")},x-langfuse-ingestion-version=4"
+      OTEL_EXPORTER_OTLP_PROTOCOL = "http/protobuf"
+      OTEL_TRACES_EXPORTER        = "otlp"
     } : {},
   )
 
