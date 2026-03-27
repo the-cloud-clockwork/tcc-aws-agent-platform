@@ -54,16 +54,13 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
       OTEL_RESOURCE_ATTRIBUTES        = "service.name=${each.key},aws.log.group.names=${var.observability_log_group_prefix}${each.key}"
       OTEL_EXPORTER_OTLP_LOGS_HEADERS = "x-aws-log-group=${var.observability_log_group_prefix}${each.key},x-aws-log-stream=runtime-logs,x-aws-metric-namespace=${var.observability_metric_namespace}"
     } : {},
-    # Langfuse -- SDK direct (LangfuseHook reads these)
-    # DISABLE_ADOT routes OTEL to Langfuse instead of CloudWatch
+    # Langfuse -- SDK direct via LangfuseHook (reads LANGFUSE_* env vars)
+    # OTEL path requires Langfuse Cloud or v3+ with /api/public/otel endpoint
     var.langfuse_host != "" ? {
-      LANGFUSE_PUBLIC_KEY         = var.langfuse_public_key
-      LANGFUSE_SECRET_KEY         = var.langfuse_secret_key
-      LANGFUSE_HOST               = var.langfuse_host
-      LANGFUSE_ENABLED            = "true"
-      DISABLE_ADOT_OBSERVABILITY  = "true"
-      OTEL_EXPORTER_OTLP_ENDPOINT = "${var.langfuse_host}/api/public/otel"
-      OTEL_EXPORTER_OTLP_HEADERS  = "Authorization=Basic ${base64encode("${var.langfuse_public_key}:${var.langfuse_secret_key}")},x-langfuse-ingestion-version=4"
+      LANGFUSE_PUBLIC_KEY = var.langfuse_public_key
+      LANGFUSE_SECRET_KEY = var.langfuse_secret_key
+      LANGFUSE_HOST       = var.langfuse_host
+      LANGFUSE_ENABLED    = "true"
     } : {},
   )
 
