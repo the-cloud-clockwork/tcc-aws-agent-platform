@@ -242,3 +242,24 @@ variable "extra_build_deps" {
   description = "Extra dirs for polyrepo builds. Key = blueprint ID, value = 'src_path:zip_path'. Multiple deps comma-separated."
   default     = {}
 }
+
+# ── Langfuse observability ──
+
+variable "langfuse_public_key" {
+  type        = string
+  description = "Langfuse public key for LLM trace tracking."
+  default     = ""
+}
+
+variable "langfuse_secret_key" {
+  type        = string
+  description = "Langfuse secret key. Pass from SSM SecureString, never hardcode."
+  default     = ""
+  sensitive   = true
+}
+
+variable "langfuse_host" {
+  type        = string
+  description = "Langfuse host URL (e.g. https://langfuse.example.com)."
+  default     = ""
+}
