@@ -1,53 +1,48 @@
-"""One-shot telemetry setup — sends a probe trace via Langfuse SDK on init.
-
-Called once in GenericHandler.__init__. Only activates when
-LANGFUSE_HOST is set.
-"""
+"""One-shot telemetry probe — tests Langfuse SDK connectivity on handler init."""
 
 from __future__ import annotations
 
-import logging
 import os
+import sys
 
-logger = logging.getLogger(__name__)
 
 _initialized = False
 
 
+def _log(msg: str) -> None:
+    print(f"[LANGFUSE-PROBE] {msg}", file=sys.stderr, flush=True)
+
+
 def setup_langfuse_otel() -> None:
-    """Send a probe trace via Langfuse SDK to verify connectivity."""
+    """Probe Langfuse connectivity via SDK on first handler init."""
     global _initialized
     if _initialized:
         return
+    _initialized = True
 
     host = os.environ.get("LANGFUSE_HOST", "")
-    if not host:
-        logger.debug("LANGFUSE_HOST not set — Langfuse disabled")
-        _initialized = True
+    pk = os.environ.get("LANGFUSE_PUBLIC_KEY", "")
+    sk = os.environ.get("LANGFUSE_SECRET_KEY", "")
+    agent_id = os.environ.get("AGENT_ID", "unknown")
+
+    _log(f"agent={agent_id} host={host} pk={pk[:20] + '...' if pk else 'EMPTY'} sk={'set' if sk else 'EMPTY'}")
+
+    if not host or not pk or not sk:
+        _log("Missing env vars — probe skipped")
         return
 
     try:
         from langfuse import Langfuse
+        _log("langfuse import OK")
+    except ImportError as e:
+        _log(f"langfuse IMPORT FAILED: {e}")
+        return
 
-        lf = Langfuse(
-            public_key=os.environ.get("LANGFUSE_PUBLIC_KEY", ""),
-            secret_key=os.environ.get("LANGFUSE_SECRET_KEY", ""),
-            host=host,
-        )
-        agent_id = os.environ.get("AGENT_ID", "unknown")
-        trace = lf.trace(
-            name=f"runtime-init:{agent_id}",
-            tags=["probe", "init"],
-            metadata={"agent_id": agent_id, "source": "GenericHandler.__init__"},
-        )
-        trace.generation(
-            name="init-probe",
-            model="probe",
-            usage={"input": 0, "output": 0},
-        )
+    try:
+        lf = Langfuse(public_key=pk, secret_key=sk, host=host)
+        trace = lf.trace(name=f"probe:{agent_id}", tags=["probe", "init"])
+        trace.generation(name="init-probe", model="probe", usage={"input": 0, "output": 0})
         lf.flush()
-        logger.info("Langfuse probe trace sent for %s to %s", agent_id, host)
-    except Exception:
-        logger.exception("Failed to send Langfuse probe trace")
-
-    _initialized = True
+        _log("Probe trace sent + flushed OK")
+    except Exception as e:
+        _log(f"Probe FAILED: {e}")
