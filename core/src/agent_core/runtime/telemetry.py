@@ -1,7 +1,7 @@
-"""One-shot OTEL telemetry setup for Langfuse integration.
+"""One-shot telemetry setup — sends a probe trace via Langfuse SDK on init.
 
 Called once in GenericHandler.__init__. Only activates when
-OTEL_EXPORTER_OTLP_ENDPOINT is set (i.e. Langfuse is configured).
+LANGFUSE_HOST is set.
 """
 
 from __future__ import annotations
@@ -15,26 +15,39 @@ _initialized = False
 
 
 def setup_langfuse_otel() -> None:
-    """Initialize Strands OTEL exporter if Langfuse endpoint is configured."""
+    """Send a probe trace via Langfuse SDK to verify connectivity."""
     global _initialized
     if _initialized:
         return
 
-    endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "")
-    if not endpoint:
-        logger.debug("OTEL_EXPORTER_OTLP_ENDPOINT not set — Langfuse OTEL disabled")
+    host = os.environ.get("LANGFUSE_HOST", "")
+    if not host:
+        logger.debug("LANGFUSE_HOST not set — Langfuse disabled")
         _initialized = True
         return
 
     try:
-        from strands.telemetry import StrandsTelemetry
+        from langfuse import Langfuse
 
-        telemetry = StrandsTelemetry()
-        telemetry.setup_otlp_exporter()
-        logger.info("Langfuse OTEL exporter initialized: %s", endpoint)
-    except ImportError:
-        logger.warning("strands.telemetry not available — install strands-agents[otel]")
+        lf = Langfuse(
+            public_key=os.environ.get("LANGFUSE_PUBLIC_KEY", ""),
+            secret_key=os.environ.get("LANGFUSE_SECRET_KEY", ""),
+            host=host,
+        )
+        agent_id = os.environ.get("AGENT_ID", "unknown")
+        trace = lf.trace(
+            name=f"runtime-init:{agent_id}",
+            tags=["probe", "init"],
+            metadata={"agent_id": agent_id, "source": "GenericHandler.__init__"},
+        )
+        trace.generation(
+            name="init-probe",
+            model="probe",
+            usage={"input": 0, "output": 0},
+        )
+        lf.flush()
+        logger.info("Langfuse probe trace sent for %s to %s", agent_id, host)
     except Exception:
-        logger.exception("Failed to initialize Langfuse OTEL exporter")
+        logger.exception("Failed to send Langfuse probe trace")
 
     _initialized = True
