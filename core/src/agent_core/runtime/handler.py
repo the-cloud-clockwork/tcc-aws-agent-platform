@@ -12,7 +12,6 @@ from agent_core.runtime.agent_config import AgentConfigRegistry
 from agent_core.runtime.idempotency import IdempotencyStore, generate_idempotency_key
 from agent_core.runtime.marshal import marshal_output
 from agent_core.runtime.session import SessionManager
-from agent_core.runtime.telemetry import setup_langfuse_otel
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +34,6 @@ class GenericHandler:
         self._configs = config_registry
         self._idempotency = idempotency_store
         self._session_manager = session_manager
-        setup_langfuse_otel()
 
     def _resolve_artifact_config(self, agent_id: str) -> tuple[str, str | None]:
         """Resolve artifact tier and KMS key from blueprint and env."""

@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -32,8 +31,7 @@ _langfuse_client: Any = None
 
 
 def _log(msg: str) -> None:
-    """Print to stderr so it shows in CloudWatch Runtime logs."""
-    print(f"[LANGFUSE] {msg}", file=sys.stderr, flush=True)
+    logger.debug(msg)
 
 
 def _get_langfuse_client() -> Any:
