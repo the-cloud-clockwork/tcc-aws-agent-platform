@@ -54,6 +54,13 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
       OTEL_RESOURCE_ATTRIBUTES        = "service.name=${each.key},aws.log.group.names=${var.observability_log_group_prefix}${each.key}"
       OTEL_EXPORTER_OTLP_LOGS_HEADERS = "x-aws-log-group=${var.observability_log_group_prefix}${each.key},x-aws-log-stream=runtime-logs,x-aws-metric-namespace=${var.observability_metric_namespace}"
     } : {},
+    # Langfuse LLM observability -- trace every model invocation
+    var.langfuse_host != "" ? {
+      LANGFUSE_PUBLIC_KEY = var.langfuse_public_key
+      LANGFUSE_SECRET_KEY = var.langfuse_secret_key
+      LANGFUSE_HOST       = var.langfuse_host
+      LANGFUSE_ENABLED    = "true"
+    } : {},
   )
 
   # Network configuration -- PUBLIC or VPC
