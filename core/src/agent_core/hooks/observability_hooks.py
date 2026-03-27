@@ -98,19 +98,6 @@ class CompositeObservabilityHook:
 
     def _on_before_invocation(self, event: Any) -> None:
         """Handle BeforeInvocationEvent."""
-        # Diagnostic: direct SDK trace to confirm hook event fires
-        try:
-            from langfuse import Langfuse
-            import os as _os
-            _lf = Langfuse(
-                public_key=_os.environ.get("LANGFUSE_PUBLIC_KEY", ""),
-                secret_key=_os.environ.get("LANGFUSE_SECRET_KEY", ""),
-                host=_os.environ.get("LANGFUSE_HOST", ""),
-            )
-            _lf.trace(name=f"hook-fired:{self.agent_id}", tags=["diagnostic", "before-invocation"])
-            _lf.flush()
-        except Exception:
-            pass
         self.on_agent_start()
 
     def _on_after_model_call(self, event: Any) -> None:
