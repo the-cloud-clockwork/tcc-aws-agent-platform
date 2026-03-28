@@ -256,6 +256,16 @@ resource "aws_vpc_security_group_egress_rule" "agent_all_out" {
   cidr_ipv4         = "0.0.0.0/0"
 }
 
+# A2A: agents accept inbound on 9000 from other agents (inter-agent communication)
+resource "aws_vpc_security_group_ingress_rule" "agent_a2a_from_agents" {
+  security_group_id            = aws_security_group.agent.id
+  description                  = "Allow TCP 9000 from agent security group (A2A protocol)"
+  from_port                    = 9000
+  to_port                      = 9000
+  ip_protocol                  = "tcp"
+  referenced_security_group_id = aws_security_group.agent.id
+}
+
 # MCP SG: accepts inbound on 8080 from agents, all outbound
 resource "aws_security_group" "mcp" {
   name_prefix = "${var.resource_prefix}-mcp-"
