@@ -48,6 +48,10 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
       MCP_HOST      = "0.0.0.0"
       MCP_PORT      = "8000"
     } : {},
+    # A2A port -- inter-agent communication via A2A protocol on port 9000
+    try(each.value.runtime.a2a_port, null) != null ? {
+      A2A_PORT = tostring(each.value.runtime.a2a_port)
+    } : {},
     # OTEL observability -- mirrors SDK generate_otel_env()
     local.otel_env_vars,
     var.observability_enabled ? {
