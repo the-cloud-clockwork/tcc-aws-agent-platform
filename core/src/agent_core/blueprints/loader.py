@@ -398,6 +398,8 @@ class BlueprintLoader:
             if direct_mcp and has_mcp_tools:
                 # WORKAROUND: AWS Issue #809 — Gateway can't forward tools/call
                 # to MCP runtimes. Connect directly with JWT auth.
+                # Do NOT add Gateway — it would expose duplicate MCP tools
+                # that fail with "internal error." Only direct clients.
                 from agent_core.gateway.direct_mcp_client import create_direct_providers
 
                 direct_providers = create_direct_providers(blueprint)
@@ -406,14 +408,13 @@ class BlueprintLoader:
                     "Direct MCP bypass active: %d providers (GATEWAY_DIRECT_MCP=true)",
                     len(direct_providers),
                 )
-
-            # Gateway for non-MCP targets (Lambda: risk-engine, artifacts-mcp)
-            # Also added when direct_mcp is false (normal path)
-            if self._gateway_client is not None:
-                providers.append(self._gateway_client.as_tool_provider())
             else:
-                client = GatewayClient.from_config(blueprint.gateway)
-                providers.append(client.as_tool_provider())
+                # Normal path — all tools via Gateway
+                if self._gateway_client is not None:
+                    providers.append(self._gateway_client.as_tool_provider())
+                else:
+                    client = GatewayClient.from_config(blueprint.gateway)
+                    providers.append(client.as_tool_provider())
 
         # Builtin tools (Code Interpreter, Browser) — Gateway-mediated
         builtin_configs = [
