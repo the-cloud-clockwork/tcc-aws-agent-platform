@@ -74,6 +74,12 @@ variable "artifacts_bucket_name" {
   default = ""
 }
 
+variable "artifacts_table_name" {
+  type        = string
+  description = "DynamoDB artifacts catalog table name for mandatory registration"
+  default     = ""
+}
+
 variable "artifacts_bucket_arn" {
   type    = string
   default = ""
