@@ -93,6 +93,7 @@ data "aws_iam_policy_document" "gateway_permissions" {
     resources = [
       "arn:aws:bedrock-agentcore:${var.aws_region}:${var.account_id}:policy-engine/*",
       "arn:aws:bedrock-agentcore:${var.aws_region}:${var.account_id}:gateway/*",
+      "arn:aws:bedrock-agentcore:${var.aws_region}:${var.account_id}:runtime/*",
     ]
   }
 
