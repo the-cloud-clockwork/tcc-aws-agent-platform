@@ -275,3 +275,9 @@ variable "data_kms_key_arn" {
   description = "KMS key ARN for DynamoDB table encryption (needed for artifacts catalog PutItem)"
   default     = ""
 }
+
+variable "execution_mode" {
+  type        = string
+  description = "Passed through as EXECUTION_MODE env var. Domain defines the semantics."
+  default     = ""
+}
