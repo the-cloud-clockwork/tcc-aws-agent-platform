@@ -229,6 +229,21 @@ data "aws_iam_policy_document" "agent_permissions" {
     }
   }
 
+  # Conditional: DynamoDB artifacts catalog table access
+  dynamic "statement" {
+    for_each = var.artifacts_table_name != "" ? [1] : []
+    content {
+      sid    = "ArtifactsCatalogAccess"
+      effect = "Allow"
+      actions = [
+        "dynamodb:PutItem",
+      ]
+      resources = [
+        "arn:aws:dynamodb:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/${var.artifacts_table_name}",
+      ]
+    }
+  }
+
   # Conditional: DynamoDB idempotency table access
   dynamic "statement" {
     for_each = var.idempotency_table_name != "" ? [1] : []
