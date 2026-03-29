@@ -269,3 +269,9 @@ variable "langfuse_host" {
   description = "Langfuse host URL (e.g. https://langfuse.example.com)."
   default     = ""
 }
+
+variable "data_kms_key_arn" {
+  type        = string
+  description = "KMS key ARN for DynamoDB table encryption (needed for artifacts catalog PutItem)"
+  default     = ""
+}

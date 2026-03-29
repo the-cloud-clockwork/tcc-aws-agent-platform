@@ -244,6 +244,21 @@ data "aws_iam_policy_document" "agent_permissions" {
     }
   }
 
+  # Conditional: KMS for artifacts catalog table encryption
+  dynamic "statement" {
+    for_each = var.data_kms_key_arn != "" ? [1] : []
+    content {
+      sid    = "ArtifactsCatalogKMS"
+      effect = "Allow"
+      actions = [
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:GenerateDataKey",
+      ]
+      resources = [var.data_kms_key_arn]
+    }
+  }
+
   # Conditional: DynamoDB idempotency table access
   dynamic "statement" {
     for_each = var.idempotency_table_name != "" ? [1] : []
