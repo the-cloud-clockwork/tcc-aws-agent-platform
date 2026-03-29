@@ -53,6 +53,15 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
     try(each.value.runtime.a2a_port, null) != null ? {
       A2A_PORT = tostring(each.value.runtime.a2a_port)
     } : {},
+    # WORKAROUND: Direct MCP bypass (AWS Issue #809) — see KNOWN_ISSUES.md KI-001
+    var.gateway_direct_mcp ? {
+      GATEWAY_DIRECT_MCP      = "true"
+      MCP_DIRECT_URLS         = jsonencode(var.mcp_direct_urls)
+      COGNITO_TOKEN_URL       = var.cognito_token_url
+      COGNITO_MCP_CLIENT_ID   = var.cognito_mcp_client_id
+      COGNITO_MCP_CLIENT_SECRET = var.cognito_mcp_client_secret
+      COGNITO_MCP_SCOPES      = var.cognito_mcp_scopes
+    } : {},
     # OTEL observability -- mirrors SDK generate_otel_env()
     local.otel_env_vars,
     var.observability_enabled ? {
