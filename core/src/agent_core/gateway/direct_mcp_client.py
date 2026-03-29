@@ -91,17 +91,25 @@ class DirectMCPClient:
         if token:
             headers["Authorization"] = f"Bearer {token}"
 
+        import uuid
+        from datetime import timedelta
+
+        session_id = f"direct-{self._mcp_name}-{uuid.uuid4().hex[:12]}"
+        headers["X-Amzn-Bedrock-AgentCore-Runtime-Session-Id"] = session_id
+
         logger.info(
-            "Building direct MCP client '%s' -> %s (auth=%s)",
+            "Building direct MCP client '%s' -> %s (auth=%s, session=%s)",
             self._mcp_name,
             self._runtime_url,
             "jwt" if token else "none",
+            session_id,
         )
         return MCPClient(
             functools.partial(
                 streamablehttp_client,
                 url=self._runtime_url,
                 headers=headers,
+                timeout=timedelta(seconds=120),
             ),
             startup_timeout=60,
         )
