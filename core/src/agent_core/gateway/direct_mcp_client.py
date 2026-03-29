@@ -24,6 +24,8 @@ from mcp.client.streamable_http import streamablehttp_client
 from strands.tools.mcp import MCPClient
 
 logger = logging.getLogger(__name__)
+# Force our logger to WARNING+ for visibility in OTEL-instrumented runtimes
+logger.setLevel(logging.DEBUG)
 
 # Token cache — shared across DirectMCPClient instances
 _token_cache: dict[str, tuple[str, float]] = {}
@@ -51,7 +53,7 @@ def _get_cognito_token(token_url: str, client_id: str, client_secret: str, scope
 
     # Cache for 50 minutes (Cognito tokens last 60 min)
     _token_cache[cache_key] = (token, time.time() + 3000)
-    logger.info("Cognito M2M token obtained for direct MCP access")
+    logger.warning("DIAG Cognito M2M token obtained for direct MCP access")
     return token
 
 
@@ -86,36 +88,65 @@ class DirectMCPClient:
         )
 
     def _build_mcp_client(self) -> MCPClient:
-        token = self._get_token()
+        import uuid
+        from datetime import timedelta
+
+        # --- DIAGNOSTIC: Step 1 — Token acquisition ---
+        t0 = time.time()
+        try:
+            token = self._get_token()
+            logger.warning(
+                "DIAG[%s] Token acquired in %.1fs (has_token=%s)",
+                self._mcp_name, time.time() - t0, bool(token),
+            )
+        except Exception as exc:
+            logger.error(
+                "DIAG[%s] Token FAILED after %.1fs: %s",
+                self._mcp_name, time.time() - t0, exc,
+            )
+            token = ""
+
         headers: dict[str, str] = {}
         if token:
             headers["Authorization"] = f"Bearer {token}"
 
-        import uuid
-        from datetime import timedelta
-
         session_id = f"direct-{self._mcp_name}-{uuid.uuid4().hex[:12]}"
         headers["X-Amzn-Bedrock-AgentCore-Runtime-Session-Id"] = session_id
 
-        logger.info(
-            "Building direct MCP client '%s' -> %s (auth=%s, session=%s)",
+        logger.warning(
+            "DIAG[%s] Building MCPClient -> %s (auth=%s, session=%s)",
             self._mcp_name,
             self._runtime_url,
             "jwt" if token else "none",
             session_id,
         )
+
         _url = self._runtime_url
         _headers = dict(headers)
         _timeout = timedelta(seconds=120)
 
-        return MCPClient(
-            lambda: streamablehttp_client(
-                url=_url,
-                headers=_headers,
-                timeout=_timeout,
-            ),
-            startup_timeout=60,
-        )
+        # --- DIAGNOSTIC: Step 2 — MCPClient construction ---
+        t1 = time.time()
+        try:
+            client = MCPClient(
+                lambda: streamablehttp_client(
+                    url=_url,
+                    headers=_headers,
+                    timeout=_timeout,
+                ),
+                startup_timeout=30,
+            )
+            logger.warning(
+                "DIAG[%s] MCPClient created in %.1fs",
+                self._mcp_name, time.time() - t1,
+            )
+            return client
+        except Exception as exc:
+            logger.error(
+                "DIAG[%s] MCPClient FAILED after %.1fs: %s",
+                self._mcp_name, time.time() - t1, exc,
+            )
+            raise
 
     @property
     def mcp_client(self) -> MCPClient:
@@ -166,6 +197,23 @@ def create_direct_providers(blueprint: Any) -> list[MCPClient]:
     client_secret = os.environ.get("COGNITO_MCP_CLIENT_SECRET", "")
     scopes = os.environ.get("COGNITO_MCP_SCOPES", "")
 
+    # --- DIAGNOSTIC: Network reachability check ---
+    if token_url:
+        t_net = time.time()
+        try:
+            # Just check if we can reach Cognito (HEAD on the OIDC well-known)
+            wellknown = token_url.rsplit("/oauth2/token", 1)[0] + "/.well-known/openid-configuration"
+            r = httpx.get(wellknown, timeout=5, follow_redirects=True)
+            logger.warning(
+                "DIAG Cognito reachable: %s -> %d (%.1fs)",
+                wellknown, r.status_code, time.time() - t_net,
+            )
+        except Exception as exc:
+            logger.error(
+                "DIAG Cognito UNREACHABLE after %.1fs: %s",
+                time.time() - t_net, exc,
+            )
+
     # Deduplicate: one client per MCP server, not per tool
     seen_mcps: set[str] = set()
     providers: list[MCPClient] = []
@@ -191,7 +239,18 @@ def create_direct_providers(blueprint: Any) -> list[MCPClient]:
             client_secret=client_secret,
             scopes=scopes,
         )
-        providers.append(client.as_tool_provider())
-        logger.info("Direct MCP bypass: '%s' -> %s", mcp_name, url)
+        t_start = time.time()
+        try:
+            provider = client.as_tool_provider()
+            providers.append(provider)
+            logger.warning(
+                "DIAG Direct MCP bypass OK: '%s' -> %s (%.1fs)",
+                mcp_name, url, time.time() - t_start,
+            )
+        except Exception as exc:
+            logger.error(
+                "DIAG Direct MCP bypass FAILED: '%s' after %.1fs: %s",
+                mcp_name, time.time() - t_start, exc,
+            )
 
     return providers

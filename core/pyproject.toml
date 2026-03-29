@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agent-core"
-version = "0.9.19"
+version = "0.9.21"
 description = "Agent Core -- Blueprint Engine, Execution Modes, Hooks, Schemas, Gateway, Memory, Identity, Policy"
 readme = "README.md"
 requires-python = ">=3.11"
