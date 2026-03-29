@@ -37,6 +37,7 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
     },
     var.bedrock_region != "" ? { BEDROCK_REGION = var.bedrock_region } : {},
     var.artifacts_bucket_name != "" ? { ARTIFACTS_BUCKET = var.artifacts_bucket_name } : {},
+    var.artifacts_table_name != "" ? { ARTIFACTS_TABLE = var.artifacts_table_name } : {},
     var.domain_artifacts_kms_key_arn != "" ? { DOMAIN_ARTIFACTS_KMS_KEY_ARN = var.domain_artifacts_kms_key_arn } : {},
     var.platform_artifacts_kms_key_arn != "" ? { PLATFORM_ARTIFACTS_KMS_KEY_ARN = var.platform_artifacts_kms_key_arn } : {},
     var.prompt_registry_url != "" ? { PROMPT_REGISTRY_URL = var.prompt_registry_url } : {},
