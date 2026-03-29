@@ -379,15 +379,36 @@ class BlueprintLoader:
         MCP tools go through the AgentCore Gateway.  Builtin tools (Code
         Interpreter, Browser) are injected as direct Strands tool callables
         alongside the Gateway's MCPClient.
+
+        When GATEWAY_DIRECT_MCP=true, MCP runtime targets are called directly
+        (bypassing Gateway) as a workaround for AWS Issue #809.
+        See KNOWN_ISSUES.md KI-001.
         """
+        import os
+
         from agent_core.gateway.client import GatewayClient
         from agent_core.schemas.tool_config import BuiltinToolConfig, McpToolConfig
 
         providers: list[Any] = []
 
-        # Gateway tools (MCP endpoints)
         has_mcp_tools = any(isinstance(t, McpToolConfig) for t in blueprint.tools)
+        direct_mcp = os.environ.get("GATEWAY_DIRECT_MCP", "").lower() == "true"
+
         if has_mcp_tools or not blueprint.tools:
+            if direct_mcp and has_mcp_tools:
+                # WORKAROUND: AWS Issue #809 — Gateway can't forward tools/call
+                # to MCP runtimes. Connect directly with JWT auth.
+                from agent_core.gateway.direct_mcp_client import create_direct_providers
+
+                direct_providers = create_direct_providers(blueprint)
+                providers.extend(direct_providers)
+                logger.info(
+                    "Direct MCP bypass active: %d providers (GATEWAY_DIRECT_MCP=true)",
+                    len(direct_providers),
+                )
+
+            # Gateway for non-MCP targets (Lambda: risk-engine, artifacts-mcp)
+            # Also added when direct_mcp is false (normal path)
             if self._gateway_client is not None:
                 providers.append(self._gateway_client.as_tool_provider())
             else:

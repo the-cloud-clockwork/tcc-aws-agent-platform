@@ -281,3 +281,40 @@ variable "execution_mode" {
   description = "Passed through as EXECUTION_MODE env var. Domain defines the semantics."
   default     = ""
 }
+
+variable "gateway_direct_mcp" {
+  type        = bool
+  description = "Bypass Gateway for MCP tool calls (workaround for AWS Issue #809). Remove when Gateway tools/call is fixed."
+  default     = false
+}
+
+variable "mcp_direct_urls" {
+  type        = map(string)
+  description = "Map of MCP server name to direct runtime invocation URL. Only used when gateway_direct_mcp=true."
+  default     = {}
+}
+
+variable "cognito_token_url" {
+  type        = string
+  description = "Cognito token endpoint for M2M auth. Only used when gateway_direct_mcp=true."
+  default     = ""
+}
+
+variable "cognito_mcp_client_id" {
+  type        = string
+  description = "Cognito M2M client ID for direct MCP auth."
+  default     = ""
+}
+
+variable "cognito_mcp_client_secret" {
+  type        = string
+  description = "Cognito M2M client secret for direct MCP auth."
+  default     = ""
+  sensitive   = true
+}
+
+variable "cognito_mcp_scopes" {
+  type        = string
+  description = "OAuth2 scopes for direct MCP auth (comma-separated)."
+  default     = ""
+}
