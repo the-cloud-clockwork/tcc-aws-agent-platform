@@ -92,3 +92,21 @@ output "mcp_oauth2_allowed_clients" {
     aws_cognito_user_pool_client.gateway_m2m[0].id,
   ] : []
 }
+
+# ── Direct MCP bypass (workaround for AWS Issue #809) ──────────────────────
+
+output "mcp_m2m_client_id" {
+  description = "Cognito M2M client ID for direct MCP runtime auth. Empty if Cognito disabled."
+  value       = var.cognito_enabled ? aws_cognito_user_pool_client.gateway_m2m[0].id : ""
+}
+
+output "mcp_m2m_client_secret" {
+  description = "Cognito M2M client secret for direct MCP runtime auth. Empty if Cognito disabled."
+  value       = var.cognito_enabled ? aws_cognito_user_pool_client.gateway_m2m[0].client_secret : ""
+  sensitive   = true
+}
+
+output "cognito_token_url" {
+  description = "Cognito OAuth2 token endpoint for M2M auth."
+  value       = var.cognito_enabled ? "https://${aws_cognito_user_pool_domain.agents[0].domain}.auth.${var.aws_region}.amazoncognito.com/oauth2/token" : ""
+}

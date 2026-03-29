@@ -289,3 +289,15 @@ output "artifacts_mcp_lambda_name" {
   value       = module.api.mcp_tools_lambda_name
 }
 
+
+# Direct MCP bypass (AWS Issue #809)
+output "mcp_m2m_client_id" {
+  value     = module.agentcore.mcp_m2m_client_id
+}
+output "mcp_m2m_client_secret" {
+  value     = module.agentcore.mcp_m2m_client_secret
+  sensitive = true
+}
+output "cognito_token_url" {
+  value = module.agentcore.cognito_token_url
+}
