@@ -104,12 +104,15 @@ class DirectMCPClient:
             "jwt" if token else "none",
             session_id,
         )
+        _url = self._runtime_url
+        _headers = dict(headers)
+        _timeout = timedelta(seconds=120)
+
         return MCPClient(
-            functools.partial(
-                streamablehttp_client,
-                url=self._runtime_url,
-                headers=headers,
-                timeout=timedelta(seconds=120),
+            lambda: streamablehttp_client(
+                url=_url,
+                headers=_headers,
+                timeout=_timeout,
             ),
             startup_timeout=60,
         )
