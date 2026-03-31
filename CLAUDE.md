@@ -6,6 +6,41 @@
 
 ---
 
+## Boot Sequence
+
+**Read these before every session, in order:**
+
+1. `operator/VISION.md` — Intent, philosophy, what and why (operator-owned, never edit without instruction)
+2. `operator/SPECS.md` — Technical contract, design decisions, schemas
+3. `operator/BLOCKS.md` — Current work blocks and their status
+
+---
+
+## Operator Documents
+
+| Document | Owner | Purpose |
+|----------|-------|---------|
+| `operator/VISION.md` | **Operator ONLY** | Intent, philosophy, what and why. AI reads but NEVER edits without explicit instruction |
+| `operator/SPECS.md` | Operator + AI (with approval) | Technical contract — all design decisions, schemas, behaviors |
+| `operator/BLOCKS.md` | Operator + AI | Major work blocks. Status: `design` → `ready` → `in-progress` → `done` |
+| `operator/TODO.md` | Operator + AI | Minor items, pending decisions, scratchpad |
+| `operator/STATE.md` | Operator + AI | Project health/rating assessment |
+| `operator/BUGS.md` | Operator + AI | Bug tracking (P0–P3) |
+| `operator/KNOWN-ISSUES.md` | Operator + AI | Known limitations with workarounds |
+| `operator/ENHANCEMENTS.md` | Operator + AI | Feature requests and improvement proposals |
+| `operator/MVP.md` | Operator + AI | Release status, backlog, completed blocks, release criteria |
+
+### Supporting Directories
+
+| Directory | Purpose |
+|-----------|---------|
+| `operator/images/` | Screenshots, diagrams, mockups |
+| `operator/drafts/` | WIP documents, research, exploration |
+| `operator/incidents/` | Post-mortems (`INC-YYYY-MM-DD-slug.md`) |
+| `operator/references/` | External research, deep-dives |
+
+---
+
 ## Session Protocol
 
 ### Active Work: Infrastructure Hardening (`INFRA.md`)
@@ -221,6 +256,20 @@ tccw-aws-agent-platform/
 ├── scripts/
 │   ├── domain-scan.sh
 │   └── lock-deps.sh
+├── operator/                # Operator-driven development docs
+│   ├── VISION.md            # Intent & philosophy (operator-owned)
+│   ├── SPECS.md             # Technical contract
+│   ├── BLOCKS.md            # Work blocks & status
+│   ├── TODO.md              # Minor items & scratchpad
+│   ├── STATE.md             # Project health assessment
+│   ├── BUGS.md              # Bug tracking (P0–P3)
+│   ├── KNOWN-ISSUES.md      # Known limitations
+│   ├── ENHANCEMENTS.md      # Feature requests
+│   ├── MVP.md               # Release status & criteria
+│   ├── images/              # Screenshots, diagrams
+│   ├── drafts/              # WIP documents
+│   ├── incidents/           # Post-mortems
+│   └── references/          # External research
 ├── .github/workflows/
 ├── POSTMORTEM.md            # SDK audit — all blocks complete
 ├── INFRA.md                 # Infrastructure hardening — 3 blocks, 22 findings
