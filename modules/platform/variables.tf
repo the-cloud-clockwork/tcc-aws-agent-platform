@@ -32,21 +32,38 @@ variable "ssm_root_path" {
   description = "Root SSM parameter path (e.g. /platform/dev)"
 }
 
-# -- Network ---------------------------------------------------------
+# -- Network (externally managed) ------------------------------------
 
-variable "vpc_cidr" {
-  type    = string
-  default = "10.0.0.0/16"
+variable "vpc_id" {
+  type        = string
+  description = "ID of the externally-managed VPC"
 }
 
-variable "availability_zones" {
-  type    = list(string)
-  default = []
+variable "public_subnet_ids" {
+  type        = list(string)
+  description = "Public subnet IDs from the networking project"
+  default     = []
 }
 
-variable "nat_gateway_count" {
-  type    = number
-  default = 1
+variable "private_subnet_ids" {
+  type        = list(string)
+  description = "Private subnet IDs from the networking project (used for VPC endpoints, agent runtimes)"
+}
+
+variable "isolated_subnet_ids" {
+  type        = list(string)
+  description = "Isolated subnet IDs from the networking project (no internet access)"
+  default     = []
+}
+
+variable "agent_security_group_id" {
+  type        = string
+  description = "Security group ID for agent workloads (all outbound, A2A inbound on 9000)"
+}
+
+variable "mcp_security_group_id" {
+  type        = string
+  description = "Security group ID for MCP services (inbound 8080 from agents)"
 }
 
 # -- Security --------------------------------------------------------

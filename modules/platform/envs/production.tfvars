@@ -4,9 +4,13 @@ aws_region      = "eu-west-1"
 bedrock_region  = "us-west-2"
 ssm_root_path   = "/platform/production"
 
-# Network
-vpc_cidr          = "10.2.0.0/16"
-nat_gateway_count = 2
+# Network (externally managed — provide IDs from the networking project)
+# Required: vpc_id, private_subnet_ids, agent_security_group_id, mcp_security_group_id
+# Optional: public_subnet_ids, isolated_subnet_ids
+vpc_id                  = "vpc-REPLACE_ME"
+private_subnet_ids      = ["subnet-REPLACE_ME_1", "subnet-REPLACE_ME_2"]
+agent_security_group_id = "sg-REPLACE_ME"
+mcp_security_group_id   = "sg-REPLACE_ME"
 
 # Security
 kms_key_deletion_window_days = 30
