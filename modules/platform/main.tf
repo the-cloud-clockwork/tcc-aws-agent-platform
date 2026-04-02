@@ -5,14 +5,6 @@
 ##   source = "git::repo.git//modules/platform?ref=v1.0.0"
 ## -----------------------------------------------------
 
-# -- Network Data Sources (externally managed) -----------------------
-# VPC, subnets, NAT, IGW, route tables are created by a separate project.
-# Hydrate the VPC ID so downstream modules can access cidr_block.
-
-data "aws_vpc" "main" {
-  id = var.vpc_id
-}
-
 # -- Platform Security Groups ----------------------------------------
 # These are application-specific to this platform and belong here.
 
@@ -85,9 +77,6 @@ module "security" {
   waf_enabled                  = var.waf_enabled
   waf_rate_limit               = var.waf_rate_limit
   waf_ip_whitelist             = var.waf_ip_whitelist
-  vpc_id                       = var.vpc_id
-  vpc_cidr_block               = data.aws_vpc.main.cidr_block
-  private_subnet_ids           = var.private_subnet_ids
   tags                         = local.tags
 }
 
