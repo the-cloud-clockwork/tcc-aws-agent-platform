@@ -6,24 +6,11 @@
 ## -----------------------------------------------------
 
 # -- Network Data Sources (externally managed) -----------------------
-# These data sources hydrate the input variable IDs into full objects
-# so downstream modules can access properties like cidr_block.
+# Hydrate the VPC ID into a full object so downstream modules
+# can access properties like cidr_block.
 
 data "aws_vpc" "main" {
   id = var.vpc_id
-}
-
-data "aws_subnet" "private" {
-  for_each = toset(var.private_subnet_ids)
-  id       = each.value
-}
-
-data "aws_security_group" "agent" {
-  id = var.agent_security_group_id
-}
-
-data "aws_security_group" "mcp" {
-  id = var.mcp_security_group_id
 }
 
 module "security" {

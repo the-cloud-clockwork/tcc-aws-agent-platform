@@ -48,6 +48,11 @@ variable "public_subnet_ids" {
 variable "private_subnet_ids" {
   type        = list(string)
   description = "Private subnet IDs from the networking project (used for VPC endpoints, agent runtimes)"
+
+  validation {
+    condition     = length(var.private_subnet_ids) >= 1
+    error_message = "At least one private subnet ID is required."
+  }
 }
 
 variable "isolated_subnet_ids" {
