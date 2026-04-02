@@ -61,15 +61,6 @@ variable "isolated_subnet_ids" {
   default     = []
 }
 
-variable "agent_security_group_id" {
-  type        = string
-  description = "Security group ID for agent workloads (all outbound, A2A inbound on 9000)"
-}
-
-variable "mcp_security_group_id" {
-  type        = string
-  description = "Security group ID for MCP services (inbound 8080 from agents)"
-}
 
 # -- Security --------------------------------------------------------
 

@@ -128,11 +128,11 @@ output "isolated_subnet_ids" {
 }
 
 output "agent_security_group_id" {
-  value = var.agent_security_group_id
+  value = aws_security_group.agent.id
 }
 
 output "mcp_security_group_id" {
-  value = var.mcp_security_group_id
+  value = aws_security_group.mcp.id
 }
 
 # Security

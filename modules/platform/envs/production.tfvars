@@ -4,13 +4,12 @@ aws_region      = "eu-west-1"
 bedrock_region  = "us-west-2"
 ssm_root_path   = "/platform/production"
 
-# Network (externally managed — provide IDs from the networking project)
-# Required: vpc_id, private_subnet_ids, agent_security_group_id, mcp_security_group_id
+# Network (VPC and subnets are externally managed — provide IDs from the networking project)
+# Security groups (Agent SG, MCP SG) are created by this module.
+# Required: vpc_id, private_subnet_ids
 # Optional: public_subnet_ids, isolated_subnet_ids
-vpc_id                  = "vpc-REPLACE_ME"
-private_subnet_ids      = ["subnet-REPLACE_ME_1", "subnet-REPLACE_ME_2"]
-agent_security_group_id = "sg-REPLACE_ME"
-mcp_security_group_id   = "sg-REPLACE_ME"
+vpc_id             = "vpc-REPLACE_ME"
+private_subnet_ids = ["subnet-REPLACE_ME_1", "subnet-REPLACE_ME_2"]
 
 # Security
 kms_key_deletion_window_days = 30
