@@ -6,11 +6,74 @@
 ## -----------------------------------------------------
 
 # -- Network Data Sources (externally managed) -----------------------
-# Hydrate the VPC ID into a full object so downstream modules
-# can access properties like cidr_block.
+# VPC, subnets, NAT, IGW, route tables are created by a separate project.
+# Hydrate the VPC ID so downstream modules can access cidr_block.
 
 data "aws_vpc" "main" {
   id = var.vpc_id
+}
+
+# -- Platform Security Groups ----------------------------------------
+# These are application-specific to this platform and belong here.
+
+resource "aws_security_group" "agent" {
+  name_prefix = "${var.resource_prefix}-agent-"
+  description = "Agent security group -- all outbound, A2A inbound on 9000"
+  vpc_id      = var.vpc_id
+
+  tags = merge(local.tags, {
+    Name = "${var.resource_prefix}-agent-sg"
+  })
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_vpc_security_group_egress_rule" "agent_all_out" {
+  security_group_id = aws_security_group.agent.id
+  description       = "Allow all outbound traffic"
+  ip_protocol       = "-1"
+  cidr_ipv4         = "0.0.0.0/0"
+}
+
+resource "aws_vpc_security_group_ingress_rule" "agent_a2a_from_agents" {
+  security_group_id            = aws_security_group.agent.id
+  description                  = "Allow TCP 9000 from agent security group (A2A protocol)"
+  from_port                    = 9000
+  to_port                      = 9000
+  ip_protocol                  = "tcp"
+  referenced_security_group_id = aws_security_group.agent.id
+}
+
+resource "aws_security_group" "mcp" {
+  name_prefix = "${var.resource_prefix}-mcp-"
+  description = "MCP service security group -- inbound 8080 from agents, all outbound"
+  vpc_id      = var.vpc_id
+
+  tags = merge(local.tags, {
+    Name = "${var.resource_prefix}-mcp-sg"
+  })
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "mcp_from_agents" {
+  security_group_id            = aws_security_group.mcp.id
+  description                  = "Allow TCP 8080 from agent security group"
+  from_port                    = 8080
+  to_port                      = 8080
+  ip_protocol                  = "tcp"
+  referenced_security_group_id = aws_security_group.agent.id
+}
+
+resource "aws_vpc_security_group_egress_rule" "mcp_all_out" {
+  security_group_id = aws_security_group.mcp.id
+  description       = "Allow all outbound traffic"
+  ip_protocol       = "-1"
+  cidr_ipv4         = "0.0.0.0/0"
 }
 
 module "security" {

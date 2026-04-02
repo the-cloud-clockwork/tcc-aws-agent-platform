@@ -72,16 +72,16 @@ Platform deploys FIRST. Domain repos deploy SECOND via `source = "git::repo.git/
 
 ### Network Requirements (for consuming projects)
 
-This module does NOT create networking resources. The following must be provided:
+VPC and subnets are externally managed. Security groups (Agent SG, MCP SG) are **created by this module**.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `vpc_id` | Yes | VPC ID where platform resources deploy |
 | `private_subnet_ids` | Yes | Subnets with NAT egress — used for VPC endpoints and agent runtimes |
-| `agent_security_group_id` | Yes | SG: all outbound, TCP 9000 self-ref (A2A) |
-| `mcp_security_group_id` | Yes | SG: TCP 8080 inbound from agent SG, all outbound |
 | `public_subnet_ids` | No | Public subnets (passed through as output) |
 | `isolated_subnet_ids` | No | No-internet subnets (passed through as output) |
+
+**Created by this module (outputs):** `agent_security_group_id` (all outbound, TCP 9000 A2A), `mcp_security_group_id` (TCP 8080 from agents)
 
 ---
 
