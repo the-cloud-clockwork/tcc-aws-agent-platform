@@ -111,10 +111,6 @@ output "vpc_id" {
   value = var.vpc_id
 }
 
-output "vpc_cidr_block" {
-  value = data.aws_vpc.main.cidr_block
-}
-
 output "public_subnet_ids" {
   value = var.public_subnet_ids
 }
