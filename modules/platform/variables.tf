@@ -163,6 +163,12 @@ variable "builtin_code_interpreter_enabled" {
   default = false
 }
 
+variable "enable_artifacts_gateway_target" {
+  type        = bool
+  description = "Register the artifacts MCP Lambda as a Gateway target"
+  default     = true
+}
+
 # -- Observability ---------------------------------------------------
 
 variable "log_retention_days" {

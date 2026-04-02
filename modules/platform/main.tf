@@ -129,7 +129,7 @@ module "agentcore" {
   code_interpreter_enabled        = var.builtin_code_interpreter_enabled
   browser_enabled                 = var.builtin_browser_enabled
   artifacts_mcp_lambda_arn        = module.api.mcp_tools_lambda_arn
-  enable_artifacts_gateway_target = true
+  enable_artifacts_gateway_target = var.enable_artifacts_gateway_target
   tags                            = local.tags
 }
 
