@@ -57,3 +57,5 @@ node_modules/
 .terraform.claude/worktrees/
 .claude
 .terraform
+
+.claude/settings.local.json
