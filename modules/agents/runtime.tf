@@ -36,6 +36,9 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
       SSM_ROOT_PATH         = var.ssm_root_path
     },
     var.bedrock_region != "" ? { BEDROCK_REGION = var.bedrock_region } : {},
+    var.litellm_base_url != "" ? { LITELLM_BASE_URL = var.litellm_base_url } : {},
+    var.litellm_api_key != "" ? { LITELLM_API_KEY = var.litellm_api_key } : {},
+    var.anthropic_api_key != "" ? { ANTHROPIC_API_KEY = var.anthropic_api_key } : {},
     var.artifacts_bucket_name != "" ? { ARTIFACTS_BUCKET = var.artifacts_bucket_name } : {},
     var.artifacts_table_name != "" ? { ARTIFACTS_TABLE = var.artifacts_table_name } : {},
     var.domain_artifacts_kms_key_arn != "" ? { DOMAIN_ARTIFACTS_KMS_KEY_ARN = var.domain_artifacts_kms_key_arn } : {},

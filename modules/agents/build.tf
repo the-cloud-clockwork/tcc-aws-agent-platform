@@ -35,8 +35,8 @@ resource "terraform_data" "build" {
 
   # Rebuild when source changes or we force it
   triggers_replace = {
-    blueprint  = each.key
-    timestamp  = timestamp()
+    blueprint = each.key
+    timestamp = timestamp()
   }
 
   provisioner "local-exec" {
@@ -44,15 +44,15 @@ resource "terraform_data" "build" {
     working_dir = var.source_dir != "" ? var.source_dir : path.root
 
     environment = {
-      RUNTIME_NAME      = each.key
-      SOURCE_DIR        = var.source_dir
-      SOURCE_LAYOUT     = var.source_layout
-      POLYREPO_SUFFIX   = var.polyrepo_suffix
-      S3_BUCKET         = var.codebuild_source_bucket
-      S3_KEY            = local.build_s3_key[each.key]
-      CODEBUILD_PROJECT = "${local.name_prefix}-build-${each.key}"
-      EXTRA_DEPS        = lookup(var.extra_build_deps, each.key, "")
-      REPO_ROOT         = var.source_dir != "" ? abspath("${var.source_dir}/..") : path.root
+      RUNTIME_NAME       = each.key
+      SOURCE_DIR         = var.source_dir
+      SOURCE_LAYOUT      = var.source_layout
+      POLYREPO_SUFFIX    = var.polyrepo_suffix
+      S3_BUCKET          = var.codebuild_source_bucket
+      S3_KEY             = local.build_s3_key[each.key]
+      CODEBUILD_PROJECT  = "${local.name_prefix}-build-${each.key}"
+      EXTRA_DEPS         = lookup(var.extra_build_deps, each.key, "")
+      REPO_ROOT          = var.source_dir != "" ? abspath("${var.source_dir}/..") : path.root
       AWS_DEFAULT_REGION = var.aws_region
     }
   }
