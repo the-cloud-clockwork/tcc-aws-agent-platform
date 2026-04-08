@@ -2,6 +2,7 @@
 
 > **Purpose:** Major work blocks for the project. Always kept current.
 > **Rule:** Update this file every session. Blocks move through: `design` → `ready` → `in-progress` → `done`
+> **Definition of Done:** `terraform plan` + `terraform apply` in `tccw-qitp` (domain consumer) with zero errors. No exceptions.
 
 ---
 
@@ -17,6 +18,7 @@
 - [x] New test file: `test_schema_hardening.py` — extra-forbid + new field coverage
 
 **Completed:** 2026-04-08
+**DoD:** ⚠️ Pending — `terraform plan`/`apply` in `tccw-qitp` not yet validated
 
 ---
 
@@ -33,6 +35,7 @@
 - [ ] SWEEP: Address `mcp_m2m_client_id` sensitivity (mark sensitive in Terraform)
 
 **Why second:** Items 13+14 from ENH-019 expose credentials via Runtime metadata API. PII flows unfiltered to external Langfuse. Must close before any production traffic.
+**DoD:** `terraform plan` + `apply` in `tccw-qitp` with zero errors
 
 ---
 
@@ -47,6 +50,7 @@
 - [ ] KI-001: Monitor AWS Gateway Issue #809 — workaround deployed (`GATEWAY_DIRECT_MCP=true`), remove when AWS fixes
 
 **Why third:** These are operational maturity features. Schema must be correct first (Block 1), and secrets must be secured (Block 2) before adding runtime instrumentation.
+**DoD:** `terraform plan` + `apply` in `tccw-qitp` with zero errors
 
 ---
 
@@ -62,6 +66,8 @@
 - [ ] SWEEP: Fix hardcoded `enable_artifacts_gateway_target`
 - [ ] SWEEP: Add CloudFront output guards
 - [ ] SWEEP: Add missing `sns_alert_email` in staging/prod tfvars
+
+**DoD:** `terraform plan` + `apply` in `tccw-qitp` with zero errors
 
 ---
 
