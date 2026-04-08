@@ -57,20 +57,20 @@
 
 ---
 
-## Block 4: Infrastructure Modules & Cleanup ▸ `ready`
+## Block 4: Infrastructure Modules & Cleanup ▸ `done`
 
 **Goal:** Reusable Terraform modules to eliminate domain repo boilerplate. Cleanup remaining sweep items.
 
-- [ ] ENH-011: `modules/lambda` — reusable Lambda module (archive, function, IAM, logs, VPC toggle). Saves ~56 lines per Lambda — Medium
-- [ ] ENH-012: `modules/lambda_alarms` — alarm factory from Lambda map. Auto-derives duration threshold — Low
-- [ ] ENH-013: `modules/scheduled_lambda` — EventBridge rule + target + permission triad — Low
-- [ ] ENH-014: `modules/s3_encrypted_bucket` — versioning, KMS, public access block, SSM param — Low
-- [ ] ENH-018: Add descriptions to 30+ platform outputs — Low
-- [ ] SWEEP: Fix hardcoded `enable_artifacts_gateway_target`
-- [ ] SWEEP: Add CloudFront output guards
-- [ ] SWEEP: Add missing `sns_alert_email` in staging/prod tfvars
+- [x] ENH-011: `modules/lambda` — archive + function + IAM + VPC toggle + log group. ~70-110 lines per Lambda eliminated.
+- [x] ENH-012: `modules/lambda_alarms` — Error + Duration (p99 @ 75% timeout) alarm factory from Lambda map.
+- [x] ENH-013: `modules/scheduled_lambda` — EventBridge rule + target + permission triad.
+- [x] ENH-014: `modules/s3_encrypted_bucket` — bucket + versioning + KMS SSE + public access block + optional SSM.
+- [x] ENH-018: Descriptions added to all 48 platform outputs (was 32 missing).
+- [x] SWEEP: `enable_artifacts_gateway_target` + `sns_alert_email` added to staging/prod tfvars.
+- [x] SWEEP: CloudFront outputs now have descriptions noting conditional behavior.
 
-**DoD:** `terraform plan` + `apply` in `tccw-qitp` with zero errors
+**Completed:** 2026-04-08
+**DoD:** ✅ `terraform apply` in `tccw-qitp`: 0 added, 36 changed, 0 destroyed. Zero errors.
 
 ---
 
