@@ -125,7 +125,6 @@ class MCPObservabilityHook:
     def _emit_span(self, record: ToolCallRecord) -> None:
         """Create an OTEL span for the tool call."""
         try:
-            from opentelemetry import trace
             from opentelemetry.trace import StatusCode
 
             with self._tracer.start_as_current_span(

@@ -3,11 +3,14 @@
 Generates _manifest.json — an index of all artifacts from a pipeline execution.
 Called as the final step in Step Functions workflow.
 """
+from __future__ import annotations
+
 import json
 import logging
 import os
 import uuid
 from datetime import datetime, timezone
+from typing import Any
 
 import boto3
 
