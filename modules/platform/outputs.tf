@@ -61,17 +61,19 @@ resource "aws_ssm_parameter" "bucket_names" {
 }
 
 resource "aws_ssm_parameter" "kms_platform_artifacts" {
-  name  = "${local.ssm_prefix}/security/platform-artifacts-key-arn"
-  type  = "String"
-  value = module.security.platform_artifacts_kms_key_arn
-  tags  = local.tags
+  name   = "${local.ssm_prefix}/security/platform-artifacts-key-arn"
+  type   = "SecureString"
+  key_id = module.security.secrets_kms_key_arn
+  value  = module.security.platform_artifacts_kms_key_arn
+  tags   = local.tags
 }
 
 resource "aws_ssm_parameter" "kms_domain_artifacts" {
-  name  = "${local.ssm_prefix}/security/domain-artifacts-key-arn"
-  type  = "String"
-  value = module.security.domain_artifacts_kms_key_arn
-  tags  = local.tags
+  name   = "${local.ssm_prefix}/security/domain-artifacts-key-arn"
+  type   = "SecureString"
+  key_id = module.security.secrets_kms_key_arn
+  value  = module.security.domain_artifacts_kms_key_arn
+  tags   = local.tags
 }
 
 resource "aws_ssm_parameter" "alert_topic_arn" {
@@ -286,9 +288,15 @@ output "artifacts_mcp_lambda_name" {
 }
 
 
+output "secrets_kms_key_arn" {
+  description = "KMS key ARN for Secrets Manager encryption."
+  value       = module.security.secrets_kms_key_arn
+}
+
 # Direct MCP bypass (AWS Issue #809)
 output "mcp_m2m_client_id" {
   value     = module.agentcore.mcp_m2m_client_id
+  sensitive = true
 }
 output "mcp_m2m_client_secret" {
   value     = module.agentcore.mcp_m2m_client_secret

@@ -449,14 +449,17 @@ class BlueprintLoader:
 
         # -- auto-wire observability hook from blueprint config --
         from agent_core.hooks.observability_hooks import create_observability_hooks
+        from agent_core.observability.data_protection import build_pii_filter
 
         audit_table = os.environ.get(blueprint.observability.audit_log.table_env, None)
+        pii_filter = build_pii_filter(blueprint.observability.data_protection)
         obs_hook = create_observability_hooks(
             agent_id=blueprint.id,
             prompt_id=blueprint.prompt_ref,
             prompt_version=blueprint.version,
             execution_mode=os.environ.get("EXECUTION_MODE", "simulation"),
             audit_table=audit_table,
+            pii_filter=pii_filter,
         )
 
         # Compose hooks: observability first, then custom, then memory

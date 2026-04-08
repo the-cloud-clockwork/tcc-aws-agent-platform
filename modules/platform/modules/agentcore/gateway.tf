@@ -80,24 +80,55 @@ data "aws_iam_policy_document" "gateway_permissions" {
     ]
   }
 
-  # Allow Gateway to manage policy engines for policy enforcement
-  # KobaPolicyRegistry requires multiple actions: GetPolicyEngine,
-  # CheckAuthorizePermissions, AuthorizeAction, PartiallyAuthorizeActions, etc.
-  # Grant all bedrock-agentcore actions on policy-engine + gateway resources.
+  # Gateway execution role: scoped to runtime actions on gateway, policy-engine, and runtime resources.
+  # Enumerated from AWS Service Authorization Reference for bedrock-agentcore (2026-04).
+  statement {
+    sid    = "GatewayRuntimeAccess"
+    effect = "Allow"
+    actions = [
+      "bedrock-agentcore:InvokeGateway",
+      "bedrock-agentcore:GetGateway",
+      "bedrock-agentcore:GetGatewayTarget",
+      "bedrock-agentcore:ListGatewayTargets",
+      "bedrock-agentcore:SynchronizeGatewayTargets",
+      "bedrock-agentcore:AuthorizeAction",
+      "bedrock-agentcore:PartiallyAuthorizeActions",
+      "bedrock-agentcore:ManageResourceScopedPolicy",
+    ]
+    resources = [
+      "arn:aws:bedrock-agentcore:${var.aws_region}:${var.account_id}:gateway/*",
+    ]
+  }
+
   statement {
     sid    = "PolicyEngineAccess"
     effect = "Allow"
     actions = [
-      "bedrock-agentcore:*",
+      "bedrock-agentcore:GetPolicyEngine",
+      "bedrock-agentcore:GetPolicy",
+      "bedrock-agentcore:ListPolicies",
+      "bedrock-agentcore:AuthorizeAction",
+      "bedrock-agentcore:PartiallyAuthorizeActions",
     ]
     resources = [
       "arn:aws:bedrock-agentcore:${var.aws_region}:${var.account_id}:policy-engine/*",
-      "arn:aws:bedrock-agentcore:${var.aws_region}:${var.account_id}:gateway/*",
+    ]
+  }
+
+  statement {
+    sid    = "RuntimeAccess"
+    effect = "Allow"
+    actions = [
+      "bedrock-agentcore:GetAgentRuntime",
+      "bedrock-agentcore:GetAgentRuntimeEndpoint",
+      "bedrock-agentcore:InvokeAgentRuntime",
+    ]
+    resources = [
       "arn:aws:bedrock-agentcore:${var.aws_region}:${var.account_id}:runtime/*",
     ]
   }
 
-  # Allow KMS operations for gateway encryption
+  # Allow KMS operations for gateway encryption — key ARN always provided by parent module
   statement {
     sid    = "KmsGatewayEncryption"
     effect = "Allow"
@@ -108,7 +139,7 @@ data "aws_iam_policy_document" "gateway_permissions" {
       "kms:DescribeKey",
     ]
     resources = [
-      var.gateway_kms_key_arn != "" ? var.gateway_kms_key_arn : "*",
+      var.gateway_kms_key_arn,
     ]
   }
 }
@@ -165,6 +196,13 @@ resource "aws_bedrockagentcore_gateway" "this" {
   }
 
   kms_key_arn = var.gateway_kms_key_arn != "" ? var.gateway_kms_key_arn : null
+
+  lifecycle {
+    precondition {
+      condition     = var.gateway_auth_type != "CUSTOM_JWT" || (var.gateway_jwt_discovery_url != "" && length(var.gateway_jwt_allowed_clients) > 0)
+      error_message = "When gateway_auth_type is CUSTOM_JWT, both gateway_jwt_discovery_url and gateway_jwt_allowed_clients must be set."
+    }
+  }
 
   tags = merge(var.tags, {
     Name      = "${local.prefix}-${local.env}-gateway"
