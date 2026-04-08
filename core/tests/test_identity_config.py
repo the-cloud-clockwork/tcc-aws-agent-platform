@@ -102,7 +102,7 @@ class TestIdentityInBlueprint:
             id="test",
             version="1",
             name="Test",
-            model={"provider": "bedrock", "model_id": "x"},
+            model={"provider": "bedrock", "model_id": "x", "temperature": 0.5, "max_tokens": 1024},
             prompt_ref="p",
         )
         assert bp.identity.authorizer is None
@@ -113,7 +113,7 @@ class TestIdentityInBlueprint:
             id="test",
             version="1",
             name="Test",
-            model={"provider": "bedrock", "model_id": "x"},
+            model={"provider": "bedrock", "model_id": "x", "temperature": 0.5, "max_tokens": 1024},
             prompt_ref="p",
             identity={
                 "authorizer": {

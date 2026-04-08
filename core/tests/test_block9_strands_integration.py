@@ -37,7 +37,7 @@ def _write_blueprint(
         "id": agent_id,
         "version": "1.0.0",
         "name": "Test Agent",
-        "model": {"provider": "bedrock", "model_id": "test-model-id"},
+        "model": {"provider": "bedrock", "model_id": "test-model-id", "temperature": 0.5, "max_tokens": 1024},
         "prompt_ref": "test_prompt",
     }
     if memory:

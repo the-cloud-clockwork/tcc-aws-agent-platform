@@ -20,7 +20,7 @@ def _make_blueprint(**identity_kwargs: object) -> AgentBlueprint:
         id="test-agent",
         version="1",
         name="Test",
-        model={"provider": "bedrock", "model_id": "x"},
+        model={"provider": "bedrock", "model_id": "x", "temperature": 0.5, "max_tokens": 1024},
         prompt_ref="p",
         identity=IdentityConfig(**identity_kwargs),
     )

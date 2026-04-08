@@ -7,12 +7,20 @@ from pydantic import ValidationError
 
 from agent_core.blueprints.agent import AgentBlueprint
 from agent_core.schemas.tool_config import (
+    A2aToolConfig,
     BuiltinToolConfig,
     BuiltinToolType,
     McpToolConfig,
     ToolConfig,
     ToolDeclaration,
 )
+
+_MODEL_DICT = {
+    "provider": "bedrock",
+    "model_id": "test-model",
+    "temperature": 0.5,
+    "max_tokens": 1024,
+}
 
 
 class TestMcpToolConfig:
@@ -97,13 +105,67 @@ class TestToolDeclarationUnion:
         assert result.builtin == BuiltinToolType.BROWSER
 
 
+class TestA2aToolConfig:
+    def test_valid(self):
+        cfg = A2aToolConfig(a2a="remote-specialist")
+        assert cfg.a2a == "remote-specialist"
+
+    def test_a2a_required(self):
+        with pytest.raises(ValidationError):
+            A2aToolConfig()
+
+    def test_extra_field_rejected(self):
+        with pytest.raises(ValidationError):
+            A2aToolConfig(a2a="x", unknown_field="y")
+
+    def test_frozen(self):
+        cfg = A2aToolConfig(a2a="x")
+        with pytest.raises(ValidationError):
+            cfg.a2a = "y"
+
+
+class TestToolConfigExtraForbid:
+    def test_mcp_extra_rejected(self):
+        with pytest.raises(ValidationError):
+            McpToolConfig(mcp="data-mcp", tools=["get"], unknown_key="val")
+
+    def test_builtin_extra_rejected(self):
+        with pytest.raises(ValidationError):
+            BuiltinToolConfig(builtin="browser", unknown_key="val")
+
+
+class TestToolDeclarationA2a:
+    def test_a2a_from_dict(self):
+        from pydantic import TypeAdapter
+
+        adapter = TypeAdapter(ToolDeclaration)
+        result = adapter.validate_python({"a2a": "remote-specialist"})
+        assert isinstance(result, A2aToolConfig)
+        assert result.a2a == "remote-specialist"
+
+    def test_a2a_in_blueprint(self):
+        bp = AgentBlueprint(
+            id="test-agent",
+            version="1.0.0",
+            name="Test Agent",
+            model=_MODEL_DICT,
+            prompt_ref="test-prompt",
+            tools=[
+                {"mcp": "data-mcp", "tools": ["query"]},
+                {"a2a": "remote-specialist"},
+            ],
+        )
+        assert len(bp.tools) == 2
+        assert isinstance(bp.tools[1], A2aToolConfig)
+
+
 class TestAgentBlueprintMixedTools:
     def test_mixed_tools_accepted(self):
         bp = AgentBlueprint(
             id="test-agent",
             version="1.0.0",
             name="Test Agent",
-            model={"provider": "bedrock", "model_id": "test-model"},
+            model=_MODEL_DICT,
             prompt_ref="test-prompt",
             tools=[
                 {"mcp": "data-mcp", "tools": ["query"]},
@@ -121,7 +183,7 @@ class TestAgentBlueprintMixedTools:
             id="test-agent",
             version="1.0.0",
             name="Test Agent",
-            model={"provider": "bedrock", "model_id": "test-model"},
+            model=_MODEL_DICT,
             prompt_ref="test-prompt",
             tools=[
                 {"builtin": "code_interpreter"},
@@ -135,7 +197,7 @@ class TestAgentBlueprintMixedTools:
             id="test-agent",
             version="1.0.0",
             name="Test Agent",
-            model={"provider": "bedrock", "model_id": "test-model"},
+            model=_MODEL_DICT,
             prompt_ref="test-prompt",
         )
         assert bp.tools == []

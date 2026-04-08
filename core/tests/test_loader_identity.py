@@ -17,7 +17,7 @@ def _write_blueprint(tmp: Path, agent_id: str = "test-agent", identity: dict | N
         "id": agent_id,
         "version": "1",
         "name": "Test Agent",
-        "model": {"provider": "bedrock", "model_id": "eu.anthropic.claude-sonnet-4-6"},
+        "model": {"provider": "bedrock", "model_id": "eu.anthropic.claude-sonnet-4-6", "temperature": 0.5, "max_tokens": 1024},
         "prompt_ref": "test_prompt",
     }
     if identity:

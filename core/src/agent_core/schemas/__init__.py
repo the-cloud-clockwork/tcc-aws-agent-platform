@@ -31,6 +31,7 @@ from agent_core.schemas.memory_config import (
     RetrievalConfig,
 )
 from agent_core.schemas.tool_config import (
+    A2aToolConfig,
     BuiltinToolConfig,
     BuiltinToolType,
     McpToolConfig,
@@ -39,6 +40,7 @@ from agent_core.schemas.tool_config import (
 )
 
 __all__ = [
+    "A2aToolConfig",
     "AuthFlow",
     "AuthorizerConfig",
     "AuthorizerType",

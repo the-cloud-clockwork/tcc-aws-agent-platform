@@ -18,7 +18,7 @@ class BuiltinToolType(str, Enum):
 class McpToolConfig(BaseModel):
     """A single MCP tool-group declaration inside an agent blueprint."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     mcp: str = Field(..., description="MCP server name, e.g. 'data-mcp'.")
     tools: list[str] = Field(
@@ -39,7 +39,7 @@ class BuiltinToolConfig(BaseModel):
     resolves it from the blueprint's gateway config or ``AWS_DEFAULT_REGION``.
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     builtin: BuiltinToolType = Field(
         ...,
@@ -55,7 +55,18 @@ class BuiltinToolConfig(BaseModel):
     )
 
 
+class A2aToolConfig(BaseModel):
+    """Declaration for an agent-to-agent (A2A) remote tool endpoint."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    a2a: str = Field(
+        ...,
+        description="Blueprint ID or URL of the remote A2A agent to invoke.",
+    )
+
+
 # Union type used in AgentBlueprint.tools — Pydantic v2 auto-discriminates
-# because McpToolConfig requires ``mcp`` while BuiltinToolConfig requires
-# ``builtin``, and the two field sets are disjoint.
-ToolDeclaration = Union[McpToolConfig, BuiltinToolConfig]
+# because McpToolConfig requires ``mcp``, BuiltinToolConfig requires
+# ``builtin``, and A2aToolConfig requires ``a2a``.
+ToolDeclaration = Union[McpToolConfig, BuiltinToolConfig, A2aToolConfig]
