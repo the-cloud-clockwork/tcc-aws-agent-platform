@@ -1,7 +1,7 @@
 # AWS Agent Platform — Project Instructions
 
-> **Configuration-driven, domain-agnostic runtime for AI agents on AWS — Strands SDK + Bedrock AgentCore.**
-> **Status: 73/100 production readiness.** SDK complete. 4 hardening blocks done. 8 independent Next Moves remain.
+> **Configuration-driven, provider-agnostic runtime for AI agents on AWS — Strands SDK + Bedrock AgentCore.**
+> **Status: 78/100 production readiness.** Stage 1 inference decoupling done. Pipeline validated E2E (16/16 states). 7 Next Moves remain.
 
 ## Boot Sequence
 1. `operator/VISION.md` — Intent, philosophy (operator-owned, never edit)
@@ -57,10 +57,30 @@ gh workflow run sonar-scan.yml      # manual SonarQube scan (only this repo)
 
 ### After changes: infra clean + CI clean = done.
 
+## Inference Providers (Stage 1 — Provider-Agnostic)
+`_build_model_config()` in `loader.py` dispatches on `ModelConfig.provider` via match/case.
+Supported: `bedrock` (default), `anthropic`, `litellm`, `vertex`. All Strands SDK providers.
+- Bedrock: requires `BEDROCK_REGION` env var. Default path — all existing blueprints.
+- LiteLLM: set `base_url` + `api_key_env` in blueprint YAML. Routes to any LiteLLM-supported model.
+- Anthropic: set `api_key_env` in blueprint. Direct Anthropic API.
+- Migration strategy: `operator/inference-migration.md` (3 stages: SDK factory → hooks decoupling → infra optionality)
+
+## Pipeline Validation (E2E — tccw-qitp)
+Full pipeline validated 2026-04-08 (16/16 states, 39s):
+```
+ValidateMarketCalendar → CheckTradingDay → gap-detector → CheckGapCount
+→ PARALLEL(sentiment-analyzer, technical-analyzer, ml-predictor)
+→ ResolveClaimChecks → CompositeSignal → EvaluateStrategies
+→ SynthesizeRecommendations → CheckBacktestPass → RouteByMode
+→ StoreResults → PipelineComplete
+```
+Skills in `tccw-qitp/.claude/skills/`: invoke-agent, check-agent, check-deploy, check-artifacts, run-pipeline.
+
 ## Next Moves (Hardening Only — Independent, No Dependencies)
-8 items in `operator/ENHANCEMENTS.md` (NM-001 to NM-008). Any order, any session, any agent.
+7 items in `operator/ENHANCEMENTS.md` (NM-001 to NM-008, NM-007 blocked on AWS).
 To 85/100: NM-001 (tests), NM-002 (domain IAM), NM-003 (enable guardrails).
-To 95/100: NM-004 (secrets rotation), NM-005 (online eval), NM-006 (adopt modules), NM-007 (KI-001).
+To 95/100: NM-004 (secrets rotation), NM-005 (online eval), NM-006 (adopt modules).
+**Next:** LiteLLM test — add `litellm` to one agent image, set API key, invoke with `provider: litellm`.
 
 ## AWS Configuration
 | Setting | Value |
@@ -75,7 +95,7 @@ To 95/100: NM-004 (secrets rotation), NM-005 (online eval), NM-006 (adopt module
 1. **Zero domain contamination** — `domain-scan.sh` must return zero
 2. **No hardcoded defaults** — Everything from blueprints/env/config
 3. **No backward compatibility** — Build for the vision
-4. **Hard dependencies** — `bedrock_agentcore` and `strands` required, fail loudly
+4. **Hard dependencies** — `bedrock_agentcore` (runtime) and `strands` (SDK) required. Inference provider is configurable.
 5. **Configuration-driven** — All resource names from config
 6. **Claim-check pattern** — Large outputs in S3, keys through Step Functions
 7. **IaC: Terraform only** — `modules/` is the sole infrastructure source
