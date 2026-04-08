@@ -40,6 +40,19 @@ variable "anthropic_api_key" {
   sensitive   = true
 }
 
+variable "cf_access_client_id" {
+  type        = string
+  description = "CF-Access-Client-Id header value. Empty = not injected."
+  default     = ""
+}
+
+variable "cf_access_client_secret" {
+  type        = string
+  description = "CF-Access-Client-Secret header value. Empty = not injected."
+  default     = ""
+  sensitive   = true
+}
+
 variable "ssm_root_path" {
   type = string
 }
