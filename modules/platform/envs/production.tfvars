@@ -40,3 +40,6 @@ tags = {
 }
 
 guardrail_enabled = false
+
+enable_artifacts_gateway_target = true
+sns_alert_email    = ""
