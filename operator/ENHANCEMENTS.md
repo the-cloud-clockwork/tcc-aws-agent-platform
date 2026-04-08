@@ -6,220 +6,166 @@
 
 ---
 
-## ENH-001: AgentCore Policy GA — Cedar on Gateway ▸ `must-have` ▸ `done`
+## Done (14 enhancements completed 2026-04-08)
 
-**Proposed:** 2026-03-30
-**Component:** Policy / Gateway / Infrastructure
-**Description:** Replace code-level tool access checks with Cedar policies enforced at the Gateway layer. Infrastructure-level guarantees: only execution-agent calls ibkr-mcp, only live mode allows orders, risk engine PASS required. Leverage parameter-level Cedar rules (e.g., `permit when position_size <= max`).
-**Motivation:** Compliance-critical. Moves access control from application logic to infrastructure. Auditable, declarative, and impossible to bypass from agent code.
-**Effort estimate:** Medium
-**Related:** operator/references/PLATFORM-REFERENCE.md §Top 10 Opportunities #1, §Amazon Samples — Cedar per-tool policies
-
----
-
-## ENH-002: Online Evaluation (Continuous Monitoring) ▸ `must-have` ▸ `done`
-
-**Proposed:** 2026-03-30
-**Component:** Evaluation / Observability
-**Description:** Enable 5% production sampling with ToolSelectionAccuracy + Correctness evaluators. Configure quality alerts on metric degradation. Use the 13 built-in evaluators (currently UNUSED).
-**Motivation:** Catch agent regressions before they affect operations. Currently only execution-agent has custom evaluators; 8 agents have zero evaluation coverage.
-**Effort estimate:** Low
-**Related:** operator/references/PLATFORM-REFERENCE.md §Capability Matrix (Evaluation: UNUSED), §Top 10 #2
-
----
-
-## ENH-003: Middleware Chain (Correlation IDs + Structured Errors) ▸ `must-have` ▸ `done`
-
-**Proposed:** 2026-03-30
-**Component:** Runtime
-**Description:** Add ObservabilityMiddleware (correlation IDs, timing) + ErrorHandlingMiddleware (structured errors) to all agent runtimes. Starlette middlewares on `BedrockAgentCoreApp`. Zero business logic changes required.
-**Motivation:** Zero-code observability improvement. Currently no correlation IDs or request timing middleware. Amazon samples demonstrate the pattern.
-**Effort estimate:** Low
-**Related:** operator/references/PLATFORM-REFERENCE.md §Amazon Samples — Middleware Chain, §Capability Matrix (Middleware: UNUSED)
+| ID | Enhancement | Block |
+|----|-------------|-------|
+| ENH-001 | Cedar policies on Gateway (SDK runtime path) | Block 3 |
+| ENH-002 | Online evaluation (DynamoDB table + env var + IAM) | Block 3 |
+| ENH-003 | Middleware chain (correlation IDs + structured errors) | Block 3 |
+| ENH-007 | Bedrock Guardrails (GuardrailHook + TF resource) | Block 3 |
+| ENH-008 | PII filter on Langfuse traces | Block 2 |
+| ENH-011 | `modules/lambda` reusable module | Block 4 |
+| ENH-012 | `modules/lambda_alarms` alarm factory | Block 4 |
+| ENH-013 | `modules/scheduled_lambda` EventBridge triad | Block 4 |
+| ENH-014 | `modules/s3_encrypted_bucket` | Block 4 |
+| ENH-015 | Blueprint schema hardening (`extra="forbid"`) | Block 1 |
+| ENH-016 | Schema fixes (A2A, gate nodes, credentials, etc.) | Block 1 |
+| ENH-017 | Expose `secrets_kms_key_arn` from platform outputs | Block 2 |
+| ENH-018 | Add descriptions to all 48 platform outputs | Block 4 |
+| ENH-019 | Production IAM tightening (platform scope: #3, #4) | Block 2 |
 
 ---
 
-## ENH-004: Memory Strategy Expansion (EPISODIC + USER_PREFERENCE) ▸ `nice-to-have` ▸ `proposed`
+## Next Moves — Platform-Agnostic Readiness Items
 
-**Proposed:** 2026-03-30
-**Component:** Memory
-**Description:** Add EPISODIC strategy for pattern tracking over time. Expand USER_PREFERENCE usage for per-user configuration (risk tolerance, preferred sectors, position sizing). Note: EPISODIC requires `customMemoryStrategy` with `episodicOverride` — not a simple type string.
-**Motivation:** Currently only portfolio-recommender and watchlist-screener use USER_PREFERENCE. No agents use EPISODIC. Both are high-value for personalization and temporal pattern recognition.
-**Effort estimate:** Low
-**Related:** operator/references/PLATFORM-REFERENCE.md §Memory System, §Top 10 #4
+> These are domain-agnostic improvements that any consuming project benefits from.
+> Each is self-contained and can be kicked off independently by any agent.
+> Ordered by impact on production readiness score (currently 73/100).
 
 ---
 
-## ENH-005: Server-Side Tool Execution (Bedrock Responses API) ▸ `nice-to-have` ▸ `proposed`
+### NM-001: Test Coverage — Runtime, Memory, Gateway ▸ `must-have` ▸ Target: 85/100
 
-**Proposed:** 2026-03-30
-**Component:** Runtime / Gateway
-**Description:** Bedrock Responses API + Gateway eliminates client-side tool orchestration for simple agents. Analysis agents become simpler — Bedrock handles tool discovery/selection/execution via Gateway.
-**Motivation:** Reduces agent complexity for simple tool-calling patterns. Available since February 2026.
-**Effort estimate:** Medium
-**Related:** operator/references/PLATFORM-REFERENCE.md §AWS Feature Releases, §Top 10 #5
+**Current state:** Runtime 0%, Memory 0%, Gateway 5%. A regression in any subsystem hits production undetected.
 
----
+**What to do:**
+1. Add unit tests for `AgentCoreApp` entrypoint: middleware registration, `from_blueprint()`, `invoke()` happy path + error path
+2. Add unit tests for `CorrelationIdMiddleware` and `StructuredErrorMiddleware` (mock ASGI app)
+3. Add unit tests for `MemoryConfig` resolution, `MemoryStrategyConfig` validation, `MemoryWiring` lifecycle
+4. Add integration tests for `GatewayClient`: tool discovery, tool call routing, direct MCP fallback path
+5. Add tests for `EvaluationWiring`: custom evaluator creation, online config registration, result persistence
 
-## ENH-006: AG-UI Protocol for Dashboard Streaming ▸ `nice-to-have` ▸ `proposed`
+**Target:** Runtime ≥ 50%, Memory ≥ 50%, Gateway ≥ 30%. All via pytest, CI-only.
 
-**Proposed:** 2026-03-30
-**Component:** Runtime / Dashboard
-**Description:** Standardized streaming of agent reasoning + tool results to the Next.js dashboard via SSE. Replaces custom polling. Real-time thinking display.
-**Motivation:** New March 2026 AWS feature. Provides standardized protocol for frontend streaming instead of custom implementations.
-**Effort estimate:** Medium
-**Related:** operator/references/PLATFORM-REFERENCE.md §AWS Feature Releases, §Top 10 #6
+**Files:** `core/tests/test_runtime_*.py`, `core/tests/test_memory_*.py`, `core/tests/test_gateway_*.py` (new)
+
+**Effort:** Large (3-5 sessions)
 
 ---
 
-## ENH-007: Bedrock Guardrails for Agent I/O ▸ `nice-to-have` ▸ `done`
+### NM-002: Domain IAM Hardening (13 items) ▸ `must-have` ▸ Target: 85/100
 
-**Proposed:** 2026-03-30
-**Component:** Runtime / Policy
-**Description:** Content filtering + PII detection on agent inputs/outputs. Automated Reasoning check validates recommendations against logical rules. Currently only execution-agent declares Data Protection (PARTIAL).
-**Motivation:** Compliance-critical content filtering. Amazon samples demonstrate the pattern for finance use cases.
-**Effort estimate:** Medium
-**Related:** operator/references/PLATFORM-REFERENCE.md §Capability Matrix (Data Protection: PARTIAL), §Amazon Samples — Bedrock Guardrails
+**Current state:** `bedrock:*` on `*` across 17 agent runtimes. One compromised runtime has full Bedrock access.
 
----
+**What to do (in `modules/agents/iam.tf` — platform repo, consumed by all domains):**
+1. Replace `bedrock:*` with `bedrock:InvokeModel` + `bedrock:InvokeModelWithResponseStream` scoped to specific foundation-model ARN patterns
+2. Replace `bedrock-agentcore:*` on agent runtimes with enumerated actions (same approach as Block 2 gateway fix)
+3. Add `aws:SourceAccount` condition to EventBridge trust policies
+4. Scope SFN `logs:*` to specific log group ARN patterns
+5. Move `COGNITO_MCP_CLIENT_SECRET` and `LANGFUSE_SECRET_KEY` from env vars to runtime SSM Parameter Store fetch (requires SDK change in `LangfuseHook` and `DirectMCPClient`)
 
-## ENH-008: PII Filter on Langfuse Traces ▸ `must-have` ▸ `done`
+**Reference:** `operator/references/PLATFORM-REFERENCE.md` §IAM & Security Posture, items #1, #2, #5-10, #13-14
 
-**Proposed:** 2026-03-30
-**Component:** Observability
-**Description:** Pass `pii_filter` callback to LangfuseHook to sanitize account numbers, personal details, API keys before sending to external Langfuse service. Currently UNUSED.
-**Motivation:** Secrets and PII currently flow to external Langfuse unfiltered. Low effort, high security value.
-**Effort estimate:** Low
-**Related:** operator/references/PLATFORM-REFERENCE.md §Capability Matrix (PII filter: UNUSED), §Top 10 #8
+**Effort:** Large (2-3 sessions). Items #13-14 (secrets from env vars to SSM) require coordinated SDK + TF changes.
 
 ---
 
-## ENH-009: A2A Protocol (Cross-Runtime Invocation) ▸ `someday` ▸ `proposed`
+### NM-003: Enable Guardrails in Staging/Production ▸ `must-have` ▸ Target: 85/100
 
-**Proposed:** 2026-03-30
-**Component:** A2A / Runtime
-**Description:** Enable direct cross-runtime invocation via A2A protocol. Currently A2AClient is UNUSED, A2AServerWrapper is PARTIAL (execution-agent has port 9000 but no A2A config). Adopt the A2A coordinator pattern from Amazon samples.
-**Motivation:** Lower latency for sub-workflows. Currently all coordination goes through Step Functions.
-**Effort estimate:** High
-**Related:** operator/references/PLATFORM-REFERENCE.md §Capability Matrix (A2A: UNUSED/PARTIAL), §Top 10 #9
+**Current state:** `guardrail_enabled = false` in all 3 tfvars. The `aws_bedrock_guardrail` resource and `GuardrailHook` are fully wired but dormant.
 
----
+**What to do:**
+1. Set `guardrail_enabled = true` in `modules/platform/envs/staging.tfvars`
+2. Set `guardrail_enabled = true` in `modules/platform/envs/production.tfvars`
+3. Review `guardrail_pii_entities` defaults (EMAIL, PHONE, NAME → ANONYMIZE; SSN, CC → BLOCK) — customize per domain if needed
+4. In domain repo: `terraform apply` to create the guardrail
+5. Verify agent runtimes receive `BEDROCK_GUARDRAIL_ID` and `BEDROCK_GUARDRAIL_VERSION` env vars
+6. Test: confirm `GuardrailHook` logs sanitization actions in CloudWatch
 
-## ENH-010: Memory Streaming to Kinesis ▸ `someday` ▸ `proposed`
-
-**Proposed:** 2026-03-30
-**Component:** Memory / Events
-**Description:** Event-driven reactions to agent memory updates via Kinesis streaming. New March 2026 feature. Trigger downstream actions (rebalancing, dashboard refresh) when agent memory changes.
-**Motivation:** Enables reactive architectures. Currently memory updates are fire-and-forget.
-**Effort estimate:** Medium
-**Related:** operator/references/PLATFORM-REFERENCE.md §AWS Feature Releases, §Capability Matrix (Memory streaming: UNUSED)
+**Effort:** Small (1 session). Operator decision required on PII entity list.
 
 ---
 
-## ENH-011: Platform Terraform Module — `modules/lambda` ▸ `must-have` ▸ `done`
+### NM-004: Secrets Rotation ▸ `nice-to-have` ▸ Target: 95/100
 
-**Proposed:** 2026-03-30
-**Component:** Infrastructure / Terraform
-**Description:** Reusable Lambda module that generates: archive_file, lambda_function, iam_role, 2× policy_attachment, iam_role_policy (optional), log_group. Accepts `vpc_enabled` bool to auto-select IAM policy variant. Eliminates ~56 lines of boilerplate per Lambda (~306 lines total across 6 domain Lambdas).
-**Motivation:** Domain repos currently copy-paste identical IAM boilerplate 7 times (500+ lines). Highest savings; grows with every new Lambda.
-**Effort estimate:** Medium
-**Related:** operator/references/PLATFORM-REFERENCE.md §Missing Platform Abstractions — modules/lambda
+**Current state:** `aws_secretsmanager_secret.observability_api_key` in the security module has no rotation configured. The Langfuse API key and Cognito M2M client secret are static.
 
----
+**What to do:**
+1. Create a rotation Lambda for the observability API key (calls Langfuse API to regenerate key)
+2. Configure `aws_secretsmanager_secret_rotation` with a 90-day schedule
+3. Evaluate whether Cognito M2M client secret needs rotation (typically managed by Cognito itself)
 
-## ENH-012: Platform Terraform Module — `modules/lambda_alarms` ▸ `nice-to-have` ▸ `done`
-
-**Proposed:** 2026-03-30
-**Component:** Infrastructure / Terraform
-**Description:** Alarm factory: accepts Lambda map → generates Error + Duration (p99 at 75% timeout) alarms. Auto-derives duration threshold from timeout. Eliminates ~154 lines of identical alarm patterns.
-**Motivation:** Pure repetition elimination. Auto-derived threshold prevents misconfiguration bugs.
-**Effort estimate:** Low
-**Related:** operator/references/PLATFORM-REFERENCE.md §Missing Platform Abstractions — modules/lambda_alarms
+**Effort:** Medium (1-2 sessions)
 
 ---
 
-## ENH-013: Platform Terraform Module — `modules/scheduled_lambda` ▸ `nice-to-have` ▸ `done`
+### NM-005: Configure Online Evaluation Sampling ▸ `nice-to-have` ▸ Target: 95/100
 
-**Proposed:** 2026-03-30
-**Component:** Infrastructure / Terraform
-**Description:** Encapsulates the EventBridge rule + target + permission triad. Appears 7 times in domain infra. Eliminates ~112 lines.
-**Motivation:** Most error-prone pattern to wire manually (3 resources in lockstep).
-**Effort estimate:** Low
-**Related:** operator/references/PLATFORM-REFERENCE.md §Missing Platform Abstractions — modules/scheduled_lambda
+**Current state:** All 9 domain blueprints have `evaluation.online: null`. The DynamoDB table, env var, and IAM are ready. Custom evaluators are defined but online sampling is not active.
 
----
+**What to do:**
+1. In each domain blueprint YAML, set `evaluation.online.sampling_rate: 5` and `evaluation.online.evaluators: ["Builtin.Correctness", "Builtin.ToolSelectionAccuracy"]`
+2. Set `evaluation.online.auto_create_execution_role: true` (the IAM pre-auth is already in `modules/agents/iam.tf`)
+3. Deploy agents — `EvaluationWiring` will call `create_online_config()` at startup
+4. Monitor evaluation results in DynamoDB and via `get_online_results()`
 
-## ENH-014: Platform Terraform Module — `modules/s3_encrypted_bucket` ▸ `someday` ▸ `done`
-
-**Proposed:** 2026-03-30
-**Component:** Infrastructure / Terraform
-**Description:** Generates versioning, KMS encryption config, public access block, SSM parameter for each bucket. ~47 lines per bucket, multiplicative savings.
-**Motivation:** Ensures consistent encryption and access controls across all future S3 buckets.
-**Effort estimate:** Low
-**Related:** operator/references/PLATFORM-REFERENCE.md §Missing Platform Abstractions — modules/s3_encrypted_bucket
+**Effort:** Small (1 session). Domain blueprint changes only.
 
 ---
 
-## ENH-015: Blueprint Schema Hardening (`extra="forbid"`) ▸ `must-have` ▸ `done`
+### NM-006: Adopt Utility Modules in Domain Repo ▸ `nice-to-have` ▸ Target: 95/100
 
-**Proposed:** 2026-03-30
-**Component:** Schemas / Blueprints
-**Description:** Add `extra="forbid"` to critical Pydantic models (AgentBlueprint, ToolDeclaration, GraphNodeConfig, CredentialConfig, StrategyEvaluationConfig). Currently all models use default `extra="ignore"` — unknown fields are silently dropped. 12+ fields across 9 blueprints are silently lost.
-**Motivation:** 3 blueprints currently fail to load silently. 12+ YAML fields are silently dropped. Silent failures mask configuration bugs that surface only at runtime.
-**Effort estimate:** Medium
-**Related:** operator/references/PLATFORM-REFERENCE.md §Schema Mismatch Audit, §Blueprint Schema Fixes Needed
+**Current state:** `tccw-qitp` has ~870 lines of manual Lambda/alarm/schedule boilerplate that the 4 new utility modules can replace.
 
----
+**What to do:**
+1. Replace 7 manual Lambda definitions in `domain_lambdas.tf` with `module "lambda"` calls (~639 lines → ~70 lines)
+2. Replace 22 alarm definitions in `domain_alerts.tf` with `module "lambda_alarms"` (~130 lines → ~15 lines)
+3. Replace 7 EventBridge triads in `domain_events.tf` + `domain_compliance.tf` with `module "scheduled_lambda"` (~105 lines → ~35 lines)
+4. Replace 1 S3 bucket definition in `domain_data.tf` with `module "s3_encrypted_bucket"` (~35 lines → ~8 lines)
+5. Run `terraform plan` to verify identical resources, then `terraform apply`
 
-## ENH-016: Schema Fixes — A2A, Gate Nodes, Credentials ▸ `must-have` ▸ `done`
-
-**Proposed:** 2026-03-30
-**Component:** Schemas
-**Description:** Six schema fixes needed: (1) Add `A2aToolConfig` to `ToolDeclaration` union, (2) Make `GraphNodeConfig.agent_ref` optional for gate nodes, (3) Add `secret_arn` to `CredentialConfig`, (4) Add `persistence` to `StrategyEvaluationConfig`, (5) Add gate fields (`type`, `trip_condition`, `fallback`) to `GraphNodeConfig`, (6) Add `specialists` to `MultiAgentConfig`.
-**Motivation:** 3 blueprints raise ValidationError at load time (execution-agent, portfolio-recommender, strategy-evaluator). Currently masked by GenericHandler fallback.
-**Effort estimate:** Medium
-**Related:** operator/references/PLATFORM-REFERENCE.md §Schema Mismatch Audit — Complete Findings
+**Effort:** Medium (1-2 sessions). Requires careful state migration (`terraform state mv`) for existing resources.
 
 ---
 
-## ENH-017: Expose `secrets_kms_key_arn` from Platform Outputs ▸ `nice-to-have` ▸ `done`
+### NM-007: KI-001 Resolution (AWS Dependency) ▸ `blocked` ▸ Target: 95/100
 
-**Proposed:** 2026-03-30
-**Component:** Infrastructure / Security
-**Description:** Platform doesn't expose `secrets_kms_key_arn` output. Domain manually creates Secrets Manager resources without platform's KMS key.
-**Motivation:** Enables domain repos to use consistent envelope encryption for secrets.
-**Effort estimate:** Low
-**Related:** operator/references/PLATFORM-REFERENCE.md §Infrastructure Improvement Roadmap P0
+**Current state:** `GATEWAY_DIRECT_MCP=true` bypasses Gateway for MCP tool calls. Cedar policies don't protect MCP invocations. Depends on AWS fixing Issue #809.
 
----
+**What to do when AWS fixes #809:**
+1. Set `gateway_direct_mcp = false` in domain tfvars
+2. `terraform apply`
+3. Verify `tools/call` works through Gateway for all MCP targets
+4. Remove `agent_core.gateway.direct_mcp_client` module
+5. Remove `GATEWAY_DIRECT_MCP` feature flag and related env vars from `modules/agents/runtime.tf`
+6. Remove Cognito M2M client wiring (no longer needed when Gateway handles OAuth2)
 
-## ENH-018: Add Descriptions to 30+ Platform Outputs ▸ `someday` ▸ `done`
-
-**Proposed:** 2026-03-30
-**Component:** Infrastructure / Terraform
-**Description:** `modules/platform/outputs.tf:110-254` has 30+ outputs without description fields. Domain consumers can't understand the API surface.
-**Motivation:** Self-documenting infrastructure. Terraform docs and IDE autocomplete rely on descriptions.
-**Effort estimate:** Low
-**Related:** operator/references/PLATFORM-REFERENCE.md §Terraform Coherence Analysis — Critical Issue #4
+**Effort:** Medium (1 session once AWS fixes the issue)
 
 ---
 
-## ENH-019: Production IAM Tightening (17 Permissive Items) ▸ `must-have` ▸ `done`
+### NM-008: Extra Forbid on Remaining Sub-Models ▸ `nice-to-have`
 
-**Proposed:** 2026-03-30
-**Component:** Security / IAM
-**Description:** 17 permissive IAM items documented for dev phase. Top priorities: (1) Scope `bedrock:*` on `*` to `bedrock:InvokeModel` on specific model ARNs, (2) Move M2M client secret and Langfuse key from env vars to runtime SSM fetch, (3) Add `aws:SourceAccount` condition to EventBridge trust, (4) Enable WAF on artifacts API + dashboard ALB.
-**Motivation:** Items 13+14 (secrets as env vars in 17 Runtimes) expose credentials via Runtime metadata API. Highest priority before production.
-**Effort estimate:** Large
-**Related:** operator/references/PLATFORM-REFERENCE.md §IAM & Security Posture, INFRA.md Block 2
+**Current state:** `extra="forbid"` applied to 9 critical models. `ArtifactConfig`, `ThinkingConfig`, `ModelConfig`, `RuntimeConfig`, `GatewayConfig`, `MemoryConfig`, `ObservabilityConfig`, `PolicyConfig` still use default `extra="ignore"`.
+
+**What to do:**
+1. Add `extra="forbid"` to each remaining model's `ConfigDict`
+2. Audit all blueprint YAMLs for unknown fields in those sub-blocks
+3. Fix any YAML that has extra fields
+4. Add tests in `test_schema_hardening.py`
+
+**Effort:** Small (1 session)
 
 ---
 
-## ENH-020: `build_entrypoint()` Zero-Boilerplate App ▸ `someday` ▸ `proposed`
+## Backlog (unchanged)
 
-**Proposed:** 2026-03-30
-**Component:** Blueprints / Runtime
-**Description:** `build_entrypoint()` is available in the SDK but UNUSED. Domain uses manual `app.py` wiring. Adopting it would reduce per-agent boilerplate to a single function call.
-**Motivation:** Consistency and reduced boilerplate across all agent runtimes.
-**Effort estimate:** Low
-**Related:** operator/references/PLATFORM-REFERENCE.md §Capability Matrix (build_entrypoint: UNUSED)
+| ID | Enhancement | Priority | Effort |
+|----|-------------|----------|--------|
+| ENH-004 | Memory strategy expansion (EPISODIC + USER_PREFERENCE) | nice-to-have | Low |
+| ENH-005 | Server-side tool execution (Bedrock Responses API) | nice-to-have | Medium |
+| ENH-006 | AG-UI protocol for dashboard streaming | nice-to-have | Medium |
+| ENH-009 | A2A protocol (cross-runtime invocation) | someday | High |
+| ENH-010 | Memory streaming to Kinesis | someday | Medium |
+| ENH-020 | `build_entrypoint()` zero-boilerplate app | someday | Low |
