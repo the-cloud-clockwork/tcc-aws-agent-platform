@@ -287,6 +287,7 @@ class BlueprintLoader:
         Model instance.  Imports are lazy so non-default providers only require
         their SDK package when actually selected by a blueprint.
         """
+        provider_model: Any = None
         match model.provider:
             case "bedrock":
                 bedrock_region = os.environ.get("BEDROCK_REGION", "")
