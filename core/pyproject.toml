@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agent-core"
-version = "0.9.22"
+version = "0.9.23"
 description = "Agent Core -- Blueprint Engine, Execution Modes, Hooks, Schemas, Gateway, Memory, Identity, Policy"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -16,7 +16,7 @@ dependencies = [
     "mcp>=1.10.0",
     "mcp-proxy-for-aws>=1.1.0",
     "strands-agents[otel]>=1.0.0,<2",
-    "strands-agents-tools>=0.1.0",
+    "strands-agents-tools>=0.3.0",
     "bedrock-agentcore>=0.1.0",
     "starlette>=0.37,<1",
     "langfuse>=2.0,<3",
