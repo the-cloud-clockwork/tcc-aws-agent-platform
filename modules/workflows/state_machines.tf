@@ -68,6 +68,11 @@ resource "aws_sfn_state_machine" "workflows" {
                 "Payload.$" = try(state.prompt, "$.prompt")
               }
             )
+            ResultSelector = {
+              "body.$"       = "States.StringToJson($.Response)"
+              "status_code.$" = "$.StatusCode"
+              "session_id.$"  = "$.RuntimeSessionId"
+            }
             ResultPath = try(state.result_path, "$.results.${coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))}")
             Retry = try(state.retry, null) != null ? [
               for r in state.retry : {
@@ -324,7 +329,13 @@ resource "aws_sfn_state_machine" "workflows" {
                       )
                       ResultPath = try(bs.result_path, try(bs.lambda_ref, null) != null ? "$.results.${bs.lambda_ref}" : "$.results.${coalesce(try(bs.agent_ref, null), try(bs.agent, "unknown"))}")
                     },
-                    try(bs.lambda_ref, null) != null ? { ResultSelector = { "body.$" = "$.Payload" } } : {},
+                    try(bs.lambda_ref, null) != null ? { ResultSelector = { "body.$" = "$.Payload" } } : {
+                      ResultSelector = {
+                        "body.$"       = "States.StringToJson($.Response)"
+                        "status_code.$" = "$.StatusCode"
+                        "session_id.$"  = "$.RuntimeSessionId"
+                      }
+                    },
                     {
                       Retry = try(bs.retry, null) != null ? [
                         for r in bs.retry : {
@@ -356,6 +367,11 @@ resource "aws_sfn_state_machine" "workflows" {
                         "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))}"
                       )
                       "Payload.$" = "$.prompt"
+                    }
+                    ResultSelector = {
+                      "body.$"       = "States.StringToJson($.Response)"
+                      "status_code.$" = "$.StatusCode"
+                      "session_id.$"  = "$.RuntimeSessionId"
                     }
                     ResultPath = "$.results.${coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))}"
                     Retry = [{

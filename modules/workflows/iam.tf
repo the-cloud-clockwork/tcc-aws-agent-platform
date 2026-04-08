@@ -48,13 +48,18 @@ resource "aws_iam_role_policy" "sfn_invoke_agents" {
         "bedrock-agentcore:InvokeAgentRuntime",
         "bedrock-agentcore:StopRuntimeSession"
       ]
-      Resource = [
-        for agent_id in local.workflow_agent_refs[each.key] :
-        try(
-          var.agent_runtime_arns[agent_id],
-          "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${agent_id}"
-        )
-      ]
+      Resource = flatten([
+        for agent_id in local.workflow_agent_refs[each.key] : [
+          try(
+            var.agent_runtime_arns[agent_id],
+            "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${agent_id}"
+          ),
+          "${try(
+            var.agent_runtime_arns[agent_id],
+            "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${agent_id}"
+          )}/*"
+        ]
+      ])
     }]
   })
 }
