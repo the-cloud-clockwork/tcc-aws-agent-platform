@@ -6,7 +6,7 @@
 
 ---
 
-## ENH-001: AgentCore Policy GA — Cedar on Gateway ▸ `must-have` ▸ `proposed`
+## ENH-001: AgentCore Policy GA — Cedar on Gateway ▸ `must-have` ▸ `done`
 
 **Proposed:** 2026-03-30
 **Component:** Policy / Gateway / Infrastructure
@@ -17,7 +17,7 @@
 
 ---
 
-## ENH-002: Online Evaluation (Continuous Monitoring) ▸ `must-have` ▸ `proposed`
+## ENH-002: Online Evaluation (Continuous Monitoring) ▸ `must-have` ▸ `done`
 
 **Proposed:** 2026-03-30
 **Component:** Evaluation / Observability
@@ -28,7 +28,7 @@
 
 ---
 
-## ENH-003: Middleware Chain (Correlation IDs + Structured Errors) ▸ `must-have` ▸ `proposed`
+## ENH-003: Middleware Chain (Correlation IDs + Structured Errors) ▸ `must-have` ▸ `done`
 
 **Proposed:** 2026-03-30
 **Component:** Runtime
@@ -72,7 +72,7 @@
 
 ---
 
-## ENH-007: Bedrock Guardrails for Agent I/O ▸ `nice-to-have` ▸ `proposed`
+## ENH-007: Bedrock Guardrails for Agent I/O ▸ `nice-to-have` ▸ `done`
 
 **Proposed:** 2026-03-30
 **Component:** Runtime / Policy
@@ -83,7 +83,7 @@
 
 ---
 
-## ENH-008: PII Filter on Langfuse Traces ▸ `must-have` ▸ `proposed`
+## ENH-008: PII Filter on Langfuse Traces ▸ `must-have` ▸ `done`
 
 **Proposed:** 2026-03-30
 **Component:** Observability
@@ -116,7 +116,7 @@
 
 ---
 
-## ENH-011: Platform Terraform Module — `modules/lambda` ▸ `must-have` ▸ `proposed`
+## ENH-011: Platform Terraform Module — `modules/lambda` ▸ `must-have` ▸ `done`
 
 **Proposed:** 2026-03-30
 **Component:** Infrastructure / Terraform
@@ -127,7 +127,7 @@
 
 ---
 
-## ENH-012: Platform Terraform Module — `modules/lambda_alarms` ▸ `nice-to-have` ▸ `proposed`
+## ENH-012: Platform Terraform Module — `modules/lambda_alarms` ▸ `nice-to-have` ▸ `done`
 
 **Proposed:** 2026-03-30
 **Component:** Infrastructure / Terraform
@@ -138,7 +138,7 @@
 
 ---
 
-## ENH-013: Platform Terraform Module — `modules/scheduled_lambda` ▸ `nice-to-have` ▸ `proposed`
+## ENH-013: Platform Terraform Module — `modules/scheduled_lambda` ▸ `nice-to-have` ▸ `done`
 
 **Proposed:** 2026-03-30
 **Component:** Infrastructure / Terraform
@@ -149,7 +149,7 @@
 
 ---
 
-## ENH-014: Platform Terraform Module — `modules/s3_encrypted_bucket` ▸ `someday` ▸ `proposed`
+## ENH-014: Platform Terraform Module — `modules/s3_encrypted_bucket` ▸ `someday` ▸ `done`
 
 **Proposed:** 2026-03-30
 **Component:** Infrastructure / Terraform
@@ -160,7 +160,7 @@
 
 ---
 
-## ENH-015: Blueprint Schema Hardening (`extra="forbid"`) ▸ `must-have` ▸ `proposed`
+## ENH-015: Blueprint Schema Hardening (`extra="forbid"`) ▸ `must-have` ▸ `done`
 
 **Proposed:** 2026-03-30
 **Component:** Schemas / Blueprints
@@ -171,7 +171,7 @@
 
 ---
 
-## ENH-016: Schema Fixes — A2A, Gate Nodes, Credentials ▸ `must-have` ▸ `proposed`
+## ENH-016: Schema Fixes — A2A, Gate Nodes, Credentials ▸ `must-have` ▸ `done`
 
 **Proposed:** 2026-03-30
 **Component:** Schemas
@@ -182,7 +182,7 @@
 
 ---
 
-## ENH-017: Expose `secrets_kms_key_arn` from Platform Outputs ▸ `nice-to-have` ▸ `proposed`
+## ENH-017: Expose `secrets_kms_key_arn` from Platform Outputs ▸ `nice-to-have` ▸ `done`
 
 **Proposed:** 2026-03-30
 **Component:** Infrastructure / Security
@@ -193,7 +193,7 @@
 
 ---
 
-## ENH-018: Add Descriptions to 30+ Platform Outputs ▸ `someday` ▸ `proposed`
+## ENH-018: Add Descriptions to 30+ Platform Outputs ▸ `someday` ▸ `done`
 
 **Proposed:** 2026-03-30
 **Component:** Infrastructure / Terraform
@@ -204,7 +204,7 @@
 
 ---
 
-## ENH-019: Production IAM Tightening (17 Permissive Items) ▸ `must-have` ▸ `proposed`
+## ENH-019: Production IAM Tightening (17 Permissive Items) ▸ `must-have` ▸ `done`
 
 **Proposed:** 2026-03-30
 **Component:** Security / IAM
