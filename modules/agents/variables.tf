@@ -20,6 +20,26 @@ variable "bedrock_region" {
   default = ""
 }
 
+variable "litellm_base_url" {
+  type        = string
+  description = "LiteLLM API base URL. Empty = not injected."
+  default     = ""
+}
+
+variable "litellm_api_key" {
+  type        = string
+  description = "LiteLLM API key. Empty = not injected."
+  default     = ""
+  sensitive   = true
+}
+
+variable "anthropic_api_key" {
+  type        = string
+  description = "Anthropic API key. Empty = not injected."
+  default     = ""
+  sensitive   = true
+}
+
 variable "ssm_root_path" {
   type = string
 }

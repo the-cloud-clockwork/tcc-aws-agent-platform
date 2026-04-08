@@ -282,6 +282,89 @@ class TestBedrockRegionEnforcement:
                         loader.build_agent_session("test-agent")
 
 
+class TestProviderDispatch:
+    """Verify _build_model_config dispatches to the correct Strands provider."""
+
+    def _make_model(self, provider: str = "bedrock", **overrides):
+        from agent_core.schemas.model_config import ModelConfig
+
+        defaults = {
+            "provider": provider,
+            "model_id": f"{provider}-test-model",
+            "temperature": 0.5,
+            "max_tokens": 1024,
+        }
+        defaults.update(overrides)
+        return ModelConfig(**defaults)
+
+    def test_bedrock_dispatches(self):
+        from agent_core.blueprints.loader import BlueprintLoader
+
+        with patch("strands.models.BedrockModel") as mock_cls:
+            mock_cls.return_value = MagicMock()
+            with patch.dict("os.environ", {"BEDROCK_REGION": "us-east-1"}):
+                result = BlueprintLoader._build_model_config(self._make_model("bedrock"))
+            mock_cls.assert_called_once()
+            kw = mock_cls.call_args
+            assert kw.kwargs["model_id"] == "bedrock-test-model"
+            assert kw.kwargs["region_name"] == "us-east-1"
+            assert kw.kwargs["max_tokens"] == 1024
+            assert "model" in result
+
+    def test_anthropic_dispatches(self):
+        from agent_core.blueprints.loader import BlueprintLoader
+
+        with patch("strands.models.anthropic.AnthropicModel") as mock_cls:
+            mock_cls.return_value = MagicMock()
+            model = self._make_model("anthropic", api_key_env="ANTHROPIC_API_KEY")
+            with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}):
+                result = BlueprintLoader._build_model_config(model)
+            mock_cls.assert_called_once()
+            kw = mock_cls.call_args
+            assert kw.kwargs["model_id"] == "anthropic-test-model"
+            assert kw.kwargs["max_tokens"] == 1024
+            assert kw.kwargs["client_args"]["api_key"] == "test-key"
+            assert "model" in result
+
+    def test_litellm_dispatches(self):
+        from agent_core.blueprints.loader import BlueprintLoader
+
+        with patch("strands.models.litellm.LiteLLMModel") as mock_cls:
+            mock_cls.return_value = MagicMock()
+            model = self._make_model(
+                "litellm",
+                base_url="http://litellm.local",
+                api_key_env="LITELLM_API_KEY",
+            )
+            with patch.dict("os.environ", {"LITELLM_API_KEY": "lk-test"}):
+                result = BlueprintLoader._build_model_config(model)
+            mock_cls.assert_called_once()
+            kw = mock_cls.call_args
+            assert kw.kwargs["model_id"] == "litellm-test-model"
+            assert kw.kwargs["client_args"]["base_url"] == "http://litellm.local"
+            assert kw.kwargs["client_args"]["api_key"] == "lk-test"
+            assert kw.kwargs["params"] == {"max_tokens": 1024, "temperature": 0.5}
+            assert "model" in result
+
+    def test_non_bedrock_no_region_required(self):
+        """Anthropic provider must work without BEDROCK_REGION."""
+        from agent_core.blueprints.loader import BlueprintLoader
+
+        with patch("strands.models.anthropic.AnthropicModel") as mock_cls:
+            mock_cls.return_value = MagicMock()
+            with patch.dict("os.environ", {}, clear=True):
+                result = BlueprintLoader._build_model_config(self._make_model("anthropic"))
+            assert "model" in result
+
+    def test_unknown_provider_raises(self):
+        from agent_core.blueprints.loader import BlueprintLoadError, BlueprintLoader
+
+        model = MagicMock()
+        model.provider = "unsupported"
+        with pytest.raises(BlueprintLoadError, match="Unsupported model provider"):
+            BlueprintLoader._build_model_config(model)
+
+
 class TestStateDictWithMemory:
     """Verify state= dict is passed to Agent when memory is configured."""
 

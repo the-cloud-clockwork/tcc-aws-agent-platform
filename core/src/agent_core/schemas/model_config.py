@@ -26,3 +26,11 @@ class ModelConfig(BaseModel):
         default="default",
         description="Tool-result caching policy.",
     )
+    base_url: str | None = Field(
+        default=None,
+        description="API base URL for litellm/openai-compatible providers.",
+    )
+    api_key_env: str | None = Field(
+        default=None,
+        description="Env var name holding the API key. Never the key itself.",
+    )

@@ -283,24 +283,66 @@ class BlueprintLoader:
     ) -> dict[str, Any]:
         """Build provider-specific model configuration dict.
 
-        Strands Agent accepts ``model`` as a string model-id or a Model object.
-        Temperature and max_tokens are passed to the model provider, not the Agent.
+        Dispatches on ``model.provider`` to construct the appropriate Strands
+        Model instance.  Imports are lazy so non-default providers only require
+        their SDK package when actually selected by a blueprint.
         """
-        bedrock_region = os.environ.get("BEDROCK_REGION", "")
-        if not bedrock_region:
-            raise BlueprintLoadError(
-                "BEDROCK_REGION env var is required. Set it to the AWS region "
-                "where Bedrock models are available (e.g. us-west-2, eu-west-1)."
-            )
-        from strands.models import BedrockModel
+        match model.provider:
+            case "bedrock":
+                bedrock_region = os.environ.get("BEDROCK_REGION", "")
+                if not bedrock_region:
+                    raise BlueprintLoadError(
+                        "BEDROCK_REGION env var is required for bedrock provider."
+                    )
+                from strands.models import BedrockModel
 
-        bedrock_model = BedrockModel(
-            model_id=model.model_id,
-            region_name=bedrock_region,
-        )
-        config: dict[str, Any] = {
-            "model": bedrock_model,
-        }
+                provider_model = BedrockModel(
+                    model_id=model.model_id,
+                    region_name=bedrock_region,
+                    max_tokens=model.max_tokens,
+                )
+
+            case "anthropic":
+                from strands.models.anthropic import AnthropicModel
+
+                client_args: dict[str, Any] = {}
+                if model.api_key_env:
+                    key = os.environ.get(model.api_key_env, "")
+                    if key:
+                        client_args["api_key"] = key
+                provider_model = AnthropicModel(
+                    client_args=client_args or None,
+                    model_id=model.model_id,
+                    max_tokens=model.max_tokens,
+                )
+
+            case "litellm":
+                from strands.models.litellm import LiteLLMModel
+
+                client_args_l: dict[str, Any] = {}
+                if model.base_url:
+                    client_args_l["base_url"] = model.base_url
+                if model.api_key_env:
+                    key = os.environ.get(model.api_key_env, "")
+                    if key:
+                        client_args_l["api_key"] = key
+                provider_model = LiteLLMModel(
+                    client_args=client_args_l or None,
+                    model_id=model.model_id,
+                    params={"max_tokens": model.max_tokens, "temperature": model.temperature},
+                )
+
+            case "vertex":
+                from strands.models.gemini import GeminiModel
+
+                provider_model = GeminiModel(model_id=model.model_id)
+
+            case _:
+                raise BlueprintLoadError(
+                    f"Unsupported model provider: {model.provider!r}"
+                )
+
+        config: dict[str, Any] = {"model": provider_model}
         if thinking is not None and getattr(thinking, "enabled", False):
             config["thinking"] = {
                 "type": "enabled",
