@@ -49,3 +49,26 @@ variable "waf_ip_whitelist" {
   type        = list(string)
   default     = []
 }
+
+# ── Guardrail ────────────────────────────────────────────────────────────────
+
+variable "guardrail_enabled" {
+  description = "Whether to create a Bedrock Guardrail for PII/content protection."
+  type        = bool
+  default     = false
+}
+
+variable "guardrail_pii_entities" {
+  description = "PII entity types and actions for the guardrail. Each entry has type (e.g. EMAIL) and action (ANONYMIZE or BLOCK)."
+  type = list(object({
+    type   = string
+    action = string
+  }))
+  default = [
+    { type = "EMAIL", action = "ANONYMIZE" },
+    { type = "PHONE", action = "ANONYMIZE" },
+    { type = "NAME", action = "ANONYMIZE" },
+    { type = "US_SOCIAL_SECURITY_NUMBER", action = "BLOCK" },
+    { type = "CREDIT_DEBIT_CARD_NUMBER", action = "BLOCK" },
+  ]
+}

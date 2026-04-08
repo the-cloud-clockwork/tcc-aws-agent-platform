@@ -288,6 +288,16 @@ output "artifacts_mcp_lambda_name" {
 }
 
 
+output "guardrail_id" {
+  description = "Bedrock Guardrail ID for PII/content protection. Empty when disabled."
+  value       = module.security.guardrail_id
+}
+
+output "guardrail_version" {
+  description = "Published Bedrock Guardrail version number. Empty when disabled."
+  value       = module.security.guardrail_version
+}
+
 output "secrets_kms_key_arn" {
   description = "KMS key ARN for Secrets Manager encryption."
   value       = module.security.secrets_kms_key_arn

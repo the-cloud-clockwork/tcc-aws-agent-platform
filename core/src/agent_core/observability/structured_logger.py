@@ -21,6 +21,8 @@ import logging
 import os
 import time
 import uuid
+
+from agent_core.runtime.middleware import get_correlation_id
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -106,7 +108,7 @@ class StructuredLogger:
             timestamp=time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()),
             level=level,
             message=message,
-            trace_id=self.trace_id,
+            trace_id=get_correlation_id() or self.trace_id,
             execution_id=self.execution_id,
             agent_id=self.agent_id,
             prompt_version=self.prompt_version,

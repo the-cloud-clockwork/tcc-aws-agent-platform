@@ -30,3 +30,23 @@ AWS fixes Gateway Issue #809:
 2. `terraform apply`
 3. Verify `tools/call` works through Gateway
 4. Remove `direct_mcp_client.py` and feature flag code in cleanup PR
+
+---
+
+## KI-002: Cedar policy engines are SDK-managed, not IaC
+
+**Status:** ACCEPTED (by design)
+**Since:** 2026-04-08
+**Affected:** All environments
+
+### Description
+
+AgentCore policy engines and Cedar policies are created at runtime by the SDK (`PolicyWiring` in `agent_core.policy.wiring`), not by Terraform. The `aws_bedrockagentcore_policy_engine` resource type does not exist in AWS provider 6.37. The SDK creates engines idempotently via `PolicyClient.create_engine()`.
+
+### Implication
+
+Policy state lives in AgentCore's control plane, not in Terraform state. Policy changes are deployed when agents start (runtime wiring), not during `terraform apply`. This means policy drift is not detectable by Terraform.
+
+### When to Revisit
+
+When AWS publishes `aws_bedrockagentcore_policy_engine` as a Terraform resource, evaluate migrating to IaC-managed policies for state tracking and drift detection.

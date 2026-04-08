@@ -75,3 +75,13 @@ output "waf_acl_arn" {
   description = "ARN of the WAF Web ACL. Empty string when WAF is disabled."
   value       = var.waf_enabled ? aws_wafv2_web_acl.main[0].arn : ""
 }
+
+output "guardrail_id" {
+  description = "Bedrock Guardrail ID for PII/content protection. Empty when guardrail disabled."
+  value       = var.guardrail_enabled ? aws_bedrock_guardrail.platform[0].guardrail_id : ""
+}
+
+output "guardrail_version" {
+  description = "Published Bedrock Guardrail version number. Empty when guardrail disabled."
+  value       = var.guardrail_enabled ? aws_bedrock_guardrail_version.platform[0].version : ""
+}
