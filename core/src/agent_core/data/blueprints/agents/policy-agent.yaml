@@ -17,6 +17,7 @@ model:
   provider: bedrock
   model_id: ${MODEL_ID}
   max_tokens: 4096
+  temperature: 0.1
 
 prompt_ref: policy-agent-system-v1
 

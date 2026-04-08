@@ -21,14 +21,22 @@ from agent_core.schemas.tool_config import ToolDeclaration
 class GraphNodeConfig(BaseModel):
     """A node in a multi-blueprint graph, referencing another agent blueprint.
 
-    For in-process nodes: only agent_ref and node_id are needed.
+    For agent nodes: agent_ref and node_id are needed.
+    For gate nodes: type="gate" with trip_condition; agent_ref is None.
     For remote nodes: set a2a_url/a2a_url_env or runtime_arn/runtime_arn_env.
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
-    agent_ref: str = Field(..., description="Blueprint ID to load for this node.")
+    agent_ref: str | None = Field(
+        default=None,
+        description="Blueprint ID to load for this node. None for gate nodes.",
+    )
     node_id: str = Field(..., description="Unique node identifier within the graph.")
+    type: Literal["agent", "gate"] = Field(
+        default="agent",
+        description="Node type: 'agent' runs a blueprint, 'gate' evaluates a condition.",
+    )
     a2a_url: str = Field(
         default="",
         description="A2A protocol URL for remote agent. Empty = in-process node.",
@@ -45,12 +53,20 @@ class GraphNodeConfig(BaseModel):
         default="",
         description="Env var name holding the runtime ARN.",
     )
+    trip_condition: str | None = Field(
+        default=None,
+        description="Condition expression that gates execution (gate nodes only).",
+    )
+    fallback: str | None = Field(
+        default=None,
+        description="Node ID to route to when trip_condition is not met.",
+    )
 
 
 class GraphEdgeConfig(BaseModel):
     """An edge connecting two nodes in a multi-blueprint graph."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     from_node: str = Field(..., description="Source node ID.")
     to_node: str = Field(..., description="Destination node ID.")
@@ -63,7 +79,7 @@ class GraphEdgeConfig(BaseModel):
 class MultiAgentConfig(BaseModel):
     """Multi-agent orchestration settings."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     role: Literal["coordinator", "specialist", "standalone"] = Field(
         default="standalone",
@@ -86,6 +102,10 @@ class MultiAgentConfig(BaseModel):
     entry_point: str | None = Field(
         default=None,
         description="Node ID to start execution from (must be in nodes).",
+    )
+    specialists: list[str] = Field(
+        default_factory=list,
+        description="Blueprint IDs for specialist agents in swarm pattern.",
     )
 
     @model_validator(mode="after")
@@ -132,7 +152,7 @@ class ThinkingConfig(BaseModel):
 class AgentBlueprint(BaseModel):
     """Full specification for a single agent, loaded from YAML."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     id: str
     version: str

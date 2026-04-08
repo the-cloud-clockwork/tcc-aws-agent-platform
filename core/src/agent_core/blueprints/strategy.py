@@ -45,6 +45,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from agent_core.schemas.evaluation_config import EvaluationPersistenceConfig
 from agent_core.schemas.execution_modes import ExecutionModes
 
 _PARAM_TYPE_ALIASES: dict[str, str] = {
@@ -130,7 +131,7 @@ class ParameterConfig(BaseModel):
 class StrategyEvaluationConfig(BaseModel):
     """Strategy backtesting and evaluation configuration."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     primary_metric: str = Field(
         ..., description="Primary performance metric for ranking."
@@ -148,6 +149,10 @@ class StrategyEvaluationConfig(BaseModel):
         default=None,
         gt=0,
         description="Minimum activations for statistical significance.",
+    )
+    persistence: EvaluationPersistenceConfig | None = Field(
+        default=None,
+        description="DynamoDB persistence for strategy evaluation results.",
     )
 
 

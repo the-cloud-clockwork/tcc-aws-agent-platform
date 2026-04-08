@@ -79,7 +79,7 @@ class CredentialConfig(BaseModel):
     runtime via ``@requires_api_key`` or ``@requires_access_token``.
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     name: str = Field(
         ...,
@@ -104,6 +104,10 @@ class CredentialConfig(BaseModel):
     callback_url_env: str | None = Field(
         default=None,
         description="Env var name holding the OAuth2 callback URL (3LO only).",
+    )
+    secret_arn: str | None = Field(
+        default=None,
+        description="Secrets Manager ARN for credential storage.",
     )
 
 
