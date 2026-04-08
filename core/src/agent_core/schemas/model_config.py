@@ -34,3 +34,7 @@ class ModelConfig(BaseModel):
         default=None,
         description="Env var name holding the API key. Never the key itself.",
     )
+    extra_headers_env: dict[str, str] | None = Field(
+        default=None,
+        description="Map of HTTP header name → env var name. Resolved at runtime. E.g. {'CF-Access-Client-Id': 'CF_ACCESS_CLIENT_ID'}.",
+    )

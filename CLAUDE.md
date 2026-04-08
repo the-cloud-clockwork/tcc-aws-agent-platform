@@ -82,6 +82,12 @@ To 85/100: NM-001 (tests), NM-002 (domain IAM), NM-003 (enable guardrails).
 To 95/100: NM-004 (secrets rotation), NM-005 (online eval), NM-006 (adopt modules).
 **Next:** LiteLLM test — add `litellm` to one agent image, set API key, invoke with `provider: litellm`.
 
+## Quick Test Lambda — `test-litellm-proxy`
+Disposable Lambda for testing connectivity, headers, and API calls from inside AWS networking.
+Update code: `cd /tmp && zip test.zip test.py && aws lambda update-function-code --function-name test-litellm-proxy --zip-file fileb:///tmp/test.zip`
+Invoke: `aws lambda invoke --function-name test-litellm-proxy --payload '{"key":"val"}' /tmp/result.json && cat /tmp/result.json | python3 -m json.tool`
+Role: `qitp-dev-risk-engine-role` (has VPC + secrets access). Runtime: python3.12, 30s timeout.
+
 ## AWS Configuration
 | Setting | Value |
 |---------|-------|

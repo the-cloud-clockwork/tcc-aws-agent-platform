@@ -327,6 +327,14 @@ class BlueprintLoader:
                     key = os.environ.get(model.api_key_env, "")
                     if key:
                         client_args_l["api_key"] = key
+                if model.extra_headers_env:
+                    headers = {}
+                    for header_name, env_var in model.extra_headers_env.items():
+                        val = os.environ.get(env_var, "")
+                        if val:
+                            headers[header_name] = val
+                    if headers:
+                        client_args_l["default_headers"] = headers
                 provider_model = LiteLLMModel(
                     client_args=client_args_l or None,
                     model_id=model.model_id,
