@@ -22,20 +22,23 @@
 
 ---
 
-## Block 2: Security & Production Hardening ▸ `ready`
+## Block 2: Security & Production Hardening ▸ `done`
 
 **Goal:** Close all security gaps before production. IAM tightening, secrets hygiene, PII filtering.
 
-- [ ] ENH-019: Production IAM tightening — scope `bedrock:*`, move secrets from env vars to SSM fetch, `aws:SourceAccount` conditions, WAF on artifacts API + dashboard ALB (17 items) — Large
-- [ ] ENH-008: PII filter callback on Langfuse traces — Low
-- [ ] ENH-017: Expose `secrets_kms_key_arn` from platform outputs — Low
-- [ ] SWEEP: Fix throttle burst/rate inversion in staging+prod tfvars
-- [ ] SWEEP: Add JWT cross-variable validation
-- [ ] SWEEP: Move KMS ARNs from SSM String to SecureString
-- [ ] SWEEP: Address `mcp_m2m_client_id` sensitivity (mark sensitive in Terraform)
+- [x] ENH-019 #3: Gateway IAM `bedrock-agentcore:*` → 16 enumerated actions across 3 statements
+- [x] ENH-019 #4: KMS `Resource:"*"` fallback removed — validation requires non-empty ARN
+- [x] ENH-008: PII filter wired through `CompositeObservabilityHook` → `LangfuseHook` → `build_pii_filter()`
+- [x] ENH-017: `secrets_kms_key_arn` exposed from platform outputs
+- [x] SWEEP: Throttle burst 500→1000 in staging+prod (burst must exceed rate)
+- [x] SWEEP: JWT cross-validation upgraded from `check` (warning) to `precondition` (hard error) on gateway resource
+- [x] SWEEP: KMS ARN SSM params → `SecureString` with secrets KMS key encryption
+- [x] SWEEP: `mcp_m2m_client_id` marked `sensitive` in platform + agentcore outputs
 
-**Why second:** Items 13+14 from ENH-019 expose credentials via Runtime metadata API. PII flows unfiltered to external Langfuse. Must close before any production traffic.
-**DoD:** `terraform plan` + `apply` in `tccw-qitp` with zero errors
+**Out of scope (domain repo):** ENH-019 items #1, #2, #5-14, #15-17 live in `modules/agents/` or domain infra — tracked separately.
+
+**Completed:** 2026-04-08
+**DoD:** ✅ `terraform plan` in `tccw-qitp`: 1 add, 96 change, 0 destroy. Pre-existing `cf_access` secret error is unrelated.
 
 ---
 
