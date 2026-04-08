@@ -11,13 +11,11 @@ See KNOWN_ISSUES.md KI-001.
 from __future__ import annotations
 
 import base64
-import functools
 import json
 import logging
 import os
 import time
 from typing import Any
-from urllib.parse import quote
 
 import httpx
 from mcp.client.streamable_http import streamablehttp_client

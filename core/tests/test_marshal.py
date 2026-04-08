@@ -46,7 +46,7 @@ class TestMarshalOutput:
         with patch.dict(sys.modules, {"boto3": mock_boto3}):
             from agent_core.runtime.marshal import marshal_output
 
-            result = marshal_output(
+            marshal_output(
                 result="test output",
                 agent_id="agent-1",
                 execution_id="exec-1",

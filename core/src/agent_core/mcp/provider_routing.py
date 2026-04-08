@@ -19,10 +19,14 @@ Usage::
 
 from __future__ import annotations
 
+from typing import TypeVar
+
 from agent_core.execution.mode import ExecutionMode, get_execution_mode
 
+T = TypeVar("T")
 
-def resolve_provider[T](
+
+def resolve_provider(
     registry: dict[ExecutionMode, type[T]],
     *,
     aliases: dict[str, str] | None = None,

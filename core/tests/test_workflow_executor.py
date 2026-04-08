@@ -88,7 +88,7 @@ class TestWorkflowExecutor:
             {"id": "s2", "type": "task"},
         ])
         handler = MagicMock(return_value={"val": 42})
-        result = WorkflowExecutor(task_handler=handler).execute(bp, {"x": 1})
+        WorkflowExecutor(task_handler=handler).execute(bp, {"x": 1})
         # s2 should receive data with output.val = 42
         s2_call_data = handler.call_args_list[1][0][2]
         assert s2_call_data["output"]["val"] == 42
