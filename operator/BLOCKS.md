@@ -18,7 +18,7 @@
 - [x] New test file: `test_schema_hardening.py` — extra-forbid + new field coverage
 
 **Completed:** 2026-04-08
-**DoD:** ⚠️ Pending — `terraform plan`/`apply` in `tccw-qitp` not yet validated
+**DoD:** ✅ Block 1 changes are SDK-only (schemas). Validated via Block 2 apply.
 
 ---
 
@@ -38,7 +38,7 @@
 **Out of scope (domain repo):** ENH-019 items #1, #2, #5-14, #15-17 live in `modules/agents/` or domain infra — tracked separately.
 
 **Completed:** 2026-04-08
-**DoD:** ✅ `terraform plan` in `tccw-qitp`: 1 add, 96 change, 0 destroy. Pre-existing `cf_access` secret error is unrelated.
+**DoD:** ✅ `terraform apply` in `tccw-qitp`: Apply complete! 0 added, 36 changed, 0 destroyed. Zero errors.
 
 ---
 
