@@ -462,8 +462,17 @@ class BlueprintLoader:
             pii_filter=pii_filter,
         )
 
-        # Compose hooks: observability first, then custom, then memory
+        # -- auto-wire guardrail hook from blueprint config --
+        from agent_core.hooks.guardrail_hook import GuardrailHook
+
+        guardrail_hook = None
+        if os.environ.get(blueprint.observability.data_protection.guardrail_id_env):
+            guardrail_hook = GuardrailHook(config=blueprint.observability.data_protection)
+
+        # Compose hooks: observability first, then guardrail, then custom, then memory
         hooks: list[Any] = [obs_hook]
+        if guardrail_hook is not None:
+            hooks.append(guardrail_hook)
         hooks.extend(self._resolve_hooks(blueprint.hooks))
         if memory_wiring is not None:
             hooks.append(memory_wiring.hook_provider)

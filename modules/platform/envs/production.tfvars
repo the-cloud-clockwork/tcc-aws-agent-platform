@@ -38,3 +38,5 @@ api_throttle_burst = 1000
 tags = {
   CostCenter = "production"
 }
+
+guardrail_enabled = false

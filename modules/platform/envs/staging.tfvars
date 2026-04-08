@@ -36,3 +36,5 @@ api_throttle_burst = 1000
 tags = {
   CostCenter = "staging"
 }
+
+guardrail_enabled = false

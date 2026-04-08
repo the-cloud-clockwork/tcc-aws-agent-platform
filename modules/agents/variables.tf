@@ -318,3 +318,25 @@ variable "cognito_mcp_scopes" {
   description = "OAuth2 scopes for direct MCP auth (comma-separated)."
   default     = ""
 }
+
+# ── Guardrail ────────────────────────────────────────────────────────────────
+
+variable "guardrail_id" {
+  description = "Bedrock Guardrail ID. Injected as BEDROCK_GUARDRAIL_ID env var. Empty disables guardrail."
+  type        = string
+  default     = ""
+}
+
+variable "guardrail_version" {
+  description = "Bedrock Guardrail version. Injected as BEDROCK_GUARDRAIL_VERSION env var."
+  type        = string
+  default     = ""
+}
+
+# ── Evaluation ───────────────────────────────────────────────────────────────
+
+variable "evaluation_table_name" {
+  description = "DynamoDB evaluation results table name. Injected as EVALUATION_TABLE env var. Empty disables persistence."
+  type        = string
+  default     = ""
+}

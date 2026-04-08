@@ -21,6 +21,8 @@ from typing import Any
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from starlette.middleware import Middleware
 
+from agent_core.runtime.middleware import CorrelationIdMiddleware, StructuredErrorMiddleware
+
 from agent_core.runtime.adapter import InvocationContext
 
 logger = logging.getLogger(__name__)
@@ -61,8 +63,12 @@ class AgentCoreApp:
         *,
         middleware: list[Middleware] | None = None,
     ) -> None:
+        _default_middleware = [
+            Middleware(CorrelationIdMiddleware),
+            Middleware(StructuredErrorMiddleware),
+        ]
         self._sdk_app = BedrockAgentCoreApp(
-            middleware=middleware or [],
+            middleware=_default_middleware + (middleware or []),
         )
         self._entrypoint_fn: Callable | None = None
         logger.info("AgentCoreApp initialized")

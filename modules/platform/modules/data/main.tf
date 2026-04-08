@@ -49,6 +49,14 @@ locals {
       ttl_field = "expires_at"
       gsis      = []
     }
+    evaluation = {
+      hash_key  = "agent_id"
+      range_key = "sort_key"
+      ttl_field = "ttl"
+      gsis = [
+        { name = "session_id-index", hash_key = "session_id", range_key = "sort_key" }
+      ]
+    }
   }
 
   is_provisioned = var.dynamodb_billing_mode == "PROVISIONED"

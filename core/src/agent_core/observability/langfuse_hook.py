@@ -17,6 +17,8 @@ import logging
 import os
 import time
 import uuid
+
+from agent_core.runtime.middleware import get_correlation_id
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -135,7 +137,7 @@ class LangfuseHook:
         self._total_input_tokens = 0
         self._total_output_tokens = 0
         self._total_cost_usd = 0.0
-        self._trace_id = str(uuid.uuid4())
+        self._trace_id = get_correlation_id() or str(uuid.uuid4())
 
         client = _get_langfuse_client()
         if client is None:

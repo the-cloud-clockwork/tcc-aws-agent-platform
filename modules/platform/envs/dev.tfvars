@@ -37,3 +37,5 @@ api_cors_origins   = ["http://localhost:3000"]
 tags = {
   CostCenter = "development"
 }
+
+guardrail_enabled = false

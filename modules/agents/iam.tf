@@ -275,6 +275,24 @@ data "aws_iam_policy_document" "agent_permissions" {
       ]
     }
   }
+
+  # Conditional: DynamoDB evaluation results table access
+  dynamic "statement" {
+    for_each = var.evaluation_table_name != "" ? [1] : []
+    content {
+      sid    = "EvaluationTableAccess"
+      effect = "Allow"
+      actions = [
+        "dynamodb:PutItem",
+        "dynamodb:GetItem",
+        "dynamodb:Query",
+      ]
+      resources = [
+        "arn:aws:dynamodb:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/${var.evaluation_table_name}",
+        "arn:aws:dynamodb:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/${var.evaluation_table_name}/index/*",
+      ]
+    }
+  }
 }
 
 resource "aws_iam_role_policy" "agent" {

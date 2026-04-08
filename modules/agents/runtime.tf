@@ -55,12 +55,12 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
     } : {},
     # WORKAROUND: Direct MCP bypass (AWS Issue #809) — see KNOWN_ISSUES.md KI-001
     var.gateway_direct_mcp ? {
-      GATEWAY_DIRECT_MCP      = "true"
-      MCP_DIRECT_URLS         = jsonencode(var.mcp_direct_urls)
-      COGNITO_TOKEN_URL       = var.cognito_token_url
-      COGNITO_MCP_CLIENT_ID   = var.cognito_mcp_client_id
+      GATEWAY_DIRECT_MCP        = "true"
+      MCP_DIRECT_URLS           = jsonencode(var.mcp_direct_urls)
+      COGNITO_TOKEN_URL         = var.cognito_token_url
+      COGNITO_MCP_CLIENT_ID     = var.cognito_mcp_client_id
       COGNITO_MCP_CLIENT_SECRET = var.cognito_mcp_client_secret
-      COGNITO_MCP_SCOPES      = var.cognito_mcp_scopes
+      COGNITO_MCP_SCOPES        = var.cognito_mcp_scopes
     } : {},
     # OTEL observability -- mirrors SDK generate_otel_env()
     local.otel_env_vars,
@@ -76,6 +76,13 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
       LANGFUSE_HOST       = var.langfuse_host
       LANGFUSE_ENABLED    = "true"
     } : {},
+    # Guardrail -- Bedrock content filtering
+    var.guardrail_id != "" ? {
+      BEDROCK_GUARDRAIL_ID      = var.guardrail_id
+      BEDROCK_GUARDRAIL_VERSION = var.guardrail_version
+    } : {},
+    # Evaluation persistence
+    var.evaluation_table_name != "" ? { EVALUATION_TABLE = var.evaluation_table_name } : {},
   )
 
   # Network configuration -- PUBLIC or VPC

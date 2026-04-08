@@ -77,6 +77,8 @@ module "security" {
   waf_enabled                  = var.waf_enabled
   waf_rate_limit               = var.waf_rate_limit
   waf_ip_whitelist             = var.waf_ip_whitelist
+  guardrail_enabled            = var.guardrail_enabled
+  guardrail_pii_entities       = var.guardrail_pii_entities
   tags                         = local.tags
 }
 
