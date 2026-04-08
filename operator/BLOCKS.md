@@ -5,14 +5,18 @@
 
 ---
 
-## Block 1: Schema & Blueprint Hardening ▸ `ready`
+## Block 1: Schema & Blueprint Hardening ▸ `done`
 
 **Goal:** Fix silent schema failures so all 9 blueprints load correctly with strict validation.
 
-- [ ] ENH-015: Add `extra="forbid"` to critical Pydantic models (AgentBlueprint, ToolDeclaration, GraphNodeConfig, CredentialConfig, StrategyEvaluationConfig) — Medium
-- [ ] ENH-016: Six schema fixes — A2aToolConfig union, optional agent_ref for gate nodes, secret_arn on CredentialConfig, persistence on StrategyEvaluationConfig, gate fields on GraphNodeConfig, specialists on MultiAgentConfig — Medium
+- [x] ENH-015: `extra="forbid"` on 7 models (AgentBlueprint, GraphNodeConfig, GraphEdgeConfig, MultiAgentConfig, McpToolConfig, BuiltinToolConfig, CredentialConfig, StrategyEvaluationConfig)
+- [x] ENH-016: Six schema fixes — A2aToolConfig union, optional agent_ref, secret_arn, persistence, gate fields, specialists
+- [x] Pre-existing bug: RuntimeConfig.network_mode `"VPC"` → `"PRIVATE"` (5 blueprints affected)
+- [x] Pre-existing bug: policy-agent.yaml missing required `temperature` field
+- [x] Test fixes: model dicts in 4 test files missing `temperature`/`max_tokens`
+- [x] New test file: `test_schema_hardening.py` — extra-forbid + new field coverage
 
-**Why first:** 3 blueprints currently fail silently. 12+ YAML fields are dropped. Everything downstream (runtime, evaluation, policy) depends on correct schema loading.
+**Completed:** 2026-04-08
 
 ---
 
