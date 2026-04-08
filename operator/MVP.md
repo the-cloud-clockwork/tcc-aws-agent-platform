@@ -1,8 +1,8 @@
 # tccw-aws-agent-platform — MVP Status & Backlog
 
-> **Last updated:** 2026-04-08
+> **Last updated:** 2026-04-08 (evening)
 > **Owner:** Nestor Colt
-> **Phase:** Enhancement blocks complete. Production hardening in progress.
+> **Phase:** Stage 1 inference decoupling done. Pipeline E2E validated. LiteLLM test next.
 
 ---
 
@@ -64,10 +64,15 @@
 - [x] Policies: SDK runtime path complete, Gateway IAM authorized
 - [x] Infrastructure: 4 reusable modules, all outputs described, sweep items fixed
 - [x] DoD: `terraform apply` passes in domain consumer with zero errors
+- [x] Inference: Provider-agnostic model factory (bedrock/anthropic/litellm/vertex)
+- [x] Pipeline: Full E2E validated — 16/16 states green (6 agents + 3 Lambdas)
+- [x] CI: Zero ruff errors (10 pre-existing fixed)
+- [x] SFN: Agent integration hardened (IAM wildcard, ResultSelector, JSON parsing)
 - [ ] Domain IAM: 13 permissive items hardened (P1 — domain repo)
 - [ ] Guardrail enabled in production (P1 — operator decision)
 - [ ] Online evaluation configured (P1 — domain blueprint update)
 - [ ] Test coverage: Runtime, Memory, Gateway above 50% (P2)
+- [ ] LiteLLM test: Deploy one agent with `provider: litellm` (next session)
 
 ---
 
