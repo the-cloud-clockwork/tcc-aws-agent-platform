@@ -91,9 +91,13 @@ variable "memory_description" {
 }
 
 variable "gateway_kms_key_arn" {
-  description = "ARN of the KMS key for AgentCore Gateway encryption. Empty string uses AWS-managed key."
+  description = "ARN of the KMS key for AgentCore Gateway encryption. Must be a valid KMS key ARN."
   type        = string
-  default     = ""
+
+  validation {
+    condition     = var.gateway_kms_key_arn != ""
+    error_message = "gateway_kms_key_arn must be set to a valid KMS key ARN. The platform module passes the data KMS key automatically."
+  }
 }
 
 # ── SSM ─────────────────────────────────────────────────────────────────────

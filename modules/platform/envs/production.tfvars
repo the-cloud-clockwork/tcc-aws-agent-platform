@@ -33,7 +33,7 @@ log_retention_days = 90
 
 # API
 api_throttle_rate  = 500
-api_throttle_burst = 500
+api_throttle_burst = 1000
 
 tags = {
   CostCenter = "production"

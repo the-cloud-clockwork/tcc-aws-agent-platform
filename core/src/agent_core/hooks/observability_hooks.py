@@ -21,6 +21,8 @@ Usage::
 """
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -56,6 +58,7 @@ class CompositeObservabilityHook:
     execution_mode: str = "simulation"
     target: str = ""
     audit_table: str | None = None
+    pii_filter: Callable[[str], str] | None = None
 
     _langfuse: LangfuseHook = field(init=False, repr=False)
     _audit: AuditLogWriter = field(init=False, repr=False)
@@ -70,6 +73,7 @@ class CompositeObservabilityHook:
             prompt_version=self.prompt_version,
             execution_mode=self.execution_mode,
             target=self.target,
+            pii_filter=self.pii_filter,
         )
         self._audit = AuditLogWriter(table_name=self.audit_table)
         self._logger = StructuredLogger(
@@ -235,6 +239,7 @@ def create_observability_hooks(
     execution_mode: str = "simulation",
     target: str = "",
     audit_table: str | None = None,
+    pii_filter: Callable[[str], str] | None = None,
 ) -> CompositeObservabilityHook:
     """Factory function that creates an observability HookProvider.
 
@@ -267,4 +272,5 @@ def create_observability_hooks(
         execution_mode=execution_mode,
         target=target,
         audit_table=audit_table,
+        pii_filter=pii_filter,
     )
