@@ -137,3 +137,4 @@ Linting: `ruff check .` and `ruff format --check .`
 15. **Blueprint-driven scaling** — `agents/` and `workflows/` use `for_each` over YAML blueprints
 16. **Least privilege IAM** — Scope permissions to specific ARNs where possible
 17. **Three tfvars environments** — `dev.tfvars`, `staging.tfvars`, `production.tfvars`. New variables must be added to all three
+18. **Definition of Done** — Every block's DoD is `terraform plan` + `terraform apply` in the domain consumer repo (`tccw-qitp` at `/home/iamroot/dev/tccw-ecosystem/tccw-qitp`) with zero errors. If it errors, fix in this repo or enhance properties. If it succeeds, the block is truly done
