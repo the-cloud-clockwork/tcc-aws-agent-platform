@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -77,14 +79,24 @@ class DashboardConfig(BaseModel):
 
 
 class DataProtectionConfig(BaseModel):
-    """PII protection via Bedrock Guardrails and CloudWatch log masking.
+    """PII protection — provider-selectable guardrail + CloudWatch log masking.
 
-    Layer 1: Bedrock Guardrails anonymize PII in model responses.
-    Layer 2: CloudWatch Data Protection masks PII patterns in log streams.
+    Layer 1 (provider=bedrock): Bedrock Guardrails anonymize PII in model responses.
+    Layer 1 (provider=presidio): Local Microsoft Presidio redacts PII in-process.
+    Layer 1 (provider=none): No in-process PII filtering.
+    Layer 2: CloudWatch Data Protection masks PII patterns in log streams (always on).
     """
 
     model_config = ConfigDict(frozen=True)
 
+    provider: Literal["bedrock", "presidio", "none"] = Field(
+        default="bedrock",
+        description=(
+            "PII guardrail provider. 'bedrock' uses AWS Bedrock Guardrails "
+            "(requires a Bedrock model). 'presidio' uses local Microsoft "
+            "Presidio (provider-agnostic). 'none' disables in-process PII filtering."
+        ),
+    )
     guardrail_id_env: str = Field(
         default="BEDROCK_GUARDRAIL_ID",
         description="Environment variable holding the Bedrock Guardrail ID.",
@@ -92,6 +104,18 @@ class DataProtectionConfig(BaseModel):
     guardrail_version_env: str = Field(
         default="BEDROCK_GUARDRAIL_VERSION",
         description="Environment variable holding the Guardrail version.",
+    )
+    presidio_entities: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Presidio entity types to detect, e.g. "
+            "['EMAIL_ADDRESS', 'PHONE_NUMBER', 'CREDIT_CARD', 'US_SSN']. "
+            "Empty list = detect Presidio's default set."
+        ),
+    )
+    presidio_language: str = Field(
+        default="en",
+        description="Presidio analyzer language code (e.g. 'en', 'es').",
     )
     cloudwatch_masking_identifiers: list[str] = Field(
         default_factory=list,

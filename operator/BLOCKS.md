@@ -74,6 +74,43 @@
 
 ---
 
+## Block 5: Inference Migration + Production Pilot Validation ▸ `done`
+
+**Goal:** Prove the platform runs a real production pipeline end-to-end on the LiteLLM proxy with `claude-sonnet-4-6`, no Bedrock dependency for inference, and no silent failure modes.
+
+**Phase 1 — Stage 1 Inference Decoupling (2026-04-09 AM)**
+- [x] `_build_model_config()` match/case dispatch for bedrock/anthropic/litellm/vertex
+- [x] `ModelConfig` + `base_url` / `api_key_env` / `extra_headers_env` optional fields
+- [x] `StructuredOutputEnforcer` hook (instructor-based post-processor) for non-Bedrock `output_schema`
+- [x] All 9 QITP agents swapped to `provider: litellm` in blueprints
+- [x] `litellm>=1.83.0,<2` safety pin (CVE-2026-33634)
+- [x] `custom_llm_provider="openai"` flag in loader (litellm quirk fix — don't let it route claude-* to native Anthropic endpoint)
+
+**Phase 2 — Hooks Decoupling (2026-04-09 afternoon)**
+- [x] `GuardrailHook` provider-gated — no-op on non-Bedrock providers
+- [x] `PresidioGuardrailHook` — provider-agnostic PII redaction
+- [x] `LangfuseEvaluationClient` + `EvaluationProvider` protocol
+- [x] `CostTracker` envs renamed `BEDROCK_*` → `MODEL_*`, legacy aliases still honored
+- [x] `observability.enabled` toggle wired through `loader.py`
+- [x] Dead YAML (`observability.dashboard.*`, `observability.audit_log.ttl_days`) purged from all 9 blueprints
+- [x] `TestPhase2Decoupling` tests in `test_block9_strands_integration.py`
+
+**Phase 3 — Production Pilot Validation (2026-04-09 evening)**
+- [x] **`rebuild-deploy.sh` orchestrator** in `tccw-qitp/scripts/` — parallel build, parallel poll, parallel force-update for all agents + MCPs; GitHub Actions `build-deploy.yml` delegates to it
+- [x] **Semver kill switch** — `core/pyproject.toml` pinned to floating `1.0.0`; `core/scripts/publish-wheel.sh` deletes + republishes to CodeArtifact on every push; `.github/workflows/publish.yml` trigger changed from `tags: ['v*']` to `branches: [main]` with path filter
+- [x] **Market-calendar Lambda contract fix** — `tccw-qitp/lambdas/market_calendar/handler.py` flipped from seed-default to validate-default; explicit `{"seed": true}` for EventBridge quarterly refresh; `domain_compliance.tf` EventBridge target updated
+- [x] **Platform LiteLLM key wiring** — new Secrets Manager entry `qitp/platform/litellm` (JSON field `TOKEN`), scope covers claude-sonnet-4-6/gpt-5-codex/gemini-3.1-pro/deepseek-r1/llama-3.3-70b; new `data "aws_secretsmanager_secret_version" "platform_litellm"` in `tccw-qitp/infra/domain_dashboard.tf`; `main.tf:52` + `:122` both modules read `["TOKEN"]`
+- [x] **True E2E validation** — `pilot-t4-1775755670` 16/16 states in 44.08 s, gap-detector ran on real claude-sonnet-4-6 via LiteLLM, structured-output enforcer produced a valid `GapDetectionOutput` payload, claim-check artifact persisted to S3 (`domain/2026-04-09/13b6f34b-7306-40fe-b30c-9a2feeb9c63b/gap-detector.json`, 497 B envelope + full payload). All 8 downstream agents invoked and returning well-formed HTTP 200.
+- [x] **Documentation refresh** — `inference-migration.md`, `STATE.md`, `BLOCKS.md`, `CLAUDE.md`, `TODO.md` all updated to reflect pilot-t4 as the authoritative E2E proof. Earlier aspirational run `exec a2ad23f0-f8fd-4ef2-bbcf-fd2c4f8c1c51` removed from the docs as misleading.
+
+**Not in scope (deferred to Block 6):**
+- Downstream agent empty-symbols fallback (5 agents: sentiment-analyzer, technical-analyzer, ml-predictor, strategy-evaluator, portfolio-recommender) — input validators reject empty `symbols` / `symbol` / `strategy_evaluations` fields when upstream gap-detector returns zero gaps. Application-level, not infra.
+
+**Completed:** 2026-04-09
+**DoD:** ✅ `terraform apply` in `tccw-qitp` — zero errors. `pilot-t4-1775755670` — 16/16 states, SUCCEEDED in 44.08 s with real inference and claim-check artifact persisted. Two fixes shipped in domain repo, two fixes shipped in platform repo, all E2E validated in a single pipeline run.
+
+---
+
 ## Backlog (not scheduled)
 
 | ID | Enhancement | Priority | Effort |

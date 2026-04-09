@@ -34,6 +34,16 @@ Instructor works by:
 This is purely provider-agnostic — works with any OpenAI-compatible endpoint
 (LiteLLM proxy, vLLM, Ollama, OpenAI itself). No Strands internal coupling.
 
+Content replacement behaviour
+-----------------------------
+On success, the enforcer REPLACES the final assistant message content with
+only the validated toolUse block. Any placeholder/error text produced by
+upstream layers (e.g. ``[Error 400]`` synthesised when a tool errors or the
+model's fallback response wasn't a valid tool call) is discarded. If the
+original content contained real human-readable text alongside the placeholder,
+the non-placeholder text is preserved ahead of the injected toolUse so the
+agent's reasoning is still visible downstream.
+
 See also: ``operator/inference-migration.md`` Stage 2.
 """
 
@@ -41,12 +51,23 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+# Placeholder/error text patterns that upstream layers (Strands event loop,
+# LiteLLM adapter) synthesise when a tool call or model response goes
+# sideways. When the ONLY text in the final message matches one of these,
+# we strip it because it adds no value next to the validated toolUse.
+_PLACEHOLDER_TEXT_PATTERNS = (
+    re.compile(r"^\s*\[Error\s+\d+\]\s*$", re.IGNORECASE),
+    re.compile(r"^\s*\[No\s+response\]\s*$", re.IGNORECASE),
+    re.compile(r"^\s*\(no\s+text\)\s*$", re.IGNORECASE),
+)
 
 
 @dataclass
@@ -129,6 +150,13 @@ class StructuredOutputEnforcer:
         except Exception:
             return ""
 
+    @staticmethod
+    def _is_placeholder(text: str) -> bool:
+        """Return True if text is a known placeholder/error stub worth discarding."""
+        if not text or not text.strip():
+            return True
+        return any(p.match(text) for p in _PLACEHOLDER_TEXT_PATTERNS)
+
     def _on_after(self, event: Any) -> None:
         """Post-process final response — run instructor, inject structured output."""
         try:
@@ -144,23 +172,27 @@ class StructuredOutputEnforcer:
                 return
 
             content = last.get("content", [])
-            text_parts: list[str] = []
+            raw_text_parts: list[str] = []
             if isinstance(content, str):
-                text_parts.append(content)
+                raw_text_parts.append(content)
             else:
                 for c in content:
                     if isinstance(c, dict) and "text" in c:
-                        text_parts.append(c["text"])
+                        raw_text_parts.append(c["text"])
 
-            model_output_text = "\n".join(text_parts).strip()
+            # Separate real text from placeholder/error stubs.
+            real_text_parts = [t for t in raw_text_parts if not self._is_placeholder(t)]
+            model_output_text = "\n".join(raw_text_parts).strip()
+            clean_output_text = "\n".join(real_text_parts).strip()
             original_prompt = self._extract_prompt_text(event)
 
-            # Compose a focused prompt: original request + the agent's final text
-            # plus an instruction to format according to the schema
+            # Compose a focused prompt. Prefer the cleaned text (without the
+            # stub) so instructor doesn't try to "interpret" [Error 400].
+            instructor_input = clean_output_text or model_output_text or "(no text — infer from context)"
             enforcement_prompt = (
                 f"Original request:\n{original_prompt}\n\n"
                 f"Agent response (to extract structured data from):\n"
-                f"{model_output_text or '(no text — infer from context)'}\n\n"
+                f"{instructor_input}\n\n"
                 f"Return a validated {self.schema.__name__} object."
             )
 
@@ -172,7 +204,6 @@ class StructuredOutputEnforcer:
                 messages=[{"role": "user", "content": enforcement_prompt}],
             )
 
-            # Inject as synthetic toolUse block (matches Bedrock structured output shape)
             synthetic = {
                 "toolUse": {
                     "toolUseId": f"enforced_{self.schema.__name__.lower()}",
@@ -180,14 +211,32 @@ class StructuredOutputEnforcer:
                     "input": validated.model_dump(),
                 }
             }
+
+            # Rebuild the assistant content: drop placeholder text, keep
+            # non-text blocks (toolUse results the model already produced,
+            # reasoning blocks, etc.), append the synthetic enforcement block.
+            new_content: list[Any] = []
             if isinstance(content, list):
-                content.append(synthetic)
+                for c in content:
+                    if isinstance(c, dict) and "text" in c:
+                        if not self._is_placeholder(c["text"]):
+                            new_content.append(c)
+                    else:
+                        new_content.append(c)
+                new_content.append(synthetic)
             else:
-                last["content"] = [{"text": content}, synthetic]
+                # content was a string — replace with our structured pair,
+                # preserving any real text.
+                if clean_output_text:
+                    new_content.append({"text": clean_output_text})
+                new_content.append(synthetic)
+
+            last["content"] = new_content
 
             logger.info(
-                "StructuredOutputEnforcer injected %s into agent output",
+                "StructuredOutputEnforcer injected %s (dropped_placeholder=%s)",
                 self.schema.__name__,
+                len(raw_text_parts) != len(real_text_parts),
             )
         except Exception as e:
             logger.exception(
