@@ -67,7 +67,21 @@ Supported: `bedrock` (default), `anthropic`, `litellm`, `vertex`. All Strands SD
 - **Structured output on non-Bedrock providers**: blueprints with `output_schema` auto-register `StructuredOutputEnforcer` (instructor-based post-processor) — bypasses Strands' broken forced-tool path for OpenAI-compatible endpoints.
 - **LiteLLM safety pin**: `litellm>=1.83.0,<2` (versions 1.82.7–1.82.8 were CVE-2026-33634 supply chain attack).
 - **LiteLLM model_id rule**: when `base_url` is set, loader auto-prefixes `openai/` to prevent LiteLLM's provider auto-detection from bypassing the proxy.
-- Migration strategy: `operator/inference-migration.md` (Stage 2: hooks decoupling; Stage 3: infra optionality — both still pending).
+- Migration strategy: `operator/inference-migration.md` (Stage 3: infra optionality still pending).
+
+## Observability & Hooks Decoupling (Stage 2) ✅ Complete 2026-04-09
+All agent-level observability hooks are provider-agnostic. Key blueprint knobs:
+
+- **`observability.enabled: true|false`** — master toggle. When false, no Langfuse / audit log / structured logger / cost tracker hooks register.
+- **`observability.data_protection.provider: bedrock|presidio|none`**
+  - `bedrock` — AWS Bedrock Guardrails. Requires a Bedrock model provider AND `BEDROCK_GUARDRAIL_ID` env. No-ops on any other combination (no crash).
+  - `presidio` — Microsoft Presidio, MIT-licensed, local redaction via `PresidioGuardrailHook`. Works with any inference provider. Configure entities with `presidio_entities: [EMAIL_ADDRESS, PHONE_NUMBER, ...]` and language with `presidio_language: en`.
+  - `none` — no in-process PII filter. CloudWatch data protection (storage-layer masking) still applies when `cloudwatch_masking_identifiers` is set.
+- **`evaluation.provider: agentcore|langfuse`**
+  - `agentcore` (default) — `bedrock_agentcore_starter_toolkit.Evaluation`. Judge model must be a Bedrock ARN.
+  - `langfuse` — `LangfuseEvaluationClient`. Provider-agnostic, requires `LANGFUSE_HOST` / `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`. Online eval is dashboard-driven, not env-driven.
+- **`CostTracker` env vars**: `MODEL_PRICING` (JSON map) and `MODEL_DEFAULT_PRICING` (JSON array). `BEDROCK_MODEL_PRICING` / `BEDROCK_DEFAULT_PRICING` still accepted as deprecated aliases. Built-in defaults cover `claude-sonnet-4-6` / `claude-haiku-4-6` so cost tracking works on LiteLLM with zero config.
+- **Langfuse is already double-traced**: LiteLLM proxy writes generations via `success_callback: langfuse`; agent-level `LangfuseHook` writes session/tool spans. Intentional — they capture different granularities.
 
 ## Pipeline Validation (E2E — tccw-qitp)
 Full pipeline validated 2026-04-08 (16/16 states, 39s):

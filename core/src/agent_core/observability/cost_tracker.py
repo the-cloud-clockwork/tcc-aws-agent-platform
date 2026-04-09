@@ -1,15 +1,19 @@
-"""Token cost computation per model using configurable Bedrock pricing.
+"""Token cost computation per model — provider-agnostic.
 
 Pricing is loaded from environment variables — no hardcoded model IDs or
-prices.  Set ``BEDROCK_MODEL_PRICING`` to a JSON object mapping model IDs
-to ``[input_per_1k, output_per_1k]`` tuples.  Set ``BEDROCK_DEFAULT_PRICING``
+prices.  Set ``MODEL_PRICING`` to a JSON object mapping model IDs
+to ``[input_per_1k, output_per_1k]`` tuples.  Set ``MODEL_DEFAULT_PRICING``
 to a JSON array ``[input_per_1k, output_per_1k]`` for unknown models.
+
+The legacy ``BEDROCK_MODEL_PRICING`` / ``BEDROCK_DEFAULT_PRICING`` env vars
+are still accepted as deprecated aliases for backward compatibility with
+Bedrock-only deployments — a warning is logged when they are used.
 
 Usage::
 
     tracker = CostTracker()
     cost = tracker.compute_cost(
-        model_id="us.anthropic.claude-sonnet-4-20250514-v1:0",
+        model_id="claude-sonnet-4-6",
         input_tokens=1500,
         output_tokens=800,
     )
@@ -48,49 +52,79 @@ class TokenCost:
         }
 
 
+# Sensible defaults so token→USD works out of the box for the models
+# currently in use on the LiteLLM proxy. Pricing is USD per 1k tokens
+# and reflects the Anthropic public list price for claude-sonnet-4 /
+# claude-haiku-4 as of 2026-Q1. Override with MODEL_PRICING env var
+# if your proxy negotiates different rates.
+_DEFAULT_MODEL_PRICING: dict[str, tuple[float, float]] = {
+    "claude-sonnet-4-6": (0.003, 0.015),
+    "claude-haiku-4-6": (0.00025, 0.00125),
+    "openai/claude-sonnet-4-6": (0.003, 0.015),
+    "openai/claude-haiku-4-6": (0.00025, 0.00125),
+}
+
+
 def _load_pricing_from_env() -> dict[str, tuple[float, float]]:
-    """Load model pricing from ``BEDROCK_MODEL_PRICING`` env var.
+    """Load model pricing from ``MODEL_PRICING`` env var.
 
     Expected format: JSON object ``{"model_id": [input_per_1k, output_per_1k], ...}``
-    Returns empty dict if env var is not set.
+    Falls back to the deprecated ``BEDROCK_MODEL_PRICING`` alias when
+    ``MODEL_PRICING`` is absent. Built-in defaults are merged underneath
+    so known LiteLLM model IDs always resolve.
     """
-    raw = os.environ.get("BEDROCK_MODEL_PRICING", "")
+    pricing: dict[str, tuple[float, float]] = dict(_DEFAULT_MODEL_PRICING)
+    raw = os.environ.get("MODEL_PRICING", "")
     if not raw:
-        return {}
+        raw = os.environ.get("BEDROCK_MODEL_PRICING", "")
+        if raw:
+            logger.warning(
+                "BEDROCK_MODEL_PRICING is deprecated, use MODEL_PRICING instead."
+            )
+    if not raw:
+        return pricing
     try:
         data = json.loads(raw)
-        return {k: (v[0], v[1]) for k, v in data.items()}
+        pricing.update({k: (v[0], v[1]) for k, v in data.items()})
     except (json.JSONDecodeError, IndexError, TypeError):
-        logger.warning("Invalid BEDROCK_MODEL_PRICING format, ignoring")
-        return {}
+        logger.warning("Invalid MODEL_PRICING format, ignoring override")
+    return pricing
 
 
 def _load_default_pricing_from_env() -> tuple[float, float] | None:
-    """Load fallback pricing from ``BEDROCK_DEFAULT_PRICING`` env var.
+    """Load fallback pricing from ``MODEL_DEFAULT_PRICING`` env var.
 
     Expected format: JSON array ``[input_per_1k, output_per_1k]``
-    Returns None if env var is not set.
+    Falls back to the deprecated ``BEDROCK_DEFAULT_PRICING`` alias when
+    ``MODEL_DEFAULT_PRICING`` is absent.
     """
-    raw = os.environ.get("BEDROCK_DEFAULT_PRICING", "")
+    raw = os.environ.get("MODEL_DEFAULT_PRICING", "")
+    if not raw:
+        raw = os.environ.get("BEDROCK_DEFAULT_PRICING", "")
+        if raw:
+            logger.warning(
+                "BEDROCK_DEFAULT_PRICING is deprecated, use MODEL_DEFAULT_PRICING instead."
+            )
     if not raw:
         return None
     try:
         data = json.loads(raw)
         return (data[0], data[1])
     except (json.JSONDecodeError, IndexError, TypeError):
-        logger.warning("Invalid BEDROCK_DEFAULT_PRICING format, ignoring")
+        logger.warning("Invalid MODEL_DEFAULT_PRICING format, ignoring")
         return None
 
 
 class CostTracker:
-    """Computes token costs for Bedrock model invocations.
+    """Computes token costs for model invocations — provider-agnostic.
 
     Pricing is resolved from (in order):
     1. ``custom_pricing`` constructor param
-    2. ``BEDROCK_MODEL_PRICING`` env var
-    3. ``default_pricing`` constructor param
-    4. ``BEDROCK_DEFAULT_PRICING`` env var
-    5. Raises ``ValueError`` for unknown models (no silent fallback)
+    2. ``MODEL_PRICING`` env var (falls back to ``BEDROCK_MODEL_PRICING``)
+    3. Built-in defaults for known LiteLLM model IDs
+    4. ``default_pricing`` constructor param
+    5. ``MODEL_DEFAULT_PRICING`` env var (falls back to ``BEDROCK_DEFAULT_PRICING``)
+    6. Logs a warning and returns zero pricing for unknown models
 
     Parameters
     ----------
@@ -127,7 +161,7 @@ class CostTracker:
         # observability, not critical path. Log a warning once.
         logger.warning(
             "No pricing configured for model '%s' — cost tracking disabled. "
-            "Set BEDROCK_MODEL_PRICING or BEDROCK_DEFAULT_PRICING env var.",
+            "Set MODEL_PRICING or MODEL_DEFAULT_PRICING env var.",
             model_id,
         )
         return (0.0, 0.0)

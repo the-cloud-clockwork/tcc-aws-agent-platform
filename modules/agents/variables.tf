@@ -53,6 +53,18 @@ variable "cf_access_client_secret" {
   sensitive   = true
 }
 
+variable "model_pricing" {
+  type        = string
+  description = "JSON object mapping model_id to [input_per_1k, output_per_1k]. Empty = use built-in defaults."
+  default     = ""
+}
+
+variable "model_default_pricing" {
+  type        = string
+  description = "JSON array [input_per_1k, output_per_1k] as fallback for unknown models. Empty = not injected."
+  default     = ""
+}
+
 variable "ssm_root_path" {
   type = string
 }
