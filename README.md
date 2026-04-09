@@ -2,6 +2,8 @@
 
 > A configuration-driven, domain-agnostic runtime that lets you declare AI agents in YAML and deploy them on AWS with zero boilerplate — built as an abstraction layer over [Strands Agents SDK](https://github.com/strands-agents/sdk-python) and [Amazon Bedrock AgentCore](https://aws.amazon.com/bedrock/agentcore/).
 
+> **Status (Apr 2026):** 92/100 production readiness. Phase 1 (provider-agnostic inference) + Phase 2 (observability decoupling) shipped and validated in production via `pilot-t6-1775766858` (16/16 Step Functions states SUCCEEDED, end-to-end, empty-gaps path). Bedrock is **no longer required for inference** — the loader dispatches across `bedrock | anthropic | litellm | vertex` per blueprint, and all 9 QITP agents run on LiteLLM-proxied `claude-sonnet-4-6`. Stage 3 (standalone runtime / ECS Fargate / memory optionality) is **postponed** — the current decoupling is sufficient. See `operator/inference-migration.md` for detail.
+
 ```
 Your Domain Repo                          This Platform
 -----------------                         -------------
@@ -92,10 +94,16 @@ version: "1.0.0"
 prompt_ref: "my-domain/my-agent"
 
 model:
-  provider: bedrock
-  model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
-  temperature: 0.7
-  max_tokens: 4096
+  # Provider is dispatched in loader: bedrock | anthropic | litellm | vertex.
+  # LiteLLM is the current production path for multi-model (Claude/Gemini/GPT) inference.
+  provider: litellm
+  model_id: claude-sonnet-4-6
+  base_url: https://llm.example.com
+  api_key_env: LITELLM_API_KEY
+  extra_headers_env:
+    CF-Access-Client-Id: CF_ACCESS_CLIENT_ID
+    CF-Access-Client-Secret: CF_ACCESS_CLIENT_SECRET
+  # temperature / max_tokens intentionally omitted — set per-blueprint, never hardcoded.
 
 runtime:
   type: agentcore
