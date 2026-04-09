@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agent-core"
-version = "0.9.24"
+version = "0.9.28"
 description = "Agent Core -- Blueprint Engine, Execution Modes, Hooks, Schemas, Gateway, Memory, Identity, Policy"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -38,6 +38,10 @@ anthropic = [
 ]
 litellm = [
     "litellm>=1.83.0,<2",  # Pin >=1.83.0: versions 1.82.7-1.82.8 were supply chain attack (CVE-2026-33634)
+]
+structured_output = [
+    "instructor>=1.10,<2",
+    "openai>=1.50,<3",
 ]
 dev = [
     "pytest>=8.0,<9",
