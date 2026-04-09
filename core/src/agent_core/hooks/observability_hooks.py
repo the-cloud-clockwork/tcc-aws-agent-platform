@@ -65,6 +65,8 @@ class CompositeObservabilityHook:
     _logger: StructuredLogger = field(init=False, repr=False)
     _tool_calls: int = field(default=0, init=False, repr=False)
     _tool_errors: int = field(default=0, init=False, repr=False)
+    _cycle_count: int = field(default=0, init=False, repr=False)
+    _last_stop_reason: str = field(default="", init=False, repr=False)
 
     def __post_init__(self) -> None:
         self._langfuse = LangfuseHook(
@@ -105,8 +107,20 @@ class CompositeObservabilityHook:
         self.on_agent_start()
 
     def _on_after_model_call(self, event: Any) -> None:
-        """Handle AfterModelCallEvent."""
-        self.after_model_invocation()
+        """Handle AfterModelCallEvent.
+
+        Strands' ``AfterModelCallEvent`` carries ``stop_response`` (message +
+        stop_reason) and ``exception`` but NOT token usage — usage is tracked
+        on ``agent.event_loop_metrics.accumulated_usage`` and only finalised
+        at the end of the invocation. We increment a cycle counter here and
+        record the stop_reason so ``_on_after_invocation`` can emit a single
+        aggregated generation span to Langfuse with the correct per-cycle
+        count and the final stop reason.
+        """
+        self._cycle_count += 1
+        stop_response = getattr(event, "stop_response", None)
+        if stop_response is not None:
+            self._last_stop_reason = str(getattr(stop_response, "stop_reason", "") or "")
 
     def _on_after_tool_call(self, event: Any) -> None:
         """Handle AfterToolCallEvent."""
@@ -121,8 +135,53 @@ class CompositeObservabilityHook:
         self.on_tool_end(tool_name=tool_name, error=error)
 
     def _on_after_invocation(self, event: Any) -> None:
-        """Handle AfterInvocationEvent."""
+        """Handle AfterInvocationEvent.
+
+        Reads the aggregated token usage and latency from the Strands
+        ``event_loop_metrics`` on the agent, then synthesises ONE
+        ``after_model_invocation`` call with the real data before finalising
+        the trace. This is the only reliable place to read usage because
+        Strands accumulates across cycles and only exposes the total here.
+        """
+        agent = getattr(event, "agent", None)
+        if agent is not None:
+            try:
+                metrics = getattr(agent, "event_loop_metrics", None)
+                if metrics is not None:
+                    usage = getattr(metrics, "accumulated_usage", None) or {}
+                    input_tokens = int(usage.get("inputTokens", 0) or 0)
+                    output_tokens = int(usage.get("outputTokens", 0) or 0)
+                    model_id = self._extract_model_id(agent)
+                    self.after_model_invocation(
+                        model_id=model_id,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        stop_reason=self._last_stop_reason,
+                    )
+            except Exception:
+                logger.debug("Failed to extract usage from event_loop_metrics", exc_info=True)
+
         self.on_agent_end()
+
+    @staticmethod
+    def _extract_model_id(agent: Any) -> str:
+        """Best-effort extraction of the underlying model id from a Strands agent."""
+        try:
+            model = getattr(agent, "model", None)
+            if model is None:
+                return "unknown"
+            # LiteLLMModel / OpenAIModel / BedrockModel all store model_id in
+            # their config dict under either ``model_id`` or ``modelId``.
+            cfg = None
+            if hasattr(model, "get_config"):
+                cfg = model.get_config()
+            elif hasattr(model, "config"):
+                cfg = model.config
+            if isinstance(cfg, dict):
+                return str(cfg.get("model_id") or cfg.get("modelId") or "unknown")
+        except Exception:
+            pass
+        return "unknown"
 
     # ---- Legacy callback methods (still used directly in tests) ----
 
@@ -130,6 +189,8 @@ class CompositeObservabilityHook:
         """Called when the agent begins execution."""
         self._tool_calls = 0
         self._tool_errors = 0
+        self._cycle_count = 0
+        self._last_stop_reason = ""
 
         self._logger.info(
             "Agent starting",

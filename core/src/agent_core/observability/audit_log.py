@@ -25,16 +25,35 @@ Environment variables:
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import time
 import uuid
+from decimal import Decimal
 from typing import Any
 
 logger = logging.getLogger("agent_core.audit")
 
 # Default 5-year retention in seconds
 DEFAULT_RETENTION_SECONDS = 157_680_000  # ~5 years
+
+
+def _to_dynamodb_safe(obj: Any) -> Any:
+    """Convert a dict/list tree to DynamoDB-safe types.
+
+    boto3's DynamoDB resource rejects raw ``float`` values with
+    ``TypeError: Float types are not supported. Use Decimal types instead.``
+    Agents routinely emit floats (gap percentages, volume ratios, confidence
+    scores, latency metrics) through audit_log payloads, so the writer has to
+    normalise the whole item before ``put_item``.
+
+    Strategy: JSON round-trip with ``parse_float=Decimal``. This walks the
+    entire nested structure once, converts floats → Decimal, leaves ints/
+    strings/bools alone, and coerces non-JSON-serialisable leaves (datetime,
+    UUID, Pydantic models) to strings via ``default=str``.
+    """
+    return json.loads(json.dumps(obj, default=str), parse_float=Decimal)
 
 
 class AuditLogError(Exception):
@@ -136,9 +155,12 @@ class AuditLogWriter:
 
         try:
             table = self._get_client()
+            # Normalise floats → Decimal (DynamoDB requirement) and coerce
+            # non-JSON-serialisable leaves to strings before PutItem.
+            safe_item = _to_dynamodb_safe(item)
             # Condition expression ensures idempotency -- no overwrite if event_id exists
             table.put_item(
-                Item=item,
+                Item=safe_item,
                 ConditionExpression="attribute_not_exists(event_id)",
             )
         except Exception as exc:
