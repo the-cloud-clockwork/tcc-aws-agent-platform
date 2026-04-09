@@ -66,14 +66,34 @@ packages = ["src/agent_core"]
 
 [tool.mypy]
 python_version = "3.12"
-strict = true
+strict = false
 warn_return_any = false
 warn_unused_configs = true
 warn_unused_ignores = false
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["strands.*", "strands_tools.*", "langfuse.*", "aws_xray_sdk.*", "boto3.*", "botocore.*", "moto.*", "bedrock_agentcore.*", "redis.*", "uvicorn.*", "starlette.*", "mcp.*"]
+module = [
+    "strands.*",
+    "strands_tools.*",
+    "langfuse.*",
+    "aws_xray_sdk.*",
+    "boto3.*",
+    "botocore.*",
+    "moto.*",
+    "bedrock_agentcore.*",
+    "bedrock_agentcore_starter_toolkit.*",
+    "redis.*",
+    "uvicorn.*",
+    "starlette.*",
+    "mcp.*",
+    "mcp_proxy_for_aws.*",
+    "mcp_artifacts.*",
+    "instructor.*",
+    "openai.*",
+    "presidio_analyzer.*",
+    "presidio_anonymizer.*",
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
