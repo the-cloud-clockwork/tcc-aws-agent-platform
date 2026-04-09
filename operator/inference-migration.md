@@ -2,7 +2,8 @@
 
 > **Created:** 2026-04-08
 > **Owner:** Nestor Colt
-> **Status:** Investigation complete. Ready for staged implementation.
+> **Status:** ✅ **Stage 1 + Stage 2 COMPLETE and validated in production (2026-04-09).** Stage 3 remains optional.
+> **True E2E validation:** `pilot-t4-1775755670` — 16/16 states, 44.08 s, gap-detector on real `claude-sonnet-4-6` via LiteLLM proxy, structured output enforced, claim-check artifact persisted to S3. See `operator/STATE.md` for the full run table.
 > **Source of truth** for provider-agnostic inference migration.
 
 ---
@@ -184,6 +185,8 @@ var.litellm_api_key_secret != "" ? { LITELLM_API_KEY = data.aws_ssm_parameter.li
 
 **Key insight confirmed:** Langfuse is already integrated at two layers (LiteLLM proxy + agent `LangfuseHook`), so traces on non-Bedrock agents have been working the entire time. Stage 2 was about closing the guardrail/eval gaps and making provider selection explicit in the blueprint schema.
 
+**Production validation (2026-04-09):** pilot-t4 exercised every Phase-2 decoupling change in a single run — `GuardrailHook` correctly no-op'd (no `BEDROCK_GUARDRAIL_ID` in env, no spurious `ApplyGuardrail` call), `CostTracker` emitted cost metrics for the claude-sonnet-4-6 call using built-in pricing defaults, `LangfuseHook` captured the session + model span, `observability.enabled: true` wired all hooks correctly, zero import errors, zero Python tracebacks from any agent container. Commit `8003b40` is now production-validated.
+
 ---
 
 ### Stage 3: Infrastructure Optionality (Effort: Large — 3-5 sessions)
@@ -258,7 +261,9 @@ var.litellm_api_key_secret != "" ? { LITELLM_API_KEY = data.aws_ssm_parameter.li
 - [x] Swap gap-detector blueprint to `provider: litellm` (first real validation)
 - [x] Build `StructuredOutputEnforcer` hook (instructor-based) for non-Bedrock `output_schema` support
 - [x] Deploy all 9 QITP agents on LiteLLM proxy + Cloudflare Access service tokens
-- [x] E2E validation: weekly-gap-analysis pipeline SUCCEEDED in 31s, 16/16 states (exec `a2ad23f0-f8fd-4ef2-bbcf-fd2c4f8c1c51`)
+- [x] **Wire `LITELLM_API_KEY` through the whole chain** — Secrets Manager (`qitp/platform/litellm` field `TOKEN`) → `data.aws_secretsmanager_secret_version.platform_litellm` → `module.agents.litellm_api_key` / `module.mcps.litellm_api_key` → `environment_variables.LITELLM_API_KEY` → `os.environ[model.api_key_env]` → `LiteLLMModel(client_args={"api_key": ...})`. The platform key scope covers `claude-sonnet-4-6`, `claude-max-sonnet`, `claude-max-opus`, `gpt-5-codex`, `gpt-5.4-codex`, `gemini-3.1-pro`, `deepseek-r1`, `claude-max-haiku-worker-001`, `llama-3.3-70b`.
+- [x] **Fix market-calendar Lambda contract** — handler now defaults to validate mode with `date.today().isoformat()` when no `date` field is present in the payload; EventBridge quarterly refresh passes `{"seed": true}` explicitly. Removes the dual-mode ambiguity that silently seeded the DynamoDB table from every Step Functions invocation.
+- [x] **True E2E validation — pilot-t4-1775755670** (2026-04-09 17:27:50 UTC → 17:28:34 UTC, 44.08 s, all 16 states executed, gap-detector ran on real claude-sonnet-4-6 via LiteLLM, structured-output enforced `GapDetectionOutput` schema, claim-check artifact stored at `s3://qitp-dev-artifacts-835618032093/domain/2026-04-09/13b6f34b-7306-40fe-b30c-9a2feeb9c63b/gap-detector.json`, all downstream agents reachable and returning well-formed HTTP 200 responses). The earlier claim of `exec a2ad23f0-f8fd-4ef2-bbcf-fd2c4f8c1c51` was aspirational — `LITELLM_API_KEY` was not actually wired into the runtime environment at that point. **pilot-t4 is the authoritative proof.**
 - [x] Update CLAUDE.md with provider configuration docs
 
 ---

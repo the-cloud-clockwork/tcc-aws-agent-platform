@@ -4,18 +4,27 @@
 
 ---
 
-## Completed Execution (2026-04-08)
+## Completed Execution (2026-04-08 and 2026-04-09)
 
-All 4 blocks executed and validated via `terraform apply` in `tccw-qitp`:
+All 5 blocks executed and validated:
 
-| Block | Theme | Items | Status |
-|-------|-------|-------|--------|
-| 1 | Schema & Blueprint Hardening | 6 | ✅ Done |
-| 2 | Security & Production Hardening | 8 | ✅ Done |
-| 3 | Runtime & Observability | 5 | ✅ Done |
-| 4 | Infrastructure Modules & Cleanup | 7 | ✅ Done |
+| Block | Theme | Items | Status | DoD evidence |
+|-------|-------|-------|--------|--------------|
+| 1 | Schema & Blueprint Hardening | 6 | ✅ Done | Validated via Block 2 apply (2026-04-08) |
+| 2 | Security & Production Hardening | 8 | ✅ Done | `terraform apply` in tccw-qitp: 0/36/0 (2026-04-08) |
+| 3 | Runtime & Observability | 5 | ✅ Done | `terraform apply` in tccw-qitp: 3/45/0 (2026-04-08) |
+| 4 | Infrastructure Modules & Cleanup | 7 | ✅ Done | `terraform apply` in tccw-qitp: 0/36/0 (2026-04-08) |
+| **5** | **Inference Migration + Production Pilot** | **20** | ✅ **Done** | **`pilot-t4-1775755670` — 16/16 states, 44.08 s with real claude-sonnet-4-6 inference (2026-04-09)** |
 
-**Total completed:** 26 items (14 enhancements + 8 sweep items + 4 extras)
+**Total completed:** 46 items (14 enhancements + 8 sweep + 4 extras + 20 inference/pilot)
+
+**Block 5 highlights:**
+- Provider-agnostic inference validated in production (bedrock/anthropic/litellm/vertex dispatch)
+- Observability hooks decoupled from Bedrock (guardrail gated, Presidio, Langfuse eval)
+- Market-calendar Lambda dual-mode ambiguity fixed (validate-default)
+- Platform LiteLLM key via Secrets Manager data source (not env var)
+- `rebuild-deploy.sh` parallel orchestrator + semver kill via `publish-wheel.sh`
+- `core` pinned to floating `1.0.0`, republished on every push
 
 ---
 
@@ -55,8 +64,23 @@ ENH-019 items #1, #2, #5-14, #15-17 live in `modules/agents/` or `tccw-qitp` dom
 
 ---
 
+## Application-level Follow-ups (Block 6 candidate)
+
+Downstream agents need empty-input fallbacks. When gap-detector returns zero gaps on a quiet market day, the following five agents fail their own input validation:
+
+| Agent | Error | Fix location |
+|---|---|---|
+| sentiment-analyzer | `Missing required field: symbols` | input validator — fall back to `watchlist_id=default` |
+| technical-analyzer | `Missing required field: symbols` | same |
+| ml-predictor | `Missing required field: symbols` | same |
+| strategy-evaluator | `Missing required field: symbol` | skip scoring when empty |
+| portfolio-recommender | `Missing required field: strategy_evaluations` | emit empty recommendations payload |
+
+These are NOT infra or inference bugs — the agents never reach the LLM. Each fix is a per-agent handler change in `tccw-qitp/agents/src/qitp_agents/<agent>/handler.py`. Ship via `rebuild-deploy.sh --agents <name>`.
+
 ## Notes
 
 - 2026-03-31: Project initialized with operator pattern
 - 2026-04-08: Organized 20 enhancements + 8 sweep remainders into 4 blocks
 - 2026-04-08: All 4 blocks executed and validated. 14/20 enhancements done, 6 deferred to backlog.
+- 2026-04-09: **Block 5 — Production Pilot Validation.** True E2E with real claude-sonnet-4-6 inference. pilot-t4-1775755670. Platform is production-ready from an infrastructure standpoint. Merging `phase-2-hooks-decoupling` → `main` in both repos.
