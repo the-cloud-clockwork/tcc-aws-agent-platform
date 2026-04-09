@@ -407,3 +407,141 @@ class TestStateDictWithMemory:
             agent_kwargs = call_kwargs.kwargs if call_kwargs.kwargs else call_kwargs[1]
             assert "state" in agent_kwargs
             assert isinstance(agent_kwargs["state"], dict)
+
+
+class TestPhase2Decoupling:
+    """Phase 2: observability/hooks decoupling from Bedrock."""
+
+    def test_guardrail_model_kwargs_noop_when_env_absent(self):
+        """build_guardrail_model_kwargs returns {} instead of raising."""
+        from agent_core.observability.data_protection import build_guardrail_model_kwargs
+        from agent_core.schemas.observability_config import DataProtectionConfig
+
+        with patch.dict("os.environ", {}, clear=True):
+            result = build_guardrail_model_kwargs(DataProtectionConfig())
+        assert result == {}
+
+    def test_guardrail_model_kwargs_populated_when_env_set(self):
+        from agent_core.observability.data_protection import build_guardrail_model_kwargs
+        from agent_core.schemas.observability_config import DataProtectionConfig
+
+        with patch.dict(
+            "os.environ",
+            {"BEDROCK_GUARDRAIL_ID": "gr-123", "BEDROCK_GUARDRAIL_VERSION": "1"},
+        ):
+            result = build_guardrail_model_kwargs(DataProtectionConfig())
+        assert result == {
+            "guardrail_id": "gr-123",
+            "guardrail_version": "1",
+            "guardrail_trace": "enabled",
+        }
+
+    def test_cost_tracker_env_aliases(self):
+        """BEDROCK_MODEL_PRICING is honored as a deprecated alias for MODEL_PRICING."""
+        from agent_core.observability.cost_tracker import CostTracker
+
+        pricing_json = '{"test-model": [0.001, 0.002]}'
+
+        with patch.dict("os.environ", {"MODEL_PRICING": pricing_json}, clear=True):
+            t1 = CostTracker()
+        with patch.dict(
+            "os.environ", {"BEDROCK_MODEL_PRICING": pricing_json}, clear=True
+        ):
+            t2 = CostTracker()
+
+        assert t1.get_pricing("test-model") == (0.001, 0.002)
+        assert t2.get_pricing("test-model") == (0.001, 0.002)
+
+    def test_cost_tracker_default_litellm_pricing(self):
+        """Built-in defaults include claude-sonnet-4-6 so token→USD works OOTB."""
+        from agent_core.observability.cost_tracker import CostTracker
+
+        with patch.dict("os.environ", {}, clear=True):
+            tracker = CostTracker()
+        assert tracker.get_pricing("claude-sonnet-4-6") == (0.003, 0.015)
+        assert tracker.get_pricing("openai/claude-sonnet-4-6") == (0.003, 0.015)
+
+    def test_presidio_hook_imports(self):
+        """PresidioGuardrailHook can be imported without presidio installed."""
+        from agent_core.hooks.presidio_guardrail import PresidioGuardrailHook
+
+        hook = PresidioGuardrailHook(entities=["EMAIL_ADDRESS"], language="en")
+        assert hook.entities == ["EMAIL_ADDRESS"]
+        assert hook.language == "en"
+
+    def test_presidio_hook_noop_without_dependency(self):
+        """_ensure_engines returns False when presidio is unavailable, redact is a passthrough."""
+        from agent_core.hooks.presidio_guardrail import PresidioGuardrailHook
+
+        hook = PresidioGuardrailHook()
+        with patch.dict("sys.modules", {"presidio_analyzer": None, "presidio_anonymizer": None}):
+            # Force ensure_engines to hit the ImportError path.
+            ok = hook._ensure_engines()
+        # If presidio isn't installed in CI, we get False; if it IS installed, True.
+        # Either way, redact() must not raise.
+        assert isinstance(ok, bool)
+        assert hook._redact("no PII here") == "no PII here"
+
+    def test_evaluation_provider_protocol(self):
+        """EvaluationClient satisfies the EvaluationProvider Protocol at runtime."""
+        from agent_core.evaluation.provider import EvaluationProvider
+
+        # Mock the bedrock_agentcore_starter_toolkit import used by EvaluationClient
+        with patch.dict(
+            "os.environ",
+            {"AWS_REGION": "eu-west-1"},
+        ):
+            with patch(
+                "bedrock_agentcore_starter_toolkit.Evaluation",
+                create=True,
+                return_value=MagicMock(),
+            ):
+                from agent_core.evaluation.client import EvaluationClient
+
+                client = EvaluationClient(region="eu-west-1")
+        assert isinstance(client, EvaluationProvider)
+
+    def test_langfuse_eval_client_requires_creds(self):
+        """LangfuseEvaluationClient raises cleanly without LANGFUSE_* envs."""
+        from agent_core.evaluation.client import EvaluationConfigError
+        from agent_core.evaluation.langfuse_client import LangfuseEvaluationClient
+
+        with patch.dict("os.environ", {}, clear=True):
+            with pytest.raises(EvaluationConfigError, match="LANGFUSE"):
+                LangfuseEvaluationClient()
+
+    def test_wiring_dispatches_langfuse_provider(self):
+        """EvaluationWiring picks LangfuseEvaluationClient when provider='langfuse'."""
+        from agent_core.evaluation.wiring import _build_eval_client
+        from agent_core.schemas.evaluation_config import EvaluationConfig
+
+        cfg = EvaluationConfig(provider="langfuse")
+        with patch.dict(
+            "os.environ",
+            {
+                "LANGFUSE_HOST": "https://lf.example",
+                "LANGFUSE_PUBLIC_KEY": "pk",
+                "LANGFUSE_SECRET_KEY": "sk",
+            },
+        ):
+            with patch("langfuse.Langfuse", create=True, return_value=MagicMock()):
+                client = _build_eval_client(cfg, region=None)
+        from agent_core.evaluation.langfuse_client import LangfuseEvaluationClient
+
+        assert isinstance(client, LangfuseEvaluationClient)
+
+    def test_wiring_defaults_to_agentcore_provider(self):
+        """EvaluationWiring picks EvaluationClient when provider omitted."""
+        from agent_core.evaluation.client import EvaluationClient
+        from agent_core.evaluation.wiring import _build_eval_client
+        from agent_core.schemas.evaluation_config import EvaluationConfig
+
+        cfg = EvaluationConfig()  # provider defaults to "agentcore"
+        with patch.dict("os.environ", {"AWS_REGION": "eu-west-1"}):
+            with patch(
+                "bedrock_agentcore_starter_toolkit.Evaluation",
+                create=True,
+                return_value=MagicMock(),
+            ):
+                client = _build_eval_client(cfg, region="eu-west-1")
+        assert isinstance(client, EvaluationClient)

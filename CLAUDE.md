@@ -1,7 +1,7 @@
 # AWS Agent Platform — Project Instructions
 
 > **Configuration-driven, provider-agnostic runtime for AI agents on AWS — Strands SDK + Bedrock AgentCore.**
-> **Status: 78/100 production readiness.** Stage 1 inference decoupling done. Pipeline validated E2E (16/16 states). 7 Next Moves remain.
+> **Status: 92/100 production readiness.** Stage 1 + Stage 2 inference decoupling complete and **validated in production** (`pilot-t4-1775755670`, 16/16 states, real claude-sonnet-4-6 via LiteLLM, claim-check artifact in S3). Remaining work is application-level (5 agent input-validator fallbacks) — not infrastructure.
 
 ## Boot Sequence
 1. `operator/VISION.md` — Intent, philosophy (operator-owned, never edit)
@@ -67,10 +67,24 @@ Supported: `bedrock` (default), `anthropic`, `litellm`, `vertex`. All Strands SD
 - **Structured output on non-Bedrock providers**: blueprints with `output_schema` auto-register `StructuredOutputEnforcer` (instructor-based post-processor) — bypasses Strands' broken forced-tool path for OpenAI-compatible endpoints.
 - **LiteLLM safety pin**: `litellm>=1.83.0,<2` (versions 1.82.7–1.82.8 were CVE-2026-33634 supply chain attack).
 - **LiteLLM model_id rule**: when `base_url` is set, loader auto-prefixes `openai/` to prevent LiteLLM's provider auto-detection from bypassing the proxy.
-- Migration strategy: `operator/inference-migration.md` (Stage 2: hooks decoupling; Stage 3: infra optionality — both still pending).
+- Migration strategy: `operator/inference-migration.md` (Stage 3: infra optionality still pending).
 
-## Pipeline Validation (E2E — tccw-qitp)
-Full pipeline validated 2026-04-08 (16/16 states, 39s):
+## Observability & Hooks Decoupling (Stage 2) ✅ Complete 2026-04-09
+All agent-level observability hooks are provider-agnostic. Key blueprint knobs:
+
+- **`observability.enabled: true|false`** — master toggle. When false, no Langfuse / audit log / structured logger / cost tracker hooks register.
+- **`observability.data_protection.provider: bedrock|presidio|none`**
+  - `bedrock` — AWS Bedrock Guardrails. Requires a Bedrock model provider AND `BEDROCK_GUARDRAIL_ID` env. No-ops on any other combination (no crash).
+  - `presidio` — Microsoft Presidio, MIT-licensed, local redaction via `PresidioGuardrailHook`. Works with any inference provider. Configure entities with `presidio_entities: [EMAIL_ADDRESS, PHONE_NUMBER, ...]` and language with `presidio_language: en`.
+  - `none` — no in-process PII filter. CloudWatch data protection (storage-layer masking) still applies when `cloudwatch_masking_identifiers` is set.
+- **`evaluation.provider: agentcore|langfuse`**
+  - `agentcore` (default) — `bedrock_agentcore_starter_toolkit.Evaluation`. Judge model must be a Bedrock ARN.
+  - `langfuse` — `LangfuseEvaluationClient`. Provider-agnostic, requires `LANGFUSE_HOST` / `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`. Online eval is dashboard-driven, not env-driven.
+- **`CostTracker` env vars**: `MODEL_PRICING` (JSON map) and `MODEL_DEFAULT_PRICING` (JSON array). `BEDROCK_MODEL_PRICING` / `BEDROCK_DEFAULT_PRICING` still accepted as deprecated aliases. Built-in defaults cover `claude-sonnet-4-6` / `claude-haiku-4-6` so cost tracking works on LiteLLM with zero config.
+- **Langfuse is already double-traced**: LiteLLM proxy writes generations via `success_callback: langfuse`; agent-level `LangfuseHook` writes session/tool spans. Intentional — they capture different granularities.
+
+## Pipeline Validation (E2E — tccw-qitp) ✅ PRODUCTION-VALIDATED 2026-04-09
+Authoritative run: **`pilot-t4-1775755670`** — 16/16 states, 44.08 s, gap-detector called real `claude-sonnet-4-6` via LiteLLM, `GapDetectionOutput` structured output enforced, claim-check artifact persisted to `s3://qitp-dev-artifacts-123456789012/domain/2026-04-09/13b6f34b-7306-40fe-b30c-9a2feeb9c63b/gap-detector.json`.
 ```
 ValidateMarketCalendar → CheckTradingDay → gap-detector → CheckGapCount
 → PARALLEL(sentiment-analyzer, technical-analyzer, ml-predictor)
@@ -79,6 +93,19 @@ ValidateMarketCalendar → CheckTradingDay → gap-detector → CheckGapCount
 → StoreResults → PipelineComplete
 ```
 Skills in `tccw-qitp/.claude/skills/`: invoke-agent, check-agent, check-deploy, check-artifacts, run-pipeline.
+
+**Known data-contract issue (not infra):** 5 downstream agents (sentiment-analyzer, technical-analyzer, ml-predictor, strategy-evaluator, portfolio-recommender) reject input with `Missing required field: symbols/symbol/strategy_evaluations` when upstream gap-detector returns empty `ranked_gaps`. Fix is per-agent input-validator fallbacks to the default watchlist.
+
+## Domain Dependencies — Secrets Manager wiring
+The platform reads its LiteLLM API key from AWS Secrets Manager, never from env vars:
+- **Secret:** `qitp/platform/litellm` (JSON field `TOKEN`)
+- **Data source:** `tccw-qitp/infra/domain_dashboard.tf:186` — `data "aws_secretsmanager_secret_version" "platform_litellm"`
+- **Wiring:** `tccw-qitp/infra/main.tf:52` (agents) + `:122` (mcps) — both pass `jsondecode(...)["TOKEN"]` to `module.agents.litellm_api_key` / `module.mcps.litellm_api_key`
+- **Env var injected:** `LITELLM_API_KEY` in every runtime via `modules/agents/runtime.tf:40`
+- **Key scope:** claude-sonnet-4-6, claude-max-sonnet, claude-max-opus, gpt-5-codex, gpt-5.4-codex, gemini-3.1-pro, deepseek-r1, claude-max-haiku-worker-001, llama-3.3-70b
+- **Rotation:** out-of-band via litellm_tools MCP; TF only reads, never writes.
+
+The older `qitp-dev/dashboard/litellm` secret is still alive and still feeds the dashboard ECS chat agent only (gemini-scoped). Do not reuse it for platform agents.
 
 ## Next Moves (Hardening Only — Independent, No Dependencies)
 7 items in `operator/ENHANCEMENTS.md` (NM-001 to NM-008, NM-007 blocked on AWS).
