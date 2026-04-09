@@ -1,10 +1,9 @@
 name: SonarQube Scan
 
+# Manual-only. Reusable workflow dependency has intermittent availability;
+# keeping it off the push path prevents red baseline noise. Run on demand
+# via `gh workflow run sonar-scan.yml` when a scan is actually needed.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 jobs:

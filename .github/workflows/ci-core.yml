@@ -20,8 +20,9 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install dependencies
-        run: pip install -e ".[dev]"
+      - name: Install dependencies (all optional extras)
+        run: |
+          pip install -e ".[dev,runtime,cache,observability,anthropic,litellm,structured_output,presidio,evaluation_langfuse]"
 
       - name: Lint
         run: ruff check src/ tests/

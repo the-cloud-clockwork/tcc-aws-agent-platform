@@ -1,26 +1,29 @@
 name: Publish to CodeArtifact
 
+# Republishes the agent-core wheel to CodeArtifact on every push to main
+# that touches core/. Version stays pinned at 1.0.0 — publish-wheel.sh
+# deletes the existing version and re-uploads a fresh wheel.
+
 on:
   push:
     branches: [main]
     paths:
       - 'core/**'
-      - 'prompts/**'
       - '.github/workflows/publish.yml'
+  workflow_dispatch:
 
 permissions:
-  id-token: write
   contents: read
 
+env:
+  AWS_DEFAULT_REGION: eu-west-1
+
 jobs:
-  publish:
+  publish-core:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        component:
-          - { name: core,    package: agent-core,      script: core/scripts/publish-wheel.sh }
-          - { name: prompts, package: prompt-registry, script: "" }
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -28,36 +31,8 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: eu-west-1
-
       - name: Install build tools
         run: pip install build twine
 
-      # ── fixed-version flow (preferred) ──
-      # Components with a publish-wheel.sh use delete-then-republish so the
-      # version label stays fixed (e.g. agent-core 1.0.0) across dev iterations.
-      - name: Publish via script
-        if: matrix.component.script != ''
-        run: ${{ matrix.component.script }}
-
-      # ── legacy semver flow (fallback) ──
-      - name: Build ${{ matrix.component.package }} (legacy)
-        if: matrix.component.script == ''
-        working-directory: ${{ matrix.component.name }}
-        run: python -m build
-
-      - name: Publish ${{ matrix.component.package }} (legacy)
-        if: matrix.component.script == ''
-        working-directory: ${{ matrix.component.name }}
-        run: |
-          TOKEN=$(aws codeartifact get-authorization-token \
-            --domain platform --domain-owner 123456789012 \
-            --query authorizationToken --output text)
-          TWINE_USERNAME=aws TWINE_PASSWORD="$TOKEN" \
-            twine upload \
-              --repository-url https://platform-123456789012.d.codeartifact.eu-west-1.amazonaws.com/pypi/platform-python/ \
-              dist/*
+      - name: Publish agent-core via publish-wheel.sh
+        run: ./core/scripts/publish-wheel.sh
