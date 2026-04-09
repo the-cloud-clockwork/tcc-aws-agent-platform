@@ -320,9 +320,20 @@ class BlueprintLoader:
             case "litellm":
                 from strands.models.litellm import LiteLLMModel
 
+                # Force openai-compatible routing when base_url is set.
+                # Without this, LiteLLM auto-detects provider from model_id
+                # (e.g. "claude-sonnet-4-6" → anthropic direct) and ignores
+                # base_url/api_key, causing auth failures against our proxy.
+                model_id = model.model_id
+                if model.base_url and not model_id.startswith("openai/"):
+                    model_id = f"openai/{model_id}"
+
+                # client_args is unpacked directly into litellm.acompletion()
+                # via `**self.client_args` (strands/models/litellm.py line 466).
+                # This is where api_key/api_base/extra_headers must go.
                 client_args_l: dict[str, Any] = {}
                 if model.base_url:
-                    client_args_l["base_url"] = model.base_url
+                    client_args_l["api_base"] = model.base_url
                 if model.api_key_env:
                     key = os.environ.get(model.api_key_env, "")
                     if key:
@@ -334,10 +345,11 @@ class BlueprintLoader:
                         if val:
                             headers[header_name] = val
                     if headers:
-                        client_args_l["default_headers"] = headers
+                        client_args_l["extra_headers"] = headers
+
                 provider_model = LiteLLMModel(
-                    client_args=client_args_l or None,
-                    model_id=model.model_id,
+                    client_args=client_args_l if client_args_l else None,
+                    model_id=model_id,
                     params={"max_tokens": model.max_tokens, "temperature": model.temperature},
                 )
 
@@ -539,10 +551,32 @@ class BlueprintLoader:
         }
         kwargs.update(self._build_model_config(blueprint.model, blueprint.thinking))
 
+        # Structured output routing:
+        # - bedrock: Strands' native structured_output_model (forced tool pattern)
+        #   works reliably via the Converse API
+        # - litellm/anthropic/vertex: Strands' forced tool pattern is broken
+        #   (upstream issues #743, #1005, #891). Use StructuredOutputEnforcer
+        #   hook instead, which runs instructor as a post-processor.
+        #   See: core/src/agent_core/hooks/structured_output_enforcer.py
+        if structured_output_model is not None:
+            if blueprint.model.provider == "bedrock":
+                kwargs["structured_output_model"] = structured_output_model
+            else:
+                from agent_core.hooks.structured_output_enforcer import (
+                    StructuredOutputEnforcer,
+                )
+
+                enforcer = StructuredOutputEnforcer(
+                    schema=structured_output_model,
+                    model_id=blueprint.model.model_id,
+                    base_url=blueprint.model.base_url,
+                    api_key_env=blueprint.model.api_key_env,
+                    extra_headers_env=blueprint.model.extra_headers_env,
+                )
+                hooks.append(enforcer)
+
         if hooks:
             kwargs["hooks"] = hooks
-        if structured_output_model is not None:
-            kwargs["structured_output_model"] = structured_output_model
 
         # -- wire state dict for memory hook providers --
         if memory_wiring is not None:
