@@ -320,20 +320,24 @@ class BlueprintLoader:
             case "litellm":
                 from strands.models.litellm import LiteLLMModel
 
-                # Force openai-compatible routing when base_url is set.
-                # Without this, LiteLLM auto-detects provider from model_id
-                # (e.g. "claude-sonnet-4-6" → anthropic direct) and ignores
-                # base_url/api_key, causing auth failures against our proxy.
-                model_id = model.model_id
-                if model.base_url and not model_id.startswith("openai/"):
-                    model_id = f"openai/{model_id}"
-
-                # client_args is unpacked directly into litellm.acompletion()
-                # via `**self.client_args` (strands/models/litellm.py line 466).
-                # This is where api_key/api_base/extra_headers must go.
+                # model_id is passed through unchanged — the blueprint
+                # author supplies the literal the proxy expects.
+                #
+                # When base_url is set, we assume the endpoint is
+                # OpenAI-compatible (the standard LiteLLM proxy contract)
+                # and pin custom_llm_provider="openai". Without this pin,
+                # the litellm library's model-name heuristic routes
+                # claude-*/gemini-*/deepseek-* to the native provider's
+                # endpoint, ignoring api_base. This is a litellm library
+                # quirk, not a platform concern — the flag just tells
+                # litellm "trust me, it's OpenAI-compatible".
+                #
+                # client_args is unpacked into litellm.acompletion() via
+                # `**self.client_args` (strands/models/litellm.py:466).
                 client_args_l: dict[str, Any] = {}
                 if model.base_url:
                     client_args_l["api_base"] = model.base_url
+                    client_args_l["custom_llm_provider"] = "openai"
                 if model.api_key_env:
                     key = os.environ.get(model.api_key_env, "")
                     if key:
@@ -349,7 +353,7 @@ class BlueprintLoader:
 
                 provider_model = LiteLLMModel(
                     client_args=client_args_l if client_args_l else None,
-                    model_id=model_id,
+                    model_id=model.model_id,
                     params={"max_tokens": model.max_tokens, "temperature": model.temperature},
                 )
 

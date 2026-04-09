@@ -2,7 +2,11 @@ name: Publish to CodeArtifact
 
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+    paths:
+      - 'core/**'
+      - 'prompts/**'
+      - '.github/workflows/publish.yml'
 
 permissions:
   id-token: write
@@ -12,10 +16,11 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         component:
-          - { name: core, package: agent-core }
-          - { name: prompts, package: prompt-registry }
+          - { name: core,    package: agent-core,      script: core/scripts/publish-wheel.sh }
+          - { name: prompts, package: prompt-registry, script: "" }
     steps:
       - uses: actions/checkout@v4
 
@@ -29,27 +34,30 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: eu-west-1
 
-      - name: Get CodeArtifact token
-        id: codeartifact
-        run: |
-          TOKEN=$(aws codeartifact get-authorization-token \
-            --domain platform \
-            --domain-owner 835618032093 \
-            --query authorizationToken \
-            --output text)
-          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
-
       - name: Install build tools
         run: pip install build twine
 
-      - name: Build ${{ matrix.component.package }}
+      # ── fixed-version flow (preferred) ──
+      # Components with a publish-wheel.sh use delete-then-republish so the
+      # version label stays fixed (e.g. agent-core 1.0.0) across dev iterations.
+      - name: Publish via script
+        if: matrix.component.script != ''
+        run: ${{ matrix.component.script }}
+
+      # ── legacy semver flow (fallback) ──
+      - name: Build ${{ matrix.component.package }} (legacy)
+        if: matrix.component.script == ''
         working-directory: ${{ matrix.component.name }}
         run: python -m build
 
-      - name: Publish ${{ matrix.component.package }}
+      - name: Publish ${{ matrix.component.package }} (legacy)
+        if: matrix.component.script == ''
         working-directory: ${{ matrix.component.name }}
-        env:
-          TWINE_USERNAME: aws
-          TWINE_PASSWORD: ${{ steps.codeartifact.outputs.token }}
-          TWINE_REPOSITORY_URL: https://platform-835618032093.d.codeartifact.eu-west-1.amazonaws.com/pypi/platform-python/
-        run: twine upload dist/*
+        run: |
+          TOKEN=$(aws codeartifact get-authorization-token \
+            --domain platform --domain-owner 835618032093 \
+            --query authorizationToken --output text)
+          TWINE_USERNAME=aws TWINE_PASSWORD="$TOKEN" \
+            twine upload \
+              --repository-url https://platform-835618032093.d.codeartifact.eu-west-1.amazonaws.com/pypi/platform-python/ \
+              dist/*
