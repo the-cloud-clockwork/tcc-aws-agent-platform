@@ -26,7 +26,9 @@ def build_guardrail_model_kwargs(config: DataProtectionConfig) -> dict[str, str]
     """Build kwargs to pass to ``BedrockModel()`` for guardrail integration.
 
     Reads the guardrail ID and version from environment variables
-    named in *config*. Raises if the guardrail ID env var is not set.
+    named in *config*. Returns an empty dict when the env vars are
+    absent — non-Bedrock providers and unconfigured Bedrock agents
+    both get a clean no-op instead of a crash.
 
     Returns a dict suitable for ``BedrockModel(**kwargs)``::
 
@@ -34,11 +36,10 @@ def build_guardrail_model_kwargs(config: DataProtectionConfig) -> dict[str, str]
     """
     guardrail_id = os.environ.get(config.guardrail_id_env)
     if not guardrail_id:
-        raise EnvironmentError(
-            f"Data protection requires env var {config.guardrail_id_env!r} "
-            f"to be set with the Bedrock Guardrail ID."
-        )
-    guardrail_version = os.environ[config.guardrail_version_env]
+        return {}
+    guardrail_version = os.environ.get(config.guardrail_version_env, "")
+    if not guardrail_version:
+        return {}
     return {
         "guardrail_id": guardrail_id,
         "guardrail_version": guardrail_version,

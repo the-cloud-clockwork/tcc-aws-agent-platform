@@ -2,9 +2,11 @@
 
 > **Last assessed:** 2026-04-09
 > **Assessor:** AI-assisted (validated by operator)
-> **Overall Score:** 8.7 / 10
+> **Overall Score:** 8.9 / 10
 >
-> **2026-04-09 milestone:** Phase 1 COMPLETE. All 9 QITP agents migrated to LiteLLM proxy (claude-sonnet-4-6 via llm.homeofanton.com + Cloudflare Access). `StructuredOutputEnforcer` hook (instructor post-processor) ships provider-agnostic `output_schema` support. Full E2E pipeline SUCCEEDED in 31s (16/16 states, exec `a2ad23f0-f8fd-4ef2-bbcf-fd2c4f8c1c51`). Bedrock no longer required for inference.
+> **2026-04-09 Phase 1:** All 9 QITP agents migrated to LiteLLM proxy (claude-sonnet-4-6 via llm.homeofanton.com + Cloudflare Access). `StructuredOutputEnforcer` hook (instructor post-processor) ships provider-agnostic `output_schema` support. Full E2E pipeline SUCCEEDED in 31s (16/16 states, exec `a2ad23f0-f8fd-4ef2-bbcf-fd2c4f8c1c51`). Bedrock no longer required for inference.
+>
+> **2026-04-09 Phase 2:** Observability & hooks decoupling COMPLETE. Guardrail hook provider-gated (no latent LiteLLM crash). `PresidioGuardrailHook` adds provider-agnostic PII redaction via blueprint `data_protection.provider: presidio`. `LangfuseEvaluationClient` adds provider-agnostic eval via blueprint `evaluation.provider: langfuse` behind new `EvaluationProvider` protocol. `CostTracker` envs renamed to `MODEL_PRICING` with built-in LiteLLM pricing defaults. Dead YAML (dashboard, ttl_days) purged. `observability.enabled` toggle now wired. Core bumped to `0.9.29`.
 
 ---
 

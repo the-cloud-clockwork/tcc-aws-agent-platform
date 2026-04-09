@@ -167,32 +167,22 @@ var.litellm_api_key_secret != "" ? { LITELLM_API_KEY = data.aws_ssm_parameter.li
 
 ---
 
-### Stage 2: Observability & Hooks Decoupling (Effort: Medium — 1-2 sessions)
+### Stage 2: Observability & Hooks Decoupling ✅ COMPLETE (2026-04-09)
 
 **Goal:** Remove Bedrock assumptions from guardrails, cost tracking, and evaluation. Make these features work with any provider or degrade gracefully.
 
-**Changes:**
+**Delivered:**
 
-1. **Guardrail hook** — Make guardrail conditional on provider:
-   - If `provider == "bedrock"`: use `apply_guardrail()` as today (Bedrock Guardrails)
-   - If `provider != "bedrock"`: skip Bedrock Guardrails, log warning. Future: plug in provider-native content filtering or a generic regex/PII filter
-   - The `GuardrailHook` already checks for env vars `BEDROCK_GUARDRAIL_ID` — if absent, it should no-op gracefully instead of failing
+- [x] **Guardrail model kwargs no-op on non-Bedrock** — `build_guardrail_model_kwargs()` now returns `{}` instead of raising when `BEDROCK_GUARDRAIL_ID` is absent. Fixes latent crash in LiteLLM agents.
+- [x] **Guardrail hook provider-gated** — `loader.py` only registers `GuardrailHook` when `blueprint.model.provider == "bedrock"` AND the env var is set. LiteLLM agents no longer silently call Bedrock `ApplyGuardrail`.
+- [x] **Presidio PII guardrail** — New `PresidioGuardrailHook` in `core/src/agent_core/hooks/presidio_guardrail.py`. MIT-licensed, provider-agnostic. Selected via blueprint `observability.data_protection.provider: presidio`. Lazy-loads Presidio engines so import cost is zero. Dependency in `presidio` optional extra.
+- [x] **Cost tracker env rename** — `BEDROCK_MODEL_PRICING` / `BEDROCK_DEFAULT_PRICING` renamed to `MODEL_PRICING` / `MODEL_DEFAULT_PRICING`. Legacy envs still honored as deprecated aliases (warning logged). Built-in defaults for `claude-sonnet-4-6` / `claude-haiku-4-6` so token→USD works out of the box on LiteLLM.
+- [x] **Langfuse evaluation provider** — New `EvaluationProvider` protocol in `evaluation/provider.py`. `LangfuseEvaluationClient` in `evaluation/langfuse_client.py` uses the Langfuse SDK for scoring + custom judge registration. Selected via blueprint `evaluation.provider: langfuse`. `agentcore` stays default.
+- [x] **Observability toggle wired** — `loader.py` now honors `blueprint.observability.enabled`. Setting it to `false` disables Langfuse / audit log / structured log / cost tracking hooks entirely.
+- [x] **Dead YAML cleanup** — Removed `observability.dashboard.*` and `observability.audit_log.ttl_days` blocks from all 9 QITP blueprints (schema retained with defaults for future Bedrock agents).
+- [x] **Tests** — `TestPhase2Decoupling` in `test_block9_strands_integration.py` covers: guardrail no-op, env alias, Presidio hook, EvaluationProvider protocol compliance, Langfuse client creds validation, wiring dispatch in both directions.
 
-2. **Cost tracker** — Abstract pricing from Bedrock format:
-   - Rename `BEDROCK_MODEL_PRICING` → `MODEL_PRICING` (keep backward compat alias)
-   - Accept any model ID format, not just Bedrock cross-region profile format
-   - Pricing JSON already accepts arbitrary model_id keys — just needs docs update
-
-3. **Evaluation client** — The `bedrockEvaluatorModelConfig` payload shape is an AgentCore API constraint. Two paths:
-   - If running on AgentCore: continue using Bedrock evaluation API (this is infra, not inference)
-   - If running standalone: evaluation becomes optional / bring-your-own-judge pattern
-
-4. **PII filter** — `data_protection.py` calls `boto3.client("bedrock-runtime").apply_guardrail()`:
-   - Extract to a pluggable interface: `PiiFilter` protocol
-   - Default impl: Bedrock Guardrail
-   - Alternative impl: regex-based or Presidio-based for non-AWS deployments
-
-**Key insight:** Guardrails and evaluation are **AgentCore platform features**, not inference features. They should remain Bedrock-powered even when inference uses a different provider. The decoupling is about graceful degradation, not replacement.
+**Key insight confirmed:** Langfuse is already integrated at two layers (LiteLLM proxy + agent `LangfuseHook`), so traces on non-Bedrock agents have been working the entire time. Stage 2 was about closing the guardrail/eval gaps and making provider selection explicit in the blueprint schema.
 
 ---
 

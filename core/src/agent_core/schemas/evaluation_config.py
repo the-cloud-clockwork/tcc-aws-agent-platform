@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -130,6 +131,14 @@ class EvaluationConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
+    provider: Literal["agentcore", "langfuse"] = Field(
+        default="agentcore",
+        description=(
+            "Evaluation backend. 'agentcore' uses AWS Bedrock AgentCore Evaluation "
+            "(default; requires a Bedrock judge model). 'langfuse' uses Langfuse "
+            "LLM-as-judge + built-in scorers (provider-agnostic, requires LANGFUSE_* envs)."
+        ),
+    )
     online: OnlineEvaluationConfig | None = Field(
         default=None,
         description="Continuous evaluation config. None means no online monitoring.",

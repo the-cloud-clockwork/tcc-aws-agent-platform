@@ -13,8 +13,20 @@ import uuid
 from typing import Any
 
 from agent_core.evaluation.client import EvaluationClient
+from agent_core.evaluation.provider import EvaluationProvider
 from agent_core.evaluation.results import EvaluationResult
 from agent_core.schemas.evaluation_config import EvaluationConfig
+
+
+def _build_eval_client(
+    config: EvaluationConfig, region: str | None
+) -> EvaluationProvider:
+    """Dispatch to the configured evaluation backend."""
+    if config.provider == "langfuse":
+        from agent_core.evaluation.langfuse_client import LangfuseEvaluationClient
+
+        return LangfuseEvaluationClient()
+    return EvaluationClient(region=region)
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +50,7 @@ class EvaluationWiring:
     ) -> None:
         self._config = config
         self._agent_id = agent_id
-        self._client = EvaluationClient(region=region)
+        self._client: EvaluationProvider = _build_eval_client(config, region)
         self._evaluator_ids: dict[str, str] = {}
         self._online_config_name: str | None = None
         self._results_writer: _EvaluationResultWriter | None = None
@@ -82,7 +94,7 @@ class EvaluationWiring:
         return self._config
 
     @property
-    def client(self) -> EvaluationClient:
+    def client(self) -> EvaluationProvider:
         return self._client
 
     @property
