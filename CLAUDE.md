@@ -57,13 +57,17 @@ gh workflow run sonar-scan.yml      # manual SonarQube scan (only this repo)
 
 ### After changes: infra clean + CI clean = done.
 
-## Inference Providers (Stage 1 — Provider-Agnostic)
+## Inference Providers (Stage 1 — Provider-Agnostic) ✅ Complete 2026-04-09
 `_build_model_config()` in `loader.py` dispatches on `ModelConfig.provider` via match/case.
 Supported: `bedrock` (default), `anthropic`, `litellm`, `vertex`. All Strands SDK providers.
-- Bedrock: requires `BEDROCK_REGION` env var. Default path — all existing blueprints.
-- LiteLLM: set `base_url` + `api_key_env` in blueprint YAML. Routes to any LiteLLM-supported model.
+- **All 9 QITP agents run on LiteLLM in dev** (`claude-sonnet-4-6` via `llm.homeofanton.com` + Cloudflare Access service tokens). Bedrock path retained but unused for QITP inference.
+- LiteLLM: set `base_url` + `api_key_env` + optional `extra_headers_env` in blueprint YAML. `extra_headers_env` is a generic header→env map (used for CF Access tokens).
 - Anthropic: set `api_key_env` in blueprint. Direct Anthropic API.
-- Migration strategy: `operator/inference-migration.md` (3 stages: SDK factory → hooks decoupling → infra optionality)
+- Bedrock: requires `BEDROCK_REGION`. Default path for future agents.
+- **Structured output on non-Bedrock providers**: blueprints with `output_schema` auto-register `StructuredOutputEnforcer` (instructor-based post-processor) — bypasses Strands' broken forced-tool path for OpenAI-compatible endpoints.
+- **LiteLLM safety pin**: `litellm>=1.83.0,<2` (versions 1.82.7–1.82.8 were CVE-2026-33634 supply chain attack).
+- **LiteLLM model_id rule**: when `base_url` is set, loader auto-prefixes `openai/` to prevent LiteLLM's provider auto-detection from bypassing the proxy.
+- Migration strategy: `operator/inference-migration.md` (Stage 2: hooks decoupling; Stage 3: infra optionality — both still pending).
 
 ## Pipeline Validation (E2E — tccw-qitp)
 Full pipeline validated 2026-04-08 (16/16 states, 39s):

@@ -1,8 +1,10 @@
 # tccw-aws-agent-platform — Project State Assessment
 
-> **Last assessed:** 2026-04-08 (evening)
+> **Last assessed:** 2026-04-09
 > **Assessor:** AI-assisted (validated by operator)
-> **Overall Score:** 8.5 / 10
+> **Overall Score:** 8.7 / 10
+>
+> **2026-04-09 milestone:** Phase 1 COMPLETE. All 9 QITP agents migrated to LiteLLM proxy (claude-sonnet-4-6 via llm.homeofanton.com + Cloudflare Access). `StructuredOutputEnforcer` hook (instructor post-processor) ships provider-agnostic `output_schema` support. Full E2E pipeline SUCCEEDED in 31s (16/16 states, exec `a2ad23f0-f8fd-4ef2-bbcf-fd2c4f8c1c51`). Bedrock no longer required for inference.
 
 ---
 

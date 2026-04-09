@@ -259,16 +259,17 @@ var.litellm_api_key_secret != "" ? { LITELLM_API_KEY = data.aws_ssm_parameter.li
 
 ---
 
-## Implementation Checklist — Stage 1
+## Implementation Checklist — Stage 1 ✅ COMPLETE (2026-04-09)
 
-- [ ] Update `_build_model_config()` in `loader.py` with match/case dispatch
-- [ ] Add `base_url` and `api_key_env` to `ModelConfig`
-- [ ] Add `LITELLM_BASE_URL`, `LITELLM_API_KEY` env var passthrough in `modules/agents/runtime.tf`
-- [ ] Add `litellm` and `anthropic` to optional dependencies in `pyproject.toml`
-- [ ] Create example blueprint: `litellm-agent.yaml` with `provider: litellm`
-- [ ] Test: deploy an agent with `provider: litellm` pointing at your LiteLLM proxy
-- [ ] Test: all existing `provider: bedrock` blueprints unchanged
-- [ ] Update CLAUDE.md with provider configuration docs
+- [x] Update `_build_model_config()` in `loader.py` with match/case dispatch
+- [x] Add `base_url`, `api_key_env`, `extra_headers_env` to `ModelConfig`
+- [x] Add `LITELLM_BASE_URL`, `LITELLM_API_KEY`, `CF_ACCESS_*` env var passthrough in `modules/agents/runtime.tf`
+- [x] Add `litellm`, `anthropic`, `structured_output` optional extras in `pyproject.toml`
+- [x] Swap gap-detector blueprint to `provider: litellm` (first real validation)
+- [x] Build `StructuredOutputEnforcer` hook (instructor-based) for non-Bedrock `output_schema` support
+- [x] Deploy all 9 QITP agents on LiteLLM proxy + Cloudflare Access service tokens
+- [x] E2E validation: weekly-gap-analysis pipeline SUCCEEDED in 31s, 16/16 states (exec `a2ad23f0-f8fd-4ef2-bbcf-fd2c4f8c1c51`)
+- [x] Update CLAUDE.md with provider configuration docs
 
 ---
 
