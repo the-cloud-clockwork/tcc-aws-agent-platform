@@ -1,7 +1,11 @@
 # AWS Agent Platform — Project Instructions
 
 > **Configuration-driven, provider-agnostic runtime for AI agents on AWS — Strands SDK + Bedrock AgentCore.**
-> **Status: 92/100 production readiness.** Stage 1 + Stage 2 inference decoupling complete and **validated in production** (`pilot-t4-1775755670`, 16/16 states, real claude-sonnet-4-6 via LiteLLM, claim-check artifact in S3). Remaining work is application-level (5 agent input-validator fallbacks) — not infrastructure.
+> **Status: 92/100 production readiness.** Phase 1 (provider-agnostic inference) + Phase 2 (observability decoupling) complete and **validated in production** twice:
+> - `pilot-t4-1775755670` — gap-detector single-agent path, real claude-sonnet-4-6 via LiteLLM, claim-check artifact in S3.
+> - `pilot-t6-1775766858` — 16/16 Step Functions states SUCCEEDED in 61s, empty-gaps parallel fan-out, ml-predictor produced structured output via the Block 6 empty-symbols fallback.
+>
+> **Stage 3 (Infrastructure Optionality) is POSTPONED** (operator decision, 2026-04-09). The decoupling goal is achieved — inference and observability are no longer tied to Bedrock. Current focus has pivoted to: scheduled pipeline runs + multi-model validation (Gemini/GPT/DeepSeek via LiteLLM) + decision-level observability. See `operator/inference-migration.md` for the full Phase 1/2 story and the postponed Stage 3.
 
 ## Boot Sequence
 1. `operator/VISION.md` — Intent, philosophy (operator-owned, never edit)
@@ -107,11 +111,22 @@ The platform reads its LiteLLM API key from AWS Secrets Manager, never from env 
 
 The older `qitp-dev/dashboard/litellm` secret is still alive and still feeds the dashboard ECS chat agent only (gemini-scoped). Do not reuse it for platform agents.
 
-## Next Moves (Hardening Only — Independent, No Dependencies)
-7 items in `operator/ENHANCEMENTS.md` (NM-001 to NM-008, NM-007 blocked on AWS).
-To 85/100: NM-001 (tests), NM-002 (domain IAM), NM-003 (enable guardrails).
-To 95/100: NM-004 (secrets rotation), NM-005 (online eval), NM-006 (adopt modules).
-**Next:** LiteLLM test — add `litellm` to one agent image, set API key, invoke with `provider: litellm`.
+## Roadmap Pivot (Apr 2026)
+Phase 1 + Phase 2 are done. Stage 3 is postponed. The current focus is:
+
+1. **Scheduled pipeline runs** — EventBridge cadence (hourly / 6h / nightly) to fire `weekly-gap-analysis` automatically, keep free-tier LiteLLM data flowing, accumulate decision traces.
+2. **Multi-model validation** — the platform LiteLLM key (`qitp/platform/litellm.TOKEN`) is scoped for 9 models (`claude-sonnet-4-6, claude-max-sonnet, claude-max-opus, gpt-5-codex, gpt-5.4-codex, gemini-3.1-pro, deepseek-r1, claude-max-haiku-worker-001, llama-3.3-70b`). Run the same pipeline across Gemini / GPT / DeepSeek and compare quality + cost + latency.
+3. **Agent / schema / blueprint hardening** — form still open, waiting for operator direction. Candidates: stricter Pydantic output schemas, SFN step-boundary validation, blueprint linter, schema versioning.
+4. **Decision-level observability** — Langfuse trace wiring exists. Gap is surfacing decisions to the operator each morning (digest generator, dashboard panel, summary endpoint).
+
+**Old NM-001..NM-008 hardening list is deprecated** — see `operator/ENHANCEMENTS.md` if you need historical context, but do not treat it as the priority list.
+
+## Known Platform Debt (not blocking the pivot)
+These hit pilot-t6 but are tracked separately and are NOT on the roadmap:
+- `sentiment-analyzer` + `strategy-evaluator` → `agent_core.evaluation.client.create_evaluator` fails with `evaluation.provider: agentcore`. Workaround: `evaluation.provider: langfuse` or disable evaluation on those blueprints.
+- `technical-analyzer` → `bedrock_agentcore_starter_toolkit.operations.gateway.client.update_gateway` crashes on gateway refresh.
+- `portfolio-recommender` → `AgentBlueprint` Pydantic `ValidationError` on blueprint load — schema drift.
+- `tccw-qitp/scripts/rebuild-deploy.sh force_update_runtime` (line 333) drops env vars because `update-agent-runtime` is replace-not-merge and the call omits `--environment-variables`. Workaround: after a live `rebuild-deploy` run, follow up with `terraform apply -target=module.agents` to restore env.
 
 ## Quick Test Lambda — `test-litellm-proxy`
 Disposable Lambda for testing connectivity, headers, and API calls from inside AWS networking.
