@@ -287,6 +287,16 @@ class BlueprintLoader:
         Model instance.  Imports are lazy so non-default providers only require
         their SDK package when actually selected by a blueprint.
         """
+        import re
+
+        def _expand_with_defaults(s: str) -> str:
+            """Expand ${VAR:-default} and ${VAR} patterns."""
+            def _sub(m):
+                var = m.group(1)
+                default = m.group(2)
+                return os.environ.get(var, default if default is not None else m.group(0))
+            return re.sub(r'\$\{([^}:]+)(?::-(.*?))?\}', _sub, s)
+
         provider_model: Any = None
         match model.provider:
             case "bedrock":
@@ -298,7 +308,7 @@ class BlueprintLoader:
                 from strands.models import BedrockModel
 
                 provider_model = BedrockModel(
-                    model_id=os.path.expandvars(model.model_id),
+                    model_id=_expand_with_defaults(model.model_id),
                     region_name=bedrock_region,
                     max_tokens=model.max_tokens,
                 )
@@ -313,7 +323,7 @@ class BlueprintLoader:
                         client_args["api_key"] = key
                 provider_model = AnthropicModel(
                     client_args=client_args or None,
-                    model_id=os.path.expandvars(model.model_id),
+                    model_id=_expand_with_defaults(model.model_id),
                     max_tokens=model.max_tokens,
                 )
 
@@ -351,7 +361,7 @@ class BlueprintLoader:
                     if headers:
                         client_args_l["extra_headers"] = headers
 
-                resolved_model_id = os.path.expandvars(model.model_id)
+                resolved_model_id = _expand_with_defaults(model.model_id)
 
                 provider_model = LiteLLMModel(
                     client_args=client_args_l if client_args_l else None,
