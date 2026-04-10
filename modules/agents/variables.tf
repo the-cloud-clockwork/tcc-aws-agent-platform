@@ -378,6 +378,14 @@ variable "guardrail_version" {
   default     = ""
 }
 
+# ── Extra Environment Variables ──────────────────────────────────────────────
+
+variable "extra_environment_variables" {
+  description = "Arbitrary key-value map merged into every runtime's environment. Domain-specific overrides (e.g. AGENT_MODEL_ID) go here."
+  type        = map(string)
+  default     = {}
+}
+
 # ── Evaluation ───────────────────────────────────────────────────────────────
 
 variable "evaluation_table_name" {

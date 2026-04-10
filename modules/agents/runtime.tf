@@ -90,6 +90,7 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
     } : {},
     # Evaluation persistence
     var.evaluation_table_name != "" ? { EVALUATION_TABLE = var.evaluation_table_name } : {},
+    var.extra_environment_variables,
   )
 
   # Network configuration -- PUBLIC or VPC
