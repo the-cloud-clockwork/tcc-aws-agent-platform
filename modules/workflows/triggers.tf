@@ -26,14 +26,15 @@ resource "aws_cloudwatch_event_target" "sfn_scheduled" {
     input_paths = {
       time = "$.time"
     }
-    input_template = <<-TEMPLATE
+    input_template = jsonencode(merge(
+      try(each.value.default_input, {}),
       {
-        "trigger": "scheduled",
-        "scheduled_time": <time>,
-        "workflow": "${each.key}",
-        "environment": "${var.environment}"
+        trigger        = "scheduled"
+        scheduled_time = "<time>"
+        workflow       = each.key
+        environment    = var.environment
       }
-    TEMPLATE
+    ))
   }
 }
 

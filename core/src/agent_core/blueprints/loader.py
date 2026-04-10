@@ -298,7 +298,7 @@ class BlueprintLoader:
                 from strands.models import BedrockModel
 
                 provider_model = BedrockModel(
-                    model_id=model.model_id,
+                    model_id=os.path.expandvars(model.model_id),
                     region_name=bedrock_region,
                     max_tokens=model.max_tokens,
                 )
@@ -313,7 +313,7 @@ class BlueprintLoader:
                         client_args["api_key"] = key
                 provider_model = AnthropicModel(
                     client_args=client_args or None,
-                    model_id=model.model_id,
+                    model_id=os.path.expandvars(model.model_id),
                     max_tokens=model.max_tokens,
                 )
 
@@ -351,16 +351,18 @@ class BlueprintLoader:
                     if headers:
                         client_args_l["extra_headers"] = headers
 
+                resolved_model_id = os.path.expandvars(model.model_id)
+
                 provider_model = LiteLLMModel(
                     client_args=client_args_l if client_args_l else None,
-                    model_id=model.model_id,
+                    model_id=resolved_model_id,
                     params={"max_tokens": model.max_tokens, "temperature": model.temperature},
                 )
 
             case "vertex":
                 from strands.models.gemini import GeminiModel
 
-                provider_model = GeminiModel(model_id=model.model_id)
+                provider_model = GeminiModel(model_id=os.path.expandvars(model.model_id))
 
             case _:
                 raise BlueprintLoadError(
