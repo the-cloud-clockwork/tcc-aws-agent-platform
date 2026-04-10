@@ -71,6 +71,8 @@ locals {
     OTEL_PYTHON_CONFIGURATOR    = "aws_configurator"
     OTEL_EXPORTER_OTLP_PROTOCOL = "http/protobuf"
     OTEL_TRACES_EXPORTER        = "otlp"
+    OTEL_METRICS_EXPORTER       = "otlp"
+    OTEL_LOGS_EXPORTER          = "otlp"
   } : {}
 
   name_prefix = "${var.resource_prefix}-${var.environment}"
