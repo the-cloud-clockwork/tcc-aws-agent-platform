@@ -21,6 +21,7 @@ ENV/
 coverage.xml
 htmlcov/
 .tox/
+.build/**
 
 # Type checking
 .mypy_cache/
