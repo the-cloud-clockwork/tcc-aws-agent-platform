@@ -73,7 +73,9 @@ resource "aws_sfn_state_machine" "workflows" {
               "status_code.$" = "$.StatusCode"
               "session_id.$"  = "$.RuntimeSessionId"
             }
-            ResultPath = try(state.result_path, "$.results.${coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))}")
+            ResultPath       = try(state.result_path, "$.results.${coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))}")
+            TimeoutSeconds   = try(state.timeout_seconds, 300)
+            HeartbeatSeconds = try(state.heartbeat_seconds, 240)
             Retry = try(state.retry, null) != null ? [
               for r in state.retry : {
                 ErrorEquals     = try(r.error_equals, ["States.ALL"])
