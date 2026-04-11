@@ -7,6 +7,12 @@
 # settings from the blueprint.
 # ──────────────────────────────────────────────────────────────────────────────
 
+data "aws_ecr_image" "agent" {
+  for_each        = local.blueprints
+  repository_name = aws_ecr_repository.agent[each.key].name
+  image_tag       = "latest"
+}
+
 resource "aws_bedrockagentcore_agent_runtime" "agent" {
   for_each = local.blueprints
 
@@ -17,7 +23,7 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
   # Container image from the agent's ECR repository
   agent_runtime_artifact {
     container_configuration {
-      container_uri = "${aws_ecr_repository.agent[each.key].repository_url}:latest"
+      container_uri = "${aws_ecr_repository.agent[each.key].repository_url}@${data.aws_ecr_image.agent[each.key].image_digest}"
     }
   }
 
