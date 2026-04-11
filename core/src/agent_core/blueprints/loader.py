@@ -1057,7 +1057,23 @@ class BlueprintLoader:
             for node_id, node_agent in node_agents.items():
                 builder.add_node(node_agent, node_id=node_id)
 
+            # Gate nodes are blueprint-level abstractions — filter edges
+            # referencing them so GraphBuilder only sees real agent nodes.
+            # Gate trip_condition/fallback metadata is preserved in the
+            # blueprint for future post-graph evaluation.
+            gate_node_ids = {
+                n.node_id for n in ma.nodes
+                if getattr(n, "type", "agent") == "gate"
+            }
+
             for edge in ma.edges:
+                if edge.from_node in gate_node_ids or edge.to_node in gate_node_ids:
+                    logger.info(
+                        "Skipping gate edge %s → %s (gate node, not a Strands node)",
+                        edge.from_node, edge.to_node,
+                    )
+                    continue
+
                 if edge.condition is not None:
                     from agent_core.blueprints.condition_parser import parse_condition
 
