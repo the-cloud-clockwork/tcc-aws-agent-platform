@@ -174,6 +174,22 @@ data "aws_iam_policy_document" "agent_permissions" {
     }
   }
 
+  # Conditional: extra S3 bucket read access (e.g. historical data, model artifacts)
+  dynamic "statement" {
+    for_each = length(var.extra_s3_read_bucket_arns) > 0 ? [1] : []
+    content {
+      sid    = "ExtraS3ReadAccess"
+      effect = "Allow"
+      actions = [
+        "s3:GetObject",
+        "s3:ListBucket",
+      ]
+      resources = flatten([
+        for arn in var.extra_s3_read_bucket_arns : [arn, "${arn}/*"]
+      ])
+    }
+  }
+
   # Conditional: KMS decrypt for platform artifacts key
   dynamic "statement" {
     for_each = var.platform_artifacts_kms_key_arn != "" ? [1] : []
