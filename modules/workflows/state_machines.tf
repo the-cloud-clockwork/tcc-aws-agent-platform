@@ -301,8 +301,9 @@ resource "aws_sfn_state_machine" "workflows" {
             Type = "Parallel"
             Branches = [
               for branch in try(state.branches, try(state.parallel, [])) :
-              # Rich branch (has states list) vs simple branch (just agent ref)
-              try(branch.states, null) != null ? {
+              # jsondecode(jsonencode()) normalizes dynamic object types
+              # so TF doesn't complain about different State keys per branch.
+              jsondecode(jsonencode(try(branch.states, null) != null ? {
                 StartAt = branch.states[0].id
                 States = {
                   for bs in branch.states :
@@ -352,25 +353,32 @@ resource "aws_sfn_state_machine" "workflows" {
                   )
                 }
               } : {
-                # Legacy simple branch: single agent reference
+                # Legacy simple branch: single agent reference — also via Lambda wrapper
                 StartAt = coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))
                 States = {
                   (coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))) = {
                     Type     = "Task"
-                    Resource = "arn:aws:states:::aws-sdk:bedrockagentcore:invokeAgentRuntime"
+                    Resource = "arn:aws:states:::lambda:invoke"
                     Parameters = {
-                      "AgentRuntimeArn" = try(
-                        var.agent_runtime_arns[coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))],
-                        "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))}"
-                      )
-                      "Payload.$" = "$.prompt"
+                      "FunctionName" = aws_lambda_function.invoke_agent.arn
+                      "Payload" = {
+                        "AgentRuntimeArn" = try(
+                          var.agent_runtime_arns[coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))],
+                          "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))}"
+                        )
+                        "Qualifier"    = "DEFAULT"
+                        "Prompt.$"     = "$.prompt"
+                        "MemoryBranch" = ""
+                        "MemoryMergeStrategy" = ""
+                      }
                     }
                     ResultSelector = {
-                      "body.$"       = "States.StringToJson($.Response)"
-                      "status_code.$" = "$.StatusCode"
-                      "session_id.$"  = "$.RuntimeSessionId"
+                      "body.$"       = "States.StringToJson($.Payload.Response)"
+                      "status_code.$" = "$.Payload.StatusCode"
+                      "session_id.$"  = "$.Payload.RuntimeSessionId"
                     }
                     ResultPath = "$.results.${coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))}"
+                    TimeoutSeconds = 900
                     Retry = [{
                       ErrorEquals     = ["States.ALL"]
                       IntervalSeconds = 2
@@ -380,7 +388,7 @@ resource "aws_sfn_state_machine" "workflows" {
                     End = true
                   }
                 }
-              }
+              }))
             ]
             ResultPath = try(state.result_path, "$.parallel_results")
             Catch = try(state.catch, null) != null ? [
