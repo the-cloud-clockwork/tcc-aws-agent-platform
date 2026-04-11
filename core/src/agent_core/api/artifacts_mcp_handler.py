@@ -66,7 +66,9 @@ def handler(event: dict, context) -> dict:
         }
 
     try:
-        result = asyncio.get_event_loop().run_until_complete(tool_fn(**arguments))
+        result = tool_fn(**arguments)
+        if asyncio.iscoroutine(result):
+            result = asyncio.get_event_loop().run_until_complete(result)
         return result
     except Exception as exc:
         logger.exception("Tool %s failed", tool_name)
