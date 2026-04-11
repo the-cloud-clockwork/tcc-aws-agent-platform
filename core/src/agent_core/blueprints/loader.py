@@ -986,6 +986,11 @@ class BlueprintLoader:
                 logger.info("Built remote node tool 'call_%s'", node_cfg.node_id)
                 continue
 
+            # Gate/decision nodes have no agent_ref — skip blueprint loading
+            if getattr(node_cfg, "type", None) == "gate" or node_cfg.agent_ref is None:
+                logger.info("Skipping non-agent node '%s' (type=%s)", node_cfg.node_id, getattr(node_cfg, "type", "unknown"))
+                continue
+
             # In-process nodes: load blueprint and build agent
             node_bp = self.load_agent(node_cfg.agent_ref)
 
