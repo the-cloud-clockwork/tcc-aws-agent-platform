@@ -31,3 +31,8 @@ output "mcp_tools_lambda_name" {
   description = "Name of the artifacts MCP tools Lambda function"
   value       = aws_lambda_function.artifacts_mcp_tools.function_name
 }
+
+output "lambda_layer_arn" {
+  description = "ARN of the shared platform Lambda layer (pydantic, mcp_artifacts)"
+  value       = aws_lambda_layer_version.platform_deps.arn
+}

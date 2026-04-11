@@ -325,6 +325,11 @@ output "artifacts_mcp_lambda_name" {
 }
 
 
+output "lambda_layer_arn" {
+  description = "ARN of the shared platform Lambda layer (pydantic, mcp_artifacts)"
+  value       = module.api.lambda_layer_arn
+}
+
 output "guardrail_id" {
   description = "Bedrock Guardrail ID for PII/content protection. Empty when disabled."
   value       = module.security.guardrail_id
