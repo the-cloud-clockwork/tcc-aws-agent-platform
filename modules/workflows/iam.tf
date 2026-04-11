@@ -30,36 +30,24 @@ resource "aws_iam_role" "sfn" {
   })
 }
 
-# --- Agent Runtime invoke permissions ---
+# --- Agent invoke via Lambda wrapper ---
+# SFN calls the invoke-agent Lambda, which calls AgentCore runtime directly.
+# SFN needs lambda:InvokeFunction; the Lambda's own role has bedrock-agentcore:*.
 resource "aws_iam_role_policy" "sfn_invoke_agents" {
   for_each = {
     for k, wf in local.workflows :
     k => wf if length(try(local.workflow_agent_refs[k], [])) > 0
   }
 
-  name = "invoke-agent-runtimes"
+  name = "invoke-agent-lambda"
   role = aws_iam_role.sfn[each.key].id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect = "Allow"
-      Action = [
-        "bedrock-agentcore:InvokeAgentRuntime",
-        "bedrock-agentcore:StopRuntimeSession"
-      ]
-      Resource = flatten([
-        for agent_id in local.workflow_agent_refs[each.key] : [
-          try(
-            var.agent_runtime_arns[agent_id],
-            "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${agent_id}"
-          ),
-          "${try(
-            var.agent_runtime_arns[agent_id],
-            "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${agent_id}"
-          )}/*"
-        ]
-      ])
+      Effect   = "Allow"
+      Action   = ["lambda:InvokeFunction"]
+      Resource = [aws_lambda_function.invoke_agent.arn]
     }]
   })
 }
