@@ -49,9 +49,29 @@ def _get_tool_registry() -> dict:
 
 
 def handler(event: dict, context) -> dict:
-    """Lambda entry point for AgentCore Gateway tool calls."""
+    """Lambda entry point for AgentCore Gateway tool calls.
+
+    Two invocation formats:
+    1. Direct: {"name": "create_artifact", "arguments": {...}}
+    2. Gateway Lambda target: just the arguments dict (no "name" wrapper)
+       — the Gateway resolves the tool name from the MCP prefix and passes
+       only arguments. We infer the tool from the argument keys.
+    """
     tool_name = event.get("name", "")
     arguments = event.get("arguments", {})
+
+    if not tool_name and "name" not in event:
+        # Gateway Lambda target format — arguments are the top-level event.
+        # Infer tool from argument signature.
+        if "content" in event and "type" in event:
+            tool_name = "create_artifact"
+        elif "artifact_id" in event and "timeout_s" in event:
+            tool_name = "poll_artifact"
+        elif "artifact_id" in event:
+            tool_name = "get_artifact"
+        else:
+            tool_name = "list_artifacts"
+        arguments = event
 
     if isinstance(arguments, str):
         arguments = json.loads(arguments)
