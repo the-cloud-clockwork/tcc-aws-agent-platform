@@ -694,6 +694,11 @@ class BlueprintLoader:
     def _wire_policy(self, blueprint: AgentBlueprint, agent_id: str) -> Any:
         if not blueprint.policy or not blueprint.policy.rules:
             return None
+        # LOG_ONLY mode: skip policy engine creation entirely — no API calls,
+        # no throttling risk. Policies are advisory only in this mode.
+        if blueprint.policy.mode and blueprint.policy.mode.upper() == "LOG_ONLY":
+            logger.info("Policy mode LOG_ONLY for %s — skipping policy wiring", agent_id)
+            return None
         from agent_core.policy.wiring import PolicyWiring
 
         versions_table = None
