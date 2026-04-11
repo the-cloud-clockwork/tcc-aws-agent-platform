@@ -36,7 +36,7 @@ from botocore.credentials import Credentials
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-REGION = os.environ.get("AWS_DEFAULT_REGION", "eu-west-1")
+REGION = os.environ.get("INVOKE_REGION", os.environ.get("AWS_REGION", "eu-west-1"))
 TIMEOUT = int(os.environ.get("AGENT_INVOKE_TIMEOUT", "600"))
 
 

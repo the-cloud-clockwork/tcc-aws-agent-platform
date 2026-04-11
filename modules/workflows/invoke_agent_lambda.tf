@@ -71,7 +71,7 @@ resource "aws_lambda_function" "invoke_agent" {
 
   environment {
     variables = {
-      AWS_DEFAULT_REGION    = local.region
+      INVOKE_REGION         = local.region
       AGENT_INVOKE_TIMEOUT  = "600"
     }
   }
