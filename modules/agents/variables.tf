@@ -386,6 +386,14 @@ variable "extra_environment_variables" {
   default     = {}
 }
 
+# ── Extra S3 Read Access ────────────────────────────────────────────────────
+
+variable "extra_s3_read_bucket_arns" {
+  description = "List of S3 bucket ARNs to grant read (GetObject, ListBucket) access. For historical data, model artifacts, etc."
+  type        = list(string)
+  default     = []
+}
+
 # ── Evaluation ───────────────────────────────────────────────────────────────
 
 variable "evaluation_table_name" {
