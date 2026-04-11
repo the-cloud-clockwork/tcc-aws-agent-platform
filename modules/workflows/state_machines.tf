@@ -51,29 +51,17 @@ resource "aws_sfn_state_machine" "workflows" {
           {
             Type     = "Task"
             Resource = "arn:aws:states:::lambda:invoke"
-            Parameters = try(each.value.memory_branching.enabled, false) ? {
+            Parameters = {
               "FunctionName" = aws_lambda_function.invoke_agent.arn
               "Payload" = {
                 "AgentRuntimeArn" = try(
                   var.agent_runtime_arns[coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))],
                   "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))}"
                 )
-                "Qualifier" = "DEFAULT"
-                "Payload" = {
-                  "prompt.$"              = try(state.prompt, "$.prompt")
-                  "memory_branch"         = replace(try(each.value.memory_branching.branch_namespace, "{sessionId}/branches/{stateId}"), "{stateId}", state.id)
-                  "memory_merge_strategy" = try(each.value.memory_branching.merge_strategy, "union")
-                }
-              }
-            } : {
-              "FunctionName" = aws_lambda_function.invoke_agent.arn
-              "Payload" = {
-                "AgentRuntimeArn" = try(
-                  var.agent_runtime_arns[coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))],
-                  "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))}"
-                )
-                "Qualifier" = "DEFAULT"
-                "Payload.$" = try(state.prompt, "$.prompt")
+                "Qualifier"    = "DEFAULT"
+                "Prompt.$"     = try(state.prompt, "$.prompt")
+                "MemoryBranch" = try(each.value.memory_branching.enabled, false) ? replace(try(each.value.memory_branching.branch_namespace, "{sessionId}/branches/{stateId}"), "{stateId}", state.id) : ""
+                "MemoryMergeStrategy" = try(each.value.memory_branching.merge_strategy, "")
               }
             }
             ResultSelector = {

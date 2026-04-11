@@ -49,12 +49,25 @@ def _get_credentials():
 def handler(event: dict, context) -> dict:
     arn = event["AgentRuntimeArn"]
     qualifier = event.get("Qualifier", "DEFAULT")
-    payload = event.get("Payload", {})
 
-    if isinstance(payload, dict):
-        payload_bytes = json.dumps(payload).encode()
+    # Build the agent payload. SFN passes Prompt.$ (resolved from state)
+    # and optional memory branching fields.
+    prompt = event.get("Prompt", event.get("Payload", {}))
+    memory_branch = event.get("MemoryBranch", "")
+    memory_merge = event.get("MemoryMergeStrategy", "")
+
+    if memory_branch:
+        payload = {
+            "prompt": prompt if isinstance(prompt, str) else json.dumps(prompt),
+            "memory_branch": memory_branch,
+            "memory_merge_strategy": memory_merge,
+        }
+    elif isinstance(prompt, dict):
+        payload = prompt
     else:
-        payload_bytes = str(payload).encode()
+        payload = {"prompt": str(prompt)}
+
+    payload_bytes = json.dumps(payload).encode()
 
     encoded_arn = urllib.parse.quote(arn, safe="")
     url = f"https://bedrock-agentcore.{REGION}.amazonaws.com/runtimes/{encoded_arn}/invocations?qualifier={qualifier}"
