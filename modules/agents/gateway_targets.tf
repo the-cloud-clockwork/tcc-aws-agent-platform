@@ -49,6 +49,21 @@ resource "aws_bedrockagentcore_gateway_target" "explicit" {
               input_schema {
                 type        = "object"
                 description = try(tool_schema.value.description, "Input for ${tool_schema.value.name}")
+
+                # Propagate JSON-Schema properties from gateway-targets.yaml so
+                # the Gateway delivers typed keys to the Lambda. Without this,
+                # the Lambda receives an opaque payload and routing/handlers
+                # that depend on specific keys (e.g. artifacts create_artifact
+                # needing `type` + `content`) misroute or KeyError.
+                dynamic "property" {
+                  for_each = try(tool_schema.value.input_schema.properties, {})
+                  content {
+                    name        = property.key
+                    type        = try(property.value.type, "string")
+                    description = try(property.value.description, "")
+                    required    = contains(try(tool_schema.value.input_schema.required, []), property.key)
+                  }
+                }
               }
             }
           }

@@ -29,8 +29,43 @@ resource "aws_bedrockagentcore_gateway_target" "artifacts_tools" {
             name        = "create_artifact"
             description = "Store agent output as a versioned S3 artifact with DynamoDB catalog entry. Returns artifact_id and signed_url."
             input_schema {
-              type        = "object"
-              description = "Artifact creation parameters: type (chart|report|simulation_result|recommendation|image|data_export|pipeline_run), content (string), optional: metadata, agent_id, execution_id, idempotency_key, tier, kms_key_alias, pipeline_date"
+              type = "object"
+              # Explicit properties so the Gateway delivers typed keys to the
+              # Lambda. Without this, `type` and `content` arrive as an opaque
+              # blob and the handler misroutes to list_artifacts, raising
+              # KeyError: 'type'.
+              property {
+                name        = "type"
+                type        = "string"
+                description = "Artifact type (chart, report, simulation_result, recommendation, image, data_export, pipeline_run)"
+                required    = true
+              }
+              property {
+                name        = "content"
+                type        = "string"
+                description = "Artifact content string (base64 for images)"
+                required    = true
+              }
+              property {
+                name        = "metadata"
+                type        = "object"
+                description = "Optional key/value metadata"
+              }
+              property {
+                name        = "agent_id"
+                type        = "string"
+                description = "Agent that created this artifact"
+              }
+              property {
+                name        = "execution_id"
+                type        = "string"
+                description = "Execution/run identifier"
+              }
+              property {
+                name        = "idempotency_key"
+                type        = "string"
+                description = "Idempotency key ({agent_id}:{execution_id}:{operation}:{param_hash})"
+              }
             }
           }
         }
