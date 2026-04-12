@@ -72,7 +72,7 @@ resource "aws_lambda_function" "invoke_agent" {
   environment {
     variables = {
       INVOKE_REGION         = local.region
-      AGENT_INVOKE_TIMEOUT  = "600"
+      AGENT_INVOKE_TIMEOUT  = "840"
     }
   }
 
