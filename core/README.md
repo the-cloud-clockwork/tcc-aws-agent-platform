@@ -47,6 +47,61 @@ pip install -e ".[dev]"
 | `staging` | Uses external data feeds, sandbox accounts |
 | `production` | Full production mode with real external systems |
 
+## Direct Agent Invocation
+
+Agents run as Bedrock AgentCore Runtimes behind `aws bedrock-agentcore invoke-agent-runtime`. The handler reads a specific payload shape — **agent-specific inputs go inside `parameters`**, not at the top level. Flat payloads like `{"prompt":"test","date":"2026-04-10"}` return HTTP 400 with no diagnostic.
+
+### Payload contract
+
+`GenericHandler.handle()` in `core/src/agent_core/runtime/handler.py` calls `normalize_payload()` (`core/src/agent_core/runtime/adapter.py`), which reads:
+
+| Key | Type | Required | Notes |
+|---|---|---|---|
+| `agent_id` | string | no | Falls back to `AGENT_ID` env var |
+| `session_id` | string | no | Auto-UUID if missing |
+| `execution_mode` | string | no | Defaults to `simulation` |
+| `parameters` (or `params`) | object | no | **All agent-specific inputs** |
+| `memory_context` | object | no | Pre-loaded memory passthrough |
+| `metadata` | object | no | Arbitrary metadata |
+
+Top-level keys outside this table are ignored by the handler.
+
+### Minimal example (direct invoke)
+
+```json
+{
+  "parameters": {
+    "date": "2026-04-10",
+    "watchlist_id": "default",
+    "threshold_pct": 2.0
+  }
+}
+```
+
+```bash
+PAYLOAD=$(echo -n '{"parameters":{"date":"2026-04-10","watchlist_id":"default","threshold_pct":2.0}}' | base64 -w0)
+SID=$(uuidgen | tr -d '-')$(uuidgen | tr -d '-' | head -c 8)
+aws bedrock-agentcore invoke-agent-runtime \
+  --agent-runtime-arn "arn:aws:bedrock-agentcore:eu-west-1:ACCT:runtime/AGENT-SUFFIX" \
+  --runtime-session-id "$SID" \
+  --payload "$PAYLOAD" /tmp/out.json
+cat /tmp/out.json | python3 -m json.tool
+```
+
+### Lambda-wrapper convention (Step Functions path)
+
+The Step Functions `invoke_agent_lambda` wrapper (`modules/workflows/lambda/invoke_agent.py`) uses a **different** shape when `MemoryBranch` is set — it JSON-encodes the entire prompt dict into a `"prompt"` string key and adds `memory_branch` + `memory_merge_strategy` top-level keys:
+
+```json
+{
+  "prompt": "{\"execution_mode\": \"backtest\", \"date\": \"2026-04-10\"}",
+  "memory_branch": "{sessionId}/weekly-pipeline/FetchWatchlistGaps",
+  "memory_merge_strategy": "coordinator_wins"
+}
+```
+
+These top-level memory keys are consumed by the AgentCore SDK memory layer upstream of `GenericHandler`; they do NOT populate `parameters`. Use the direct `parameters` shape for tests and tool-level invocations — use the Lambda wrapper only when you need memory branching in a workflow.
+
 ## Development
 
 ```bash

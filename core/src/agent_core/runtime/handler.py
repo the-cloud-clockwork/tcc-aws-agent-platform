@@ -56,7 +56,57 @@ class GenericHandler:
     def handle(
         self, payload_data: dict[str, Any], context: InvocationContext | None = None
     ) -> dict[str, Any]:
-        """Handle an AgentCore Runtime invocation."""
+        """Handle an AgentCore Runtime invocation.
+
+        Payload contract
+        ----------------
+        The top-level ``payload_data`` dict is passed through ``normalize_payload``
+        (agent_core/runtime/adapter.py) which reads these keys:
+
+        ==================  ========  =========  ========================================
+        Key                 Type      Required   Notes
+        ==================  ========  =========  ========================================
+        ``agent_id``        str       no         Falls back to ``AGENT_ID`` env var.
+        ``session_id``      str       no         Auto-UUID if missing.
+        ``execution_mode``  str       no         Defaults to ``"simulation"``.
+        ``parameters``      dict      no         Agent-specific inputs (``date``,
+                                                 ``watchlist_id``, ``threshold_pct``,
+                                                 etc.). Also accepts ``params``.
+        ``memory_context``  dict      no         Pre-loaded memory passthrough.
+        ``metadata``        dict      no         Arbitrary metadata.
+        ==================  ========  =========  ========================================
+
+        **Agent-specific inputs must go inside ``parameters``.** Top-level keys
+        outside the table above are ignored by the handler.
+
+        Minimal direct-invoke example (gap-detector)::
+
+            {
+              "parameters": {
+                "date": "2026-04-10",
+                "watchlist_id": "default",
+                "threshold_pct": 2.0
+              }
+            }
+
+        Bash::
+
+            PAYLOAD=$(echo -n '{"parameters":{"date":"2026-04-10","watchlist_id":"default","threshold_pct":2.0}}' | base64 -w0)
+            SID=$(uuidgen | tr -d '-')$(uuidgen | tr -d '-' | head -c 8)
+            aws bedrock-agentcore invoke-agent-runtime \\
+              --agent-runtime-arn "arn:aws:bedrock-agentcore:REGION:ACCT:runtime/AGENT-SUFFIX" \\
+              --runtime-session-id "$SID" \\
+              --payload "$PAYLOAD" /tmp/out.json
+
+        Lambda-wrapper convention (Step Functions path)
+        -----------------------------------------------
+        The Step Functions ``invoke_agent_lambda`` wraps inputs differently when
+        ``MemoryBranch`` is set — it JSON-encodes the entire prompt dict into a
+        ``"prompt"`` string key and adds ``memory_branch`` + ``memory_merge_strategy``
+        top-level keys. Those keys are consumed by the AgentCore SDK memory layer
+        upstream of this handler; they do NOT populate ``parameters``. Use the
+        direct ``parameters`` shape for tests and tool-level invocations.
+        """
         # 1. Normalize payload
         payload = normalize_payload(payload_data)
         agent_id = payload.agent_id
@@ -162,10 +212,54 @@ class GenericHandler:
             # Surface FULL traceback + cause chain (MCPClient swallows real errors)
             tb_str = "".join(_tb.format_exception(type(exc), exc, exc.__traceback__))
             logger.error("Agent '%s' failed:\n%s", agent_id, tb_str)
+
+            # Classify upstream LLM failures so SFN can distinguish them from
+            # pipeline/domain errors and route to a FAIL state instead of the
+            # empty-gaps fallback. Travels under $.gaps.body.metadata.error_class.
+            error_class = "agent_error"
+            http_status: int | None = None
+            provider: str | None = None
+            retriable = False
+            try:
+                import litellm
+                if isinstance(exc, litellm.BadGatewayError):
+                    error_class = "upstream_llm_unavailable"
+                    http_status = 502
+                    provider = getattr(exc, "llm_provider", None)
+                    retriable = True
+                elif isinstance(exc, litellm.ServiceUnavailableError):
+                    error_class = "upstream_llm_unavailable"
+                    http_status = 503
+                    provider = getattr(exc, "llm_provider", None)
+                    retriable = True
+                elif isinstance(exc, litellm.Timeout):
+                    error_class = "upstream_llm_timeout"
+                    retriable = True
+                elif isinstance(exc, litellm.RateLimitError):
+                    error_class = "upstream_llm_rate_limit"
+                    http_status = 429
+                    retriable = True
+                elif isinstance(exc, litellm.APIConnectionError):
+                    error_class = "upstream_llm_connection_error"
+                    retriable = True
+                elif isinstance(exc, litellm.APIError):
+                    error_class = "upstream_llm_api_error"
+                    http_status = getattr(exc, "status_code", None)
+                    provider = getattr(exc, "llm_provider", None)
+                    retriable = http_status in (429, 500, 502, 503, 504)
+            except ImportError:
+                pass
+
             # Do NOT persist session on error — avoid storing partial state
             return AgentResult(
                 status="error",
                 agent_id=agent_id,
                 session_id=session_id,
                 error=tb_str[-8000:],  # Last 8000 chars of full traceback
+                metadata={
+                    "error_class": error_class,
+                    "http_status": http_status,
+                    "provider": provider,
+                    "retriable": retriable,
+                },
             ).to_response()

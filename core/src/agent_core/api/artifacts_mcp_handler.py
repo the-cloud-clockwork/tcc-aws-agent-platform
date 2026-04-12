@@ -63,8 +63,8 @@ def handler(event: dict, context) -> dict:
     if not tool_name and "name" not in event:
         # Gateway Lambda target format — arguments are the top-level event.
         # Infer tool from argument signature.
-        if "content" in event and "type" in event:
-            tool_name = "create_artifact"
+        if "content" in event:
+            tool_name = "create_artifact"  # create_artifact validates `type` downstream
         elif "artifact_id" in event and "timeout_s" in event:
             tool_name = "poll_artifact"
         elif "artifact_id" in event:
