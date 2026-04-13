@@ -40,9 +40,17 @@ class ArtifactCatalog:
         tier: str = "platform",
         kms_key_alias: str | None = None,
         pipeline_date: str = "",
+        owner_id: str | None = None,
     ) -> dict[str, Any]:
         """Insert a new catalog entry with status=processing."""
         now = datetime.now(UTC).isoformat()
+        # owner_id is the multi-tenant primitive — see tccw-qitp DASHBOARD-ALIGNMENT.md.
+        # Resolution order: explicit arg → metadata.owner_id → "default".
+        resolved_owner = (
+            owner_id
+            or (metadata or {}).get("owner_id")
+            or "default"
+        )
         item: dict[str, Any] = {
             "artifact_id": artifact_id,
             "type": artifact_type,
@@ -51,6 +59,7 @@ class ArtifactCatalog:
             "created_at": now,
             "metadata": json.dumps(metadata or {}),
             "tier": tier,
+            "owner_id": resolved_owner,
         }
         if agent_id:
             item["agent_id"] = agent_id
@@ -64,7 +73,12 @@ class ArtifactCatalog:
             item["pipeline_date"] = pipeline_date
 
         self._table.put_item(Item=item)
-        logger.info("Created catalog entry %s (type=%s)", artifact_id, artifact_type)
+        logger.info(
+            "Created catalog entry %s (type=%s, owner=%s)",
+            artifact_id,
+            artifact_type,
+            resolved_owner,
+        )
         return item
 
     def update_status(self, artifact_id: str, status: str) -> None:
