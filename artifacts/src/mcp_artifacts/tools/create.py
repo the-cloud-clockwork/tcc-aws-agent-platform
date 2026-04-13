@@ -28,6 +28,7 @@ def create_artifact(
     tier: str = "platform",
     kms_key_alias: str | None = None,
     pipeline_date: str = "",
+    owner_id: str | None = None,
     storage: ArtifactStorage | None = None,
     catalog: ArtifactCatalog | None = None,
 ) -> dict[str, Any]:
@@ -90,6 +91,7 @@ def create_artifact(
         tier=tier,
         kms_key_alias=kms_key_alias,
         pipeline_date=pipeline_date,
+        owner_id=owner_id,
     )
 
     try:
