@@ -43,3 +43,22 @@ output "observe_script_path" {
   description = "Path to the observe-runtime.sh script shipped with this module."
   value       = "${path.module}/scripts/observe-runtime.sh"
 }
+
+# Per-runtime authorizer visibility. Lets operators confirm MCP Runtimes have
+# the inbound JWT authorizer attached after every apply. Drift (authorizer
+# silently null because mcp_oauth2_discovery_url was empty at create time)
+# is invisible on the AWS console unless you click into each Runtime, so
+# exposing it here gives cheap `terraform output` checks and CI diffs.
+output "mcp_runtime_authorizer_status" {
+  description = "Per-Runtime authorizer state: protocol, whether a JWT authorizer is attached, and discovery URL if present."
+  value = {
+    for id, r in aws_bedrockagentcore_agent_runtime.agent : id => {
+      protocol       = try(r.protocol_configuration[0].server_protocol, "HTTP")
+      has_authorizer = length(r.authorizer_configuration) > 0
+      discovery_url = try(
+        r.authorizer_configuration[0].custom_jwt_authorizer[0].discovery_url,
+        null,
+      )
+    }
+  }
+}
