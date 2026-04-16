@@ -152,6 +152,19 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
   # are not marked as Computed, causing drift on subsequent applies.
   lifecycle {
     ignore_changes = [lifecycle_configuration]
+
+    # Fail loud if an MCP Runtime would ship without an inbound JWT authorizer
+    # while the consumer expects direct Runtime-to-Runtime MCP calls. Without
+    # this check, the authorizer dynamic block silently skips, the Runtime
+    # comes up accepting only SigV4, and every agent call fails with 403.
+    precondition {
+      condition = !(
+        upper(try(each.value.runtime.protocol, "HTTP")) == "MCP" &&
+        var.gateway_direct_mcp &&
+        var.mcp_oauth2_discovery_url == ""
+      )
+      error_message = "MCP Runtime '${each.key}' requires a JWT authorizer (gateway_direct_mcp=true) but mcp_oauth2_discovery_url is empty. Either enable Cognito on the platform module, or set gateway_direct_mcp=false."
+    }
   }
 }
 
