@@ -55,13 +55,13 @@ class TokenCost:
 # Sensible defaults so token→USD works out of the box for the models
 # currently in use on the LiteLLM proxy. Pricing is USD per 1k tokens
 # and reflects the Anthropic public list price for claude-sonnet-4 /
-# claude-haiku-4 as of 2026-Q1. Override with MODEL_PRICING env var
+# claude-haiku-4-5 as of 2026-Q1. Override with MODEL_PRICING env var
 # if your proxy negotiates different rates.
 _DEFAULT_MODEL_PRICING: dict[str, tuple[float, float]] = {
     "claude-sonnet-4-6": (0.003, 0.015),
-    "claude-haiku-4-6": (0.00025, 0.00125),
+    "claude-haiku-4-5": (0.00025, 0.00125),
     "openai/claude-sonnet-4-6": (0.003, 0.015),
-    "openai/claude-haiku-4-6": (0.00025, 0.00125),
+    "openai/claude-haiku-4-5": (0.00025, 0.00125),
 }
 
 
