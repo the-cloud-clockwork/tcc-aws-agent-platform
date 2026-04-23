@@ -108,7 +108,17 @@ class DirectMCPClient:
         if token:
             headers["Authorization"] = f"Bearer {token}"
 
-        session_id = f"direct-{self._mcp_name}-{uuid.uuid4().hex[:12]}"
+        # AgentCore requires runtimeSessionId to be >= 33 characters. For short
+        # MCP names (e.g. "canary-mcp" → "direct-canary-mcp-<12hex>" = 30 chars)
+        # the fixed 12-hex suffix is too short. Pad the random suffix so the
+        # total is always >= 33.
+        #
+        # "direct-" (7) + mcp_name + "-" (1) + suffix_len >= 33
+        # => suffix_len >= 25 - len(mcp_name) (clamped to 12..32)
+        _suffix_len = max(12, min(32, 25 - len(self._mcp_name)))
+        session_id = f"direct-{self._mcp_name}-{uuid.uuid4().hex[:_suffix_len]}"
+        if len(session_id) < 33:
+            session_id = session_id + uuid.uuid4().hex[: 33 - len(session_id)]
         headers["X-Amzn-Bedrock-AgentCore-Runtime-Session-Id"] = session_id
 
         logger.warning(
@@ -189,6 +199,19 @@ def create_direct_providers(blueprint: Any) -> list[MCPClient]:
     if not mcp_urls:
         logger.warning("GATEWAY_DIRECT_MCP=true but MCP_DIRECT_URLS is empty")
         return []
+
+    # Backward-compat: values may be full invocation URLs (legacy) OR runtime
+    # ARNs (compact, preferred — saves ~115 bytes/entry against the 4000-byte
+    # per-runtime env var cap). If a value starts with "arn:", construct the
+    # invocation URL from it using the local AWS region.
+    region = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION") or "us-east-1"
+    for _mcp_name, _value in list(mcp_urls.items()):
+        if _value.startswith("arn:"):
+            from urllib.parse import quote
+            mcp_urls[_mcp_name] = (
+                f"https://bedrock-agentcore.{region}.amazonaws.com/runtimes/"
+                f"{quote(_value, safe='')}/invocations?qualifier=DEFAULT"
+            )
 
     token_url = os.environ.get("COGNITO_TOKEN_URL", "")
     client_id = os.environ.get("COGNITO_MCP_CLIENT_ID", "")
