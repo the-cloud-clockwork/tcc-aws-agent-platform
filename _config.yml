@@ -4,7 +4,7 @@ description: >-
   in YAML and deploying them on AWS — built over Strands Agents SDK
   and Amazon Bedrock AgentCore.
 url: "https://the-cloud-clockwork.github.io"
-baseurl: "/tccw-aws-agent-platform"
+baseurl: "/tcc-aws-agent-platform"
 
 remote_theme: just-the-docs/just-the-docs@v0.10.0
 
@@ -21,12 +21,12 @@ mermaid:
   version: "11"
 
 aux_links:
-  GitHub: "https://github.com/The-Cloud-Clockwork/tccw-aws-agent-platform"
+  GitHub: "https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform"
 aux_links_new_tab: true
 
 gh_edit_link: true
 gh_edit_link_text: "Edit this page on GitHub"
-gh_edit_repository: "https://github.com/The-Cloud-Clockwork/tccw-aws-agent-platform"
+gh_edit_repository: "https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform"
 gh_edit_branch: "main"
 gh_edit_view_mode: "edit"
 
