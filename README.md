@@ -65,7 +65,7 @@ This platform is an abstraction layer over 12 AgentCore concepts. Each maps from
 ### 0. Create a Domain Repo
 
 ```bash
-bash <(curl -sL https://raw.githubusercontent.com/The-Cloud-Clock-Work/tccw-aws-agent-platform/main/scripts/create-domain.sh)
+bash <(curl -sL https://raw.githubusercontent.com/The-Cloud-Clockwork/tccw-aws-agent-platform/main/scripts/create-domain.sh)
 ```
 
 This scaffolds a complete domain repo with agents, MCPs, lambdas, and Terraform — ready for `terraform init`. See [Domain Repo Guide](#domain-repo-guide) for the full structure reference.
@@ -446,7 +446,7 @@ ruff format --check .
 
 ## Documentation
 
-Full docs at [the-cloud-clock-work.github.io/tccw-aws-agent-platform](https://the-cloud-clock-work.github.io/tccw-aws-agent-platform/)
+Full docs at [the-cloud-clockwork.github.io/tccw-aws-agent-platform](https://the-cloud-clockwork.github.io/tccw-aws-agent-platform/)
 
 | Section | Content |
 |---------|---------|
