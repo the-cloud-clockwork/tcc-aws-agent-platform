@@ -44,7 +44,7 @@ class ArtifactCatalog:
     ) -> dict[str, Any]:
         """Insert a new catalog entry with status=processing."""
         now = datetime.now(UTC).isoformat()
-        # owner_id is the multi-tenant primitive — see tccw-qitp DASHBOARD-ALIGNMENT.md.
+        # owner_id is the multi-tenant primitive — see tcc-qitp DASHBOARD-ALIGNMENT.md.
         # Resolution order: explicit arg → metadata.owner_id → "default".
         resolved_owner = (
             owner_id
