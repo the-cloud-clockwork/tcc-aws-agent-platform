@@ -53,7 +53,7 @@ Clean apply = infra is not broken. Bugs in individual services are separate conc
 **Domain repo:** `ci-agents.yml`, `ci-mcps.yml` (matrix), `ci-risk.yml`, `ci-infra.yml` (plan+apply), `build-deploy.yml` (ECR+CodeBuild).
 
 ```bash
-gh run list --repo The-Cloud-Clock-Work/tccw-aws-agent-platform --limit 5
+gh run list --repo The-Cloud-Clockwork/tccw-aws-agent-platform --limit 5
 gh run view <run-id> --log-failed   # read failures
 gh workflow run sonar-scan.yml      # manual SonarQube scan (only this repo)
 ```

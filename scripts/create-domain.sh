@@ -4,7 +4,7 @@ set -euo pipefail
 # create-domain.sh — Scaffold a new domain repo for AWS Agent Platform
 #
 # Usage:
-#   bash <(curl -sL https://raw.githubusercontent.com/The-Cloud-Clock-Work/tccw-aws-agent-platform/main/scripts/create-domain.sh)
+#   bash <(curl -sL https://raw.githubusercontent.com/The-Cloud-Clockwork/tccw-aws-agent-platform/main/scripts/create-domain.sh)
 #   ./scripts/create-domain.sh --name my-project --prefix myco
 #   ./scripts/create-domain.sh --name my-project --prefix myco --region us-east-1
 
@@ -19,7 +19,7 @@ DOMAIN=""
 PREFIX=""
 REGION="eu-west-1"
 BEDROCK_REGION="us-west-2"
-PLATFORM_SOURCE="git::https://github.com/The-Cloud-Clock-Work/tccw-aws-agent-platform.git"
+PLATFORM_SOURCE="git::https://github.com/The-Cloud-Clockwork/tccw-aws-agent-platform.git"
 PLATFORM_REF="main"
 
 # ── Argument parsing ─────────────────────────────────────────────────────────
@@ -825,7 +825,7 @@ EOF
 cat > "$REPO_DIR/README.md" << EOF
 # ${PREFIX}-${DOMAIN}
 
-Domain-specific AI agent platform built on [AWS Agent Platform](https://github.com/The-Cloud-Clock-Work/tccw-aws-agent-platform).
+Domain-specific AI agent platform built on [AWS Agent Platform](https://github.com/The-Cloud-Clockwork/tccw-aws-agent-platform).
 
 ## Quick Start
 

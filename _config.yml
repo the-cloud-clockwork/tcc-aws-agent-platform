@@ -3,7 +3,7 @@ description: >-
   Configuration-driven, domain-agnostic runtime for declaring AI agents
   in YAML and deploying them on AWS — built over Strands Agents SDK
   and Amazon Bedrock AgentCore.
-url: "https://the-cloud-clock-work.github.io"
+url: "https://the-cloud-clockwork.github.io"
 baseurl: "/tccw-aws-agent-platform"
 
 remote_theme: just-the-docs/just-the-docs@v0.10.0
@@ -21,18 +21,18 @@ mermaid:
   version: "11"
 
 aux_links:
-  GitHub: "https://github.com/The-Cloud-Clock-Work/tccw-aws-agent-platform"
+  GitHub: "https://github.com/The-Cloud-Clockwork/tccw-aws-agent-platform"
 aux_links_new_tab: true
 
 gh_edit_link: true
 gh_edit_link_text: "Edit this page on GitHub"
-gh_edit_repository: "https://github.com/The-Cloud-Clock-Work/tccw-aws-agent-platform"
+gh_edit_repository: "https://github.com/The-Cloud-Clockwork/tccw-aws-agent-platform"
 gh_edit_branch: "main"
 gh_edit_view_mode: "edit"
 
 footer_content: >-
   AWS Agent Platform is maintained by
-  <a href="https://github.com/The-Cloud-Clock-Work">The Cloud Clock Work</a>.
+  <a href="https://github.com/The-Cloud-Clockwork">The Cloud Clockwork</a>.
   Built on <a href="https://aws.amazon.com/bedrock/agentcore/">Amazon Bedrock AgentCore</a>
   and <a href="https://github.com/strands-agents/sdk-python">Strands Agents SDK</a>.
 
