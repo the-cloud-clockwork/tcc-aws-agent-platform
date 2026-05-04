@@ -39,7 +39,7 @@ Monorepo: 4 Python modules + 7 Terraform modules (3 core + 4 utility).
 
 ### Level 1: Infrastructure — terraform plan/apply in domain consumer
 ```bash
-cd /home/iamroot/dev/tccw-ecosystem/tccw-qitp/infra
+cd /home/iamroot/dev/tcc-ecosystem/tcc-qitp/infra
 bash scripts/generate-gateway-targets.sh envs/dev.tfvars
 terraform init -upgrade && terraform plan -var-file=envs/dev.tfvars
 terraform apply -var-file=envs/dev.tfvars -auto-approve
@@ -53,11 +53,11 @@ Clean apply = infra is not broken. Bugs in individual services are separate conc
 **Domain repo:** `ci-agents.yml`, `ci-mcps.yml` (matrix), `ci-risk.yml`, `ci-infra.yml` (plan+apply), `build-deploy.yml` (ECR+CodeBuild).
 
 ```bash
-gh run list --repo The-Cloud-Clockwork/tccw-aws-agent-platform --limit 5
+gh run list --repo The-Cloud-Clockwork/tcc-aws-agent-platform --limit 5
 gh run view <run-id> --log-failed   # read failures
 gh workflow run sonar-scan.yml      # manual SonarQube scan (only this repo)
 ```
-**tccw-qitp has no workflow_dispatch** — push a change to trigger CI.
+**tcc-qitp has no workflow_dispatch** — push a change to trigger CI.
 
 ### After changes: infra clean + CI clean = done.
 
@@ -87,7 +87,7 @@ All agent-level observability hooks are provider-agnostic. Key blueprint knobs:
 - **`CostTracker` env vars**: `MODEL_PRICING` (JSON map) and `MODEL_DEFAULT_PRICING` (JSON array). `BEDROCK_MODEL_PRICING` / `BEDROCK_DEFAULT_PRICING` still accepted as deprecated aliases. Built-in defaults cover `claude-sonnet-4-6` / `claude-haiku-4-6` so cost tracking works on LiteLLM with zero config.
 - **Langfuse is already double-traced**: LiteLLM proxy writes generations via `success_callback: langfuse`; agent-level `LangfuseHook` writes session/tool spans. Intentional — they capture different granularities.
 
-## Pipeline Validation (E2E — tccw-qitp) ✅ PRODUCTION-VALIDATED 2026-04-09
+## Pipeline Validation (E2E — tcc-qitp) ✅ PRODUCTION-VALIDATED 2026-04-09
 Authoritative run: **`pilot-t4-1775755670`** — 16/16 states, 44.08 s, gap-detector called real `claude-sonnet-4-6` via LiteLLM, `GapDetectionOutput` structured output enforced, claim-check artifact persisted to `s3://qitp-dev-artifacts-835618032093/domain/2026-04-09/13b6f34b-7306-40fe-b30c-9a2feeb9c63b/gap-detector.json`.
 ```
 ValidateMarketCalendar → CheckTradingDay → gap-detector → CheckGapCount
@@ -96,15 +96,15 @@ ValidateMarketCalendar → CheckTradingDay → gap-detector → CheckGapCount
 → SynthesizeRecommendations → CheckBacktestPass → RouteByMode
 → StoreResults → PipelineComplete
 ```
-Skills in `tccw-qitp/.claude/skills/`: invoke-agent, check-agent, check-deploy, check-artifacts, run-pipeline.
+Skills in `tcc-qitp/.claude/skills/`: invoke-agent, check-agent, check-deploy, check-artifacts, run-pipeline.
 
 **Known data-contract issue (not infra):** 5 downstream agents (sentiment-analyzer, technical-analyzer, ml-predictor, strategy-evaluator, portfolio-recommender) reject input with `Missing required field: symbols/symbol/strategy_evaluations` when upstream gap-detector returns empty `ranked_gaps`. Fix is per-agent input-validator fallbacks to the default watchlist.
 
 ## Domain Dependencies — Secrets Manager wiring
 The platform reads its LiteLLM API key from AWS Secrets Manager, never from env vars:
 - **Secret:** `qitp/platform/litellm` (JSON field `TOKEN`)
-- **Data source:** `tccw-qitp/infra/domain_dashboard.tf:186` — `data "aws_secretsmanager_secret_version" "platform_litellm"`
-- **Wiring:** `tccw-qitp/infra/main.tf:52` (agents) + `:122` (mcps) — both pass `jsondecode(...)["TOKEN"]` to `module.agents.litellm_api_key` / `module.mcps.litellm_api_key`
+- **Data source:** `tcc-qitp/infra/domain_dashboard.tf:186` — `data "aws_secretsmanager_secret_version" "platform_litellm"`
+- **Wiring:** `tcc-qitp/infra/main.tf:52` (agents) + `:122` (mcps) — both pass `jsondecode(...)["TOKEN"]` to `module.agents.litellm_api_key` / `module.mcps.litellm_api_key`
 - **Env var injected:** `LITELLM_API_KEY` in every runtime via `modules/agents/runtime.tf:40`
 - **Key scope:** claude-sonnet-4-6, claude-max-sonnet, claude-max-opus, gpt-5-codex, gpt-5.4-codex, gemini-3.1-pro, deepseek-r1, claude-max-haiku-worker-001, llama-3.3-70b
 - **Rotation:** out-of-band via litellm_tools MCP; TF only reads, never writes.
@@ -126,7 +126,7 @@ These hit pilot-t6 but are tracked separately and are NOT on the roadmap:
 - `sentiment-analyzer` + `strategy-evaluator` → `agent_core.evaluation.client.create_evaluator` fails with `evaluation.provider: agentcore`. Workaround: `evaluation.provider: langfuse` or disable evaluation on those blueprints.
 - `technical-analyzer` → `bedrock_agentcore_starter_toolkit.operations.gateway.client.update_gateway` crashes on gateway refresh.
 - `portfolio-recommender` → `AgentBlueprint` Pydantic `ValidationError` on blueprint load — schema drift.
-- `tccw-qitp/scripts/rebuild-deploy.sh force_update_runtime` (line 333) drops env vars because `update-agent-runtime` is replace-not-merge and the call omits `--environment-variables`. Workaround: after a live `rebuild-deploy` run, follow up with `terraform apply -target=module.agents` to restore env.
+- `tcc-qitp/scripts/rebuild-deploy.sh force_update_runtime` (line 333) drops env vars because `update-agent-runtime` is replace-not-merge and the call omits `--environment-variables`. Workaround: after a live `rebuild-deploy` run, follow up with `terraform apply -target=module.agents` to restore env.
 
 ## Quick Test Lambda — `test-litellm-proxy`
 Disposable Lambda for testing connectivity, headers, and API calls from inside AWS networking.
@@ -163,4 +163,4 @@ Role: `qitp-dev-risk-engine-role` (has VPC + secrets access). Runtime: python3.1
 15. **Blueprint-driven scaling** — `for_each` over YAML blueprints
 16. **Least privilege IAM** — Scope to specific ARNs
 17. **Three tfvars** — `dev`, `staging`, `production`. New variables in all three.
-18. **Definition of Done** — `terraform apply` in `tccw-qitp` zero errors + CI pipelines green after push
+18. **Definition of Done** — `terraform apply` in `tcc-qitp` zero errors + CI pipelines green after push
