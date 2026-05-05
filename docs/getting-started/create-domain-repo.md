@@ -15,7 +15,7 @@ One command. Full project. Ready for `terraform init`.
 Open any terminal and paste:
 
 ```bash
-bash <(curl -sL https://raw.githubusercontent.com/The-Cloud-Clockwork/tccw-aws-agent-platform/main/scripts/create-domain.sh)
+bash <(curl -sL https://raw.githubusercontent.com/The-Cloud-Clockwork/tcc-aws-agent-platform/main/scripts/create-domain.sh)
 ```
 
 It asks two questions:
@@ -203,7 +203,7 @@ Each YAML file = one agent runtime. No code changes needed.
 
 ```hcl
 module "mcps" {
-  source     = "git::https://github.com/The-Cloud-Clockwork/tccw-aws-agent-platform.git//modules/agents?ref=main"
+  source     = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git//modules/agents?ref=main"
   depends_on = [module.platform]
 
   resource_prefix = "${var.resource_prefix}-mcp"
@@ -226,7 +226,7 @@ module "mcps" {
 Skip the interactive prompts with flags:
 
 ```bash
-bash <(curl -sL https://raw.githubusercontent.com/The-Cloud-Clockwork/tccw-aws-agent-platform/main/scripts/create-domain.sh) \
+bash <(curl -sL https://raw.githubusercontent.com/The-Cloud-Clockwork/tcc-aws-agent-platform/main/scripts/create-domain.sh) \
   --name my-project \
   --prefix acme \
   --region us-east-1 \

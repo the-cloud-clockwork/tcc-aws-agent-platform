@@ -12,7 +12,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 HARD_TERMS=(
   # Project/org branding
   qitp
-  tccw
+  tcc
   "The.Cloud.Clock.Work"
   "/home/iamroot"
 
