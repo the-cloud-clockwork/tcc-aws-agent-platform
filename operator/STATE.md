@@ -1,4 +1,4 @@
-# tccw-aws-agent-platform — Project State Assessment
+# tcc-aws-agent-platform — Project State Assessment
 
 > **Last assessed:** 2026-04-09
 > **Assessor:** AI-assisted (validated by operator)
@@ -41,7 +41,7 @@
 - **`rebuild-deploy.sh` automation** — single-command parallel rebuild + force-update for all agents/MCPs, reused locally and in CI (GitHub Actions delegates to it)
 - **Semver friction killed** — `core` pinned to floating `1.0.0`; `publish-wheel.sh` deletes+republishes on every push, so dev iteration has zero version juggling
 - **Zero ruff errors, zero domain contamination** — `domain-scan.sh` clean, CI lint clean
-- **Skills hardened** — 5 tccw-qitp skills with real AWS CLI gotchas baked in
+- **Skills hardened** — 5 tcc-qitp skills with real AWS CLI gotchas baked in
 
 ---
 

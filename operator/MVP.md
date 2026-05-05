@@ -1,4 +1,4 @@
-# tccw-aws-agent-platform — MVP Status & Backlog
+# tcc-aws-agent-platform — MVP Status & Backlog
 
 > **Last updated:** 2026-04-08 (evening)
 > **Owner:** Nestor Colt
@@ -15,8 +15,8 @@
 | TF utility modules | 4 (new) | lambda, lambda_alarms, scheduled_lambda, s3_encrypted_bucket |
 | TF agents module | 1 | Blueprint-driven for_each over YAML |
 | TF workflows module | 1 | SFN integration |
-| Domain agents (tccw-qitp) | 9 runtimes | All deployed to AgentCore |
-| Domain MCPs (tccw-qitp) | 8 runtimes | All deployed to AgentCore |
+| Domain agents (tcc-qitp) | 9 runtimes | All deployed to AgentCore |
+| Domain MCPs (tcc-qitp) | 8 runtimes | All deployed to AgentCore |
 | Known issues | 2 open | KI-001 (Gateway #809), KI-002 (Cedar SDK-managed) |
 
 ---
@@ -40,9 +40,9 @@
 | P1 | Domain IAM hardening (13 ENH-019 items) | Domain repo work | L |
 | P1 | Enable guardrail in staging/prod | Operator decision | S |
 | P1 | Configure online evaluation sampling | Domain blueprint updates | S |
-| P2 | Adopt `modules/lambda` in tccw-qitp | None | M |
-| P2 | Adopt `modules/lambda_alarms` in tccw-qitp | None | S |
-| P2 | Adopt `modules/scheduled_lambda` in tccw-qitp | None | S |
+| P2 | Adopt `modules/lambda` in tcc-qitp | None | M |
+| P2 | Adopt `modules/lambda_alarms` in tcc-qitp | None | S |
+| P2 | Adopt `modules/scheduled_lambda` in tcc-qitp | None | S |
 | P2 | Add `extra="forbid"` to remaining sub-models | None | S |
 | P2 | ENH-004: Memory strategy expansion | None | S |
 | P2 | ENH-020: `build_entrypoint()` adoption | None | S |
