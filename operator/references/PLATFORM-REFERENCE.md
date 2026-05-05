@@ -1,7 +1,7 @@
 # PLATFORM.md — AgentCore Platform Reference
 
 > **Last updated:** 2026-03-30 | **Source:** 9-agent deep analysis (5 Opus + 4 Sonnet sweeps) of platform SDK, Amazon samples, Terraform modules, YAML configs, security posture, and web research
-> **Platform repo:** `~/dev/tccw-aws-agent-platform` | **Samples repo:** `~/dev/amazon-bedrock-agentcore-samples`
+> **Platform repo:** `~/dev/tcc-aws-agent-platform` | **Samples repo:** `~/dev/amazon-bedrock-agentcore-samples`
 
 ---
 
@@ -396,7 +396,7 @@ These are gaps in the platform SDK that QITP's blueprints have outgrown:
 
 ## Quick Reference — File Locations
 
-### Platform SDK (`~/dev/tccw-aws-agent-platform/core/src/agent_core/`)
+### Platform SDK (`~/dev/tcc-aws-agent-platform/core/src/agent_core/`)
 
 | Path | Key Classes |
 |---|---|
@@ -418,7 +418,7 @@ These are gaps in the platform SDK that QITP's blueprints have outgrown:
 | `schemas/policy_config.py` | PolicyVersioningConfig |
 | `schemas/memory_config.py` | MemoryStrategyType (4 types) |
 
-### Platform Terraform (`~/dev/tccw-aws-agent-platform/modules/`)
+### Platform Terraform (`~/dev/tcc-aws-agent-platform/modules/`)
 
 | Path | What |
 |---|---|

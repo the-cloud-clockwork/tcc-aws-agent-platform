@@ -11,9 +11,9 @@ All 5 blocks executed and validated:
 | Block | Theme | Items | Status | DoD evidence |
 |-------|-------|-------|--------|--------------|
 | 1 | Schema & Blueprint Hardening | 6 | ✅ Done | Validated via Block 2 apply (2026-04-08) |
-| 2 | Security & Production Hardening | 8 | ✅ Done | `terraform apply` in tccw-qitp: 0/36/0 (2026-04-08) |
-| 3 | Runtime & Observability | 5 | ✅ Done | `terraform apply` in tccw-qitp: 3/45/0 (2026-04-08) |
-| 4 | Infrastructure Modules & Cleanup | 7 | ✅ Done | `terraform apply` in tccw-qitp: 0/36/0 (2026-04-08) |
+| 2 | Security & Production Hardening | 8 | ✅ Done | `terraform apply` in tcc-qitp: 0/36/0 (2026-04-08) |
+| 3 | Runtime & Observability | 5 | ✅ Done | `terraform apply` in tcc-qitp: 3/45/0 (2026-04-08) |
+| 4 | Infrastructure Modules & Cleanup | 7 | ✅ Done | `terraform apply` in tcc-qitp: 0/36/0 (2026-04-08) |
 | **5** | **Inference Migration + Production Pilot** | **20** | ✅ **Done** | **`pilot-t4-1775755670` — 16/16 states, 44.08 s with real claude-sonnet-4-6 inference (2026-04-09)** |
 
 **Total completed:** 46 items (14 enhancements + 8 sweep + 4 extras + 20 inference/pilot)
@@ -32,7 +32,7 @@ All 5 blocks executed and validated:
 
 ### Domain Repo IAM Hardening (out of scope for platform)
 
-ENH-019 items #1, #2, #5-14, #15-17 live in `modules/agents/` or `tccw-qitp` domain infra:
+ENH-019 items #1, #2, #5-14, #15-17 live in `modules/agents/` or `tcc-qitp` domain infra:
 - [ ] Scope `bedrock:*` on agent runtimes to `bedrock:InvokeModel` on specific model ARNs
 - [ ] Scope `bedrock-agentcore:*` on agent runtimes to enumerated actions
 - [ ] Move `COGNITO_MCP_CLIENT_SECRET` + `LANGFUSE_SECRET_KEY` from env vars to runtime SSM fetch
@@ -55,9 +55,9 @@ ENH-019 items #1, #2, #5-14, #15-17 live in `modules/agents/` or `tccw-qitp` dom
 ### Platform Hardening Follow-ups
 
 - [ ] Add `extra="forbid"` to remaining sub-models: `ArtifactConfig`, `ThinkingConfig`, `ModelConfig`, `RuntimeConfig`, `GatewayConfig`, `MemoryConfig`, `ObservabilityConfig`
-- [ ] Adopt `modules/lambda` in `tccw-qitp` to replace manual Lambda boilerplate (~639 lines)
-- [ ] Adopt `modules/lambda_alarms` in `tccw-qitp` to replace manual alarm definitions (~130 lines)
-- [ ] Adopt `modules/scheduled_lambda` in `tccw-qitp` to replace 7 event triads (~105 lines)
+- [ ] Adopt `modules/lambda` in `tcc-qitp` to replace manual Lambda boilerplate (~639 lines)
+- [ ] Adopt `modules/lambda_alarms` in `tcc-qitp` to replace manual alarm definitions (~130 lines)
+- [ ] Adopt `modules/scheduled_lambda` in `tcc-qitp` to replace 7 event triads (~105 lines)
 - [ ] Enable `guardrail_enabled = true` in staging/production when ready
 - [ ] Configure online evaluation (`evaluation.online`) in domain blueprints when ready
 - [ ] Check AWS Issue #809 status — remove `GATEWAY_DIRECT_MCP` workaround when fixed
@@ -76,7 +76,7 @@ Downstream agents need empty-input fallbacks. When gap-detector returns zero gap
 | strategy-evaluator | `Missing required field: symbol` | skip scoring when empty |
 | portfolio-recommender | `Missing required field: strategy_evaluations` | emit empty recommendations payload |
 
-These are NOT infra or inference bugs — the agents never reach the LLM. Each fix is a per-agent handler change in `tccw-qitp/agents/src/qitp_agents/<agent>/handler.py`. Ship via `rebuild-deploy.sh --agents <name>`.
+These are NOT infra or inference bugs — the agents never reach the LLM. Each fix is a per-agent handler change in `tcc-qitp/agents/src/qitp_agents/<agent>/handler.py`. Ship via `rebuild-deploy.sh --agents <name>`.
 
 ## Notes
 

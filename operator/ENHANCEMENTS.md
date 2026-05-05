@@ -116,7 +116,7 @@
 
 ### NM-006: Adopt Utility Modules in Domain Repo ▸ `nice-to-have` ▸ Target: 95/100
 
-**Current state:** `tccw-qitp` has ~870 lines of manual Lambda/alarm/schedule boilerplate that the 4 new utility modules can replace.
+**Current state:** `tcc-qitp` has ~870 lines of manual Lambda/alarm/schedule boilerplate that the 4 new utility modules can replace.
 
 **What to do:**
 1. Replace 7 manual Lambda definitions in `domain_lambdas.tf` with `module "lambda"` calls (~639 lines → ~70 lines)
