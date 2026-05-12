@@ -186,6 +186,16 @@ output "artifacts_bucket_arn" {
   value       = module.data.artifacts_bucket_arn
 }
 
+output "artifacts_table_name" {
+  description = "DynamoDB artifacts table name."
+  value       = module.data.table_names["artifacts"]
+}
+
+output "artifacts_table_arn" {
+  description = "DynamoDB artifacts table ARN."
+  value       = module.data.table_arns["artifacts"]
+}
+
 output "codebuild_source_bucket" {
   description = "S3 bucket name for CodeBuild source code uploads. Pass to modules/agents codebuild_source_bucket variable."
   value       = module.data.codebuild_source_bucket_name
