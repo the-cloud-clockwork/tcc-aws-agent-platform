@@ -1,12 +1,13 @@
-"""REST API handler for artifact retrieval.
+"""REST API handler for artifacts.
 
 Routes:
-  GET /api/artifacts                     — List artifacts
-  GET /api/artifacts/{artifact_id}       — Get artifact metadata + signed URL
-  GET /api/artifacts/{artifact_id}/data  — Get artifact content
-  GET /api/runs                          — List pipeline runs
-  GET /api/runs/{execution_id}           — Get manifest
-  GET /api/runs/{execution_id}/{agent}   — Get agent artifact from run
+  POST /api/artifacts                    — Create artifact (S3 + DynamoDB)
+  GET  /api/artifacts                    — List artifacts
+  GET  /api/artifacts/{artifact_id}      — Get artifact metadata + signed URL
+  GET  /api/artifacts/{artifact_id}/data — Get artifact content
+  GET  /api/runs                         — List pipeline runs
+  GET  /api/runs/{execution_id}          — Get manifest
+  GET  /api/runs/{execution_id}/{agent}  — Get agent artifact from run
 """
 
 import json
@@ -19,8 +20,10 @@ from boto3.dynamodb.conditions import Attr, Key
 logger = logging.getLogger(__name__)
 
 
-def _route(path: str, method: str, params: dict) -> dict:
+def _route(path: str, method: str, params: dict, body: dict | None = None) -> dict:
     """Match a request to the correct handler."""
+    if path == "/api/artifacts" and method == "POST":
+        return _create_artifact(body or {})
     if path == "/api/artifacts" and method == "GET":
         return _list_artifacts(params)
     if path.startswith("/api/artifacts/") and path.endswith("/data"):
@@ -40,10 +43,14 @@ def _route(path: str, method: str, params: dict) -> dict:
 def handler(event: dict, context) -> dict:
     """API Gateway Lambda proxy handler."""
     try:
+        body = None
+        if event.get("body"):
+            body = json.loads(event["body"]) if isinstance(event["body"], str) else event["body"]
         return _route(
             event.get("path", ""),
             event.get("httpMethod", "GET"),
             event.get("queryStringParameters") or {},
+            body=body,
         )
     except (KeyError, ValueError, IndexError) as exc:
         logger.warning("Bad request: %s", exc)
@@ -51,6 +58,51 @@ def handler(event: dict, context) -> dict:
     except Exception as exc:
         logger.exception("Unhandled API error")
         return _response(500, {"error": str(exc)})
+
+
+def _create_artifact(body: dict) -> dict:
+    """Create an artifact: write metadata to DynamoDB and content to S3."""
+    import uuid
+    from datetime import datetime, timezone
+
+    agent_id = body.get("agent_id", "unknown")
+    artifact_type = body.get("artifact_type", "agent_output")
+    content = body.get("content", {})
+    claim_check = body.get("claim_check", False)
+
+    artifact_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+    s3_key = f"pipeline/{now.strftime('%Y-%m-%d')}/{artifact_id}/{agent_id}.json"
+
+    s3 = boto3.client("s3")
+    bucket = os.environ.get("ARTIFACTS_BUCKET", "")
+    account_id = boto3.client("sts").get_caller_identity()["Account"]
+    s3.put_object(
+        Bucket=bucket,
+        Key=s3_key,
+        Body=json.dumps(content, default=str).encode(),
+        ContentType="application/json",
+        ExpectedBucketOwner=account_id,
+    )
+
+    table = _get_table()
+    item = {
+        "artifact_id": artifact_id,
+        "agent_id": agent_id,
+        "type": artifact_type,
+        "s3_key": s3_key,
+        "created_at": now.isoformat(),
+        "claim_check": claim_check,
+    }
+    if body.get("execution_id"):
+        item["execution_id"] = body["execution_id"]
+    if body.get("tier"):
+        item["tier"] = body["tier"]
+
+    table.put_item(Item=item)
+    logger.info("Artifact created: %s (agent=%s)", artifact_id, agent_id)
+
+    return _response(201, {"artifact_id": artifact_id, "s3_key": s3_key})
 
 
 def _list_artifacts(params: dict) -> dict:
@@ -205,7 +257,7 @@ def _response(status: int, body: dict) -> dict:
         "headers": {
             "Content-Type": "application/json",
             "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET,OPTIONS",
+            "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
         },
         "body": json.dumps(body, default=str),
     }
