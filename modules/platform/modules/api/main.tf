@@ -247,6 +247,23 @@ resource "aws_api_gateway_integration" "get_artifacts" {
   uri                     = aws_lambda_function.artifacts_api.invoke_arn
 }
 
+# POST /api/artifacts
+resource "aws_api_gateway_method" "post_artifacts" {
+  rest_api_id   = aws_api_gateway_rest_api.artifacts.id
+  resource_id   = aws_api_gateway_resource.artifacts.id
+  http_method   = "POST"
+  authorization = "AWS_IAM"
+}
+
+resource "aws_api_gateway_integration" "post_artifacts" {
+  rest_api_id             = aws_api_gateway_rest_api.artifacts.id
+  resource_id             = aws_api_gateway_resource.artifacts.id
+  http_method             = aws_api_gateway_method.post_artifacts.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.artifacts_api.invoke_arn
+}
+
 # GET /api/artifacts/{artifact_id}
 resource "aws_api_gateway_method" "get_artifact_by_id" {
   rest_api_id   = aws_api_gateway_rest_api.artifacts.id
@@ -373,7 +390,7 @@ resource "aws_api_gateway_integration_response" "options_artifacts" {
 
   response_parameters = {
     "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
-    "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,POST,OPTIONS'"
     "method.response.header.Access-Control-Allow-Origin"  = "'${local.cors_headers}'"
   }
 }
@@ -603,6 +620,7 @@ resource "aws_api_gateway_deployment" "main" {
 
   depends_on = [
     aws_api_gateway_integration.get_artifacts,
+    aws_api_gateway_integration.post_artifacts,
     aws_api_gateway_integration.get_artifact_by_id,
     aws_api_gateway_integration.get_artifact_data,
     aws_api_gateway_integration.get_runs,
