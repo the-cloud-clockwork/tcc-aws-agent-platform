@@ -46,6 +46,13 @@ def _get_credentials():
     return creds
 
 
+def _nested_execution_mode(event: dict) -> str:
+    cfg = event.get("config", {})
+    if not isinstance(cfg, dict):
+        return ""
+    return cfg.get("pipeline", {}).get("execution", {}).get("execution_mode", "") or ""
+
+
 def handler(event: dict, context) -> dict:
     arn = event["AgentRuntimeArn"]
     qualifier = event.get("Qualifier", "DEFAULT")
@@ -55,7 +62,15 @@ def handler(event: dict, context) -> dict:
     prompt = event.get("Prompt", event.get("Payload", {}))
     memory_branch = event.get("MemoryBranch", "")
     memory_merge = event.get("MemoryMergeStrategy", "")
+    # ExecutionMode is stamped by state_machines.tf from $.execution_mode (flat root field).
+    # When the SFN state doesn't carry a root execution_mode (e.g. legacy inputs), fall back
+    # to extracting it from the prompt dict so the runtime always receives a value.
     execution_mode = event.get("ExecutionMode", "")
+    if not execution_mode and isinstance(prompt, dict):
+        execution_mode = (
+            prompt.get("execution_mode")
+            or _nested_execution_mode(prompt)
+        )
 
     if memory_branch:
         payload = {
@@ -66,8 +81,8 @@ def handler(event: dict, context) -> dict:
         if execution_mode:
             payload["execution_mode"] = execution_mode
     elif isinstance(prompt, dict):
-        payload = prompt
-        if execution_mode and "execution_mode" not in payload:
+        payload = dict(prompt)  # copy — avoid mutating shared ref across warm Lambda invocations
+        if execution_mode:
             payload["execution_mode"] = execution_mode
     else:
         payload = {"prompt": str(prompt)}
