@@ -58,9 +58,10 @@ resource "aws_sfn_state_machine" "workflows" {
                   var.agent_runtime_arns[coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))],
                   "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))}"
                 )
-                "Qualifier"    = "DEFAULT"
-                "Prompt.$"     = try(state.prompt, "$.prompt")
-                "MemoryBranch" = try(each.value.memory_branching.enabled, false) ? replace(try(each.value.memory_branching.branch_namespace, "{sessionId}/branches/{stateId}"), "{stateId}", state.id) : ""
+                "Qualifier"          = "DEFAULT"
+                "Prompt.$"           = try(state.prompt, "$.prompt")
+                "ExecutionMode.$"    = "$.config.pipeline.execution.execution_mode"
+                "MemoryBranch"       = try(each.value.memory_branching.enabled, false) ? replace(try(each.value.memory_branching.branch_namespace, "{sessionId}/branches/{stateId}"), "{stateId}", state.id) : ""
                 "MemoryMergeStrategy" = try(each.value.memory_branching.merge_strategy, "")
               }
             }
@@ -318,9 +319,10 @@ resource "aws_sfn_state_machine" "workflows" {
                             var.agent_runtime_arns[coalesce(try(bs.agent_ref, null), try(bs.agent, "unknown"))],
                             "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(bs.agent_ref, null), try(bs.agent, "unknown"))}"
                           )
-                          "Qualifier"    = "DEFAULT"
-                          "Prompt.$"     = try(bs.prompt, "$.prompt")
-                          "MemoryBranch" = ""
+                          "Qualifier"          = "DEFAULT"
+                          "Prompt.$"           = try(bs.prompt, "$.prompt")
+                          "ExecutionMode.$"    = "$.config.pipeline.execution.execution_mode"
+                          "MemoryBranch"       = ""
                           "MemoryMergeStrategy" = ""
                         }
                       }
@@ -366,9 +368,10 @@ resource "aws_sfn_state_machine" "workflows" {
                           var.agent_runtime_arns[coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))],
                           "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))}"
                         )
-                        "Qualifier"    = "DEFAULT"
-                        "Prompt.$"     = "$.prompt"
-                        "MemoryBranch" = ""
+                        "Qualifier"          = "DEFAULT"
+                        "Prompt.$"           = "$.prompt"
+                        "ExecutionMode.$"    = "$.config.pipeline.execution.execution_mode"
+                        "MemoryBranch"       = ""
                         "MemoryMergeStrategy" = ""
                       }
                     }
