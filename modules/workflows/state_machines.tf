@@ -60,7 +60,6 @@ resource "aws_sfn_state_machine" "workflows" {
                 )
                 "Qualifier"          = "DEFAULT"
                 "Prompt.$"           = try(state.prompt, "$.prompt")
-                "ExecutionMode.$"    = "$.config.pipeline.execution.execution_mode"
                 "MemoryBranch"       = try(each.value.memory_branching.enabled, false) ? replace(try(each.value.memory_branching.branch_namespace, "{sessionId}/branches/{stateId}"), "{stateId}", state.id) : ""
                 "MemoryMergeStrategy" = try(each.value.memory_branching.merge_strategy, "")
               }
@@ -321,7 +320,6 @@ resource "aws_sfn_state_machine" "workflows" {
                           )
                           "Qualifier"          = "DEFAULT"
                           "Prompt.$"           = try(bs.prompt, "$.prompt")
-                          "ExecutionMode.$"    = "$.config.pipeline.execution.execution_mode"
                           "MemoryBranch"       = ""
                           "MemoryMergeStrategy" = ""
                         }
@@ -370,7 +368,6 @@ resource "aws_sfn_state_machine" "workflows" {
                         )
                         "Qualifier"          = "DEFAULT"
                         "Prompt.$"           = "$.prompt"
-                        "ExecutionMode.$"    = "$.config.pipeline.execution.execution_mode"
                         "MemoryBranch"       = ""
                         "MemoryMergeStrategy" = ""
                       }
