@@ -63,8 +63,7 @@ class TestGenericHandler:
 
     def test_handler_threads_event_mode_into_session(self, monkeypatch) -> None:
         """payload.execution_mode must be forwarded to create_session, not env default."""
-        import os
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import MagicMock
 
         monkeypatch.setenv("EXECUTION_MODE", "simulation")
 
