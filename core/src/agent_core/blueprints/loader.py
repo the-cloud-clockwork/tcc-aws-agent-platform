@@ -534,6 +534,7 @@ class BlueprintLoader:
         blueprint: AgentBlueprint,
         mcp_clients: list[Any],
         *,
+        mode: ExecutionMode | None = None,
         memory_wiring: Any = None,
         local_tools: list[Any] | None = None,
     ) -> tuple[dict[str, Any], Any]:
@@ -559,11 +560,12 @@ class BlueprintLoader:
                 blueprint.observability.audit_log.table_env, None
             )
             pii_filter = build_pii_filter(blueprint.observability.data_protection)
+            resolved_obs_mode = mode or get_execution_mode()
             obs_hook = create_observability_hooks(
                 agent_id=blueprint.id,
                 prompt_id=blueprint.prompt_ref,
                 prompt_version=blueprint.version,
-                execution_mode=os.environ.get("EXECUTION_MODE", "simulation"),
+                execution_mode=resolved_obs_mode.value,
                 audit_table=audit_table,
                 pii_filter=pii_filter,
             )
@@ -782,7 +784,7 @@ class BlueprintLoader:
 
         # -- build agent kwargs --
         agent_kwargs, obs_hook = self._build_agent_kwargs(
-            blueprint, mcp_clients, memory_wiring=memory_wiring
+            blueprint, mcp_clients, mode=current_mode, memory_wiring=memory_wiring
         )
 
         agent = Agent(**agent_kwargs)
@@ -1008,7 +1010,7 @@ class BlueprintLoader:
             node_mcp_clients = self._create_tool_providers(node_bp)
             all_mcp_clients.extend(node_mcp_clients)
 
-            node_kwargs, _ = self._build_agent_kwargs(node_bp, node_mcp_clients)
+            node_kwargs, _ = self._build_agent_kwargs(node_bp, node_mcp_clients, mode=current_mode)
             node_agent = Agent(**node_kwargs)
             node_agents[node_cfg.node_id] = node_agent
             logger.info(
