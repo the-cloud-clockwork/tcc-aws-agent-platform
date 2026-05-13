@@ -26,34 +26,29 @@ class ExecutionMode(StrEnum):
 def get_execution_mode(
     *,
     aliases: dict[str, str] | None = None,
+    event_mode: str | None = None,
 ) -> ExecutionMode:
-    """Read the current execution mode from the EXECUTION_MODE env var.
+    """Read execution mode. Precedence: event_mode > EXECUTION_MODE env > SIMULATION.
 
     Args:
         aliases: Optional mapping of custom names to platform mode values.
                  Domain repos can pass their own vocabulary here.
-                 These are checked *after* built-in aliases.
-
-    Built-in aliases are empty by default.  Domain repos can supply
-    their own vocabulary via the ``aliases`` parameter or by populating
-    ``_BUILTIN_ALIASES`` with ``register_aliases()`` at startup.
+        event_mode: Optional per-event override (e.g. from SFN payload).
+                    When provided, takes precedence over the env var.
 
     If the resolved value is not a valid ExecutionMode, falls back to
-    ``SIMULATION`` with a warning rather than crashing. The platform
-    must not crash on unknown modes.
+    ``SIMULATION`` with a warning rather than crashing.
     """
-    raw = os.environ.get("EXECUTION_MODE", "simulation").strip().lower()
-
-    # Apply built-in aliases first, then caller-supplied aliases.
-    raw = _BUILTIN_ALIASES.get(raw, raw)
-    if aliases:
-        raw = aliases.get(raw, raw)
+    merged_aliases = {**_BUILTIN_ALIASES, **(aliases or {})}
+    raw = event_mode or os.environ.get("EXECUTION_MODE", "simulation")
+    raw = raw.strip().lower()
+    raw = merged_aliases.get(raw, raw)
 
     try:
         return ExecutionMode(raw)
     except ValueError:
         logger.warning(
-            "Unknown EXECUTION_MODE '%s' — falling back to simulation", raw
+            "Unknown execution mode '%s' — falling back to simulation", raw
         )
         return ExecutionMode.SIMULATION
 
