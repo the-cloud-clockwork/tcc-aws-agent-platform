@@ -55,6 +55,7 @@ def handler(event: dict, context) -> dict:
     prompt = event.get("Prompt", event.get("Payload", {}))
     memory_branch = event.get("MemoryBranch", "")
     memory_merge = event.get("MemoryMergeStrategy", "")
+    execution_mode = event.get("ExecutionMode", "")
 
     if memory_branch:
         payload = {
@@ -62,10 +63,16 @@ def handler(event: dict, context) -> dict:
             "memory_branch": memory_branch,
             "memory_merge_strategy": memory_merge,
         }
+        if execution_mode:
+            payload["execution_mode"] = execution_mode
     elif isinstance(prompt, dict):
         payload = prompt
+        if execution_mode and "execution_mode" not in payload:
+            payload["execution_mode"] = execution_mode
     else:
         payload = {"prompt": str(prompt)}
+        if execution_mode:
+            payload["execution_mode"] = execution_mode
 
     payload_bytes = json.dumps(payload).encode()
 
