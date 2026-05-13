@@ -4,7 +4,6 @@ from __future__ import annotations
 import os
 from unittest.mock import patch
 
-import pytest
 
 from agent_core.execution.mode import ExecutionMode, get_execution_mode
 
