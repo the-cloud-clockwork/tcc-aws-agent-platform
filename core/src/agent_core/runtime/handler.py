@@ -162,21 +162,23 @@ class GenericHandler:
         try:
             user_prompt = config.build_prompt(params, idem_key)
 
+            from agent_core.execution.mode import get_execution_mode
+
+            resolved_mode = get_execution_mode(event_mode=payload.execution_mode)
+
             # Create session if manager present
             session_state = None
             if self._session_manager is not None:
-                from agent_core.execution.mode import get_execution_mode
-
                 session_state = self._session_manager.create_session(
                     session_id=session_id,
                     agent_id=agent_id,
-                    execution_mode=get_execution_mode().value,
+                    execution_mode=resolved_mode.value,
                 )
 
             artifact_tier, artifact_kms = self._resolve_artifact_config(agent_id)
             artifact_date = params.get("analysis_date") or params.get("date") or params.get("pipeline_date")
 
-            with self._loader.build_agent_session(agent_id) as session:
+            with self._loader.build_agent_session(agent_id, mode=resolved_mode) as session:
                 result = session.run(user_prompt)
 
             output = marshal_output(
