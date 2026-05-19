@@ -355,6 +355,33 @@ class TestExtractTypedPayload:
             "ranked_gaps": [],
         }
 
+    def test_non_schema_toolname_does_not_leak_input_as_payload(self) -> None:
+        """v3: lowercase get_*/set_*-style tools must not be treated as schema toolUses.
+
+        Reproduces smoke v6/v7 sentiment-analyzer bug where the sub-agent's final
+        toolUse was an arbitrary fetch with input={config: {...}} and the walker
+        returned that whole input dict, leaking the request config as the artifact.
+        """
+        from agent_core.runtime.marshal import _extract_typed_payload
+
+        envelope = {
+            "type": "agent_result",
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {
+                        "toolUse": {
+                            "name": "get_pipeline_config",
+                            "input": {"config": {"body": {"pipeline": {}}}},
+                        }
+                    }
+                ],
+            },
+        }
+        # Walker must skip the non-schema toolUse entirely → fall through to
+        # text/fenced scan (no text) → return None → caller serializes envelope.
+        assert _extract_typed_payload(envelope) is None
+
     def test_history_walk_picks_latest_create_artifact_in_reverse(self) -> None:
         """v2 — when multiple create_artifact calls, the latest (most recent) wins."""
         from agent_core.runtime.marshal import _extract_typed_payload
