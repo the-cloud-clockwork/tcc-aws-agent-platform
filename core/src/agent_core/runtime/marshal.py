@@ -18,6 +18,21 @@ _KNOWN_TOOL_PASSTHROUGH = {"create_artifact"}
 
 _FENCED_JSON_RE = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
 
+# Pattern for tool names that look like Pydantic schemas — used to filter out
+# arbitrary tool calls (get_*, set_*, etc.) when scanning for the "structured
+# output" toolUse synthesized by StructuredOutputEnforcer. Schemas are
+# CamelCase, optionally with trailing "Output", "Report", "Recommendation",
+# "Result", etc.
+_SCHEMA_NAME_RE = re.compile(
+    r"^[A-Z][a-zA-Z0-9]*"
+    r"(?:Output|Report|Recommendation|Result|Response|Analysis|Prediction|Evaluation|Confirmation)?$"
+)
+
+
+def _looks_like_schema_name(name: Any) -> bool:
+    """True when a toolUse name looks like a Pydantic schema (CamelCase)."""
+    return isinstance(name, str) and bool(_SCHEMA_NAME_RE.match(name))
+
 
 def _parse_fenced_json(text: str) -> dict[str, Any] | None:
     """Return the first parseable JSON object from a ```json``` code fence."""
@@ -67,7 +82,15 @@ def _extract_from_content_list(content: list[Any]) -> dict[str, Any] | None:
                 if isinstance(parsed, dict):
                     return parsed
             continue
-        return input_
+        # Non-passthrough toolUse — only treat as typed payload when the name
+        # matches a Pydantic schema pattern (CamelCase, optionally with a
+        # known suffix). Skips arbitrary tool calls like get_ohlcv whose
+        # input would otherwise leak into the artifact (see audit §J — the
+        # sentiment-analyzer extracted {config: ...} because its final
+        # toolUse was an upstream-data fetch with the config as input).
+        if _looks_like_schema_name(name):
+            return input_
+        continue
 
     for block in content:
         if not isinstance(block, dict):
