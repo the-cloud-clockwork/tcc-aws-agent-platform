@@ -127,3 +127,299 @@ class TestMarshalOutput:
             )
 
         assert result["output"] == {"field": "value"}
+
+
+def _make_strands_result(envelope: dict) -> MagicMock:
+    """Build a mock object emulating a Strands AgentResult.to_dict()."""
+    mock = MagicMock()
+    mock.to_dict.return_value = envelope
+    return mock
+
+
+class TestExtractTypedPayload:
+    """Direct tests for _extract_typed_payload pure-function behavior."""
+
+    def test_enforcer_tooluse_returns_input(self) -> None:
+        from agent_core.runtime.marshal import _extract_typed_payload
+
+        envelope = {
+            "type": "agent_result",
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {"text": "## Result narrative"},
+                    {
+                        "toolUse": {
+                            "toolUseId": "enforced_gapdetectionoutput",
+                            "name": "GapDetectionOutput",
+                            "input": {"ranked_gaps": [], "total_gaps_found": 0},
+                        }
+                    },
+                ],
+            },
+            "stop_reason": "end_turn",
+        }
+        assert _extract_typed_payload(envelope) == {
+            "ranked_gaps": [],
+            "total_gaps_found": 0,
+        }
+
+    def test_create_artifact_tooluse_returns_content(self) -> None:
+        from agent_core.runtime.marshal import _extract_typed_payload
+
+        envelope = {
+            "type": "agent_result",
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {
+                        "toolUse": {
+                            "toolUseId": "tooluse_abc",
+                            "name": "create_artifact",
+                            "input": {
+                                "artifact_type": "report",
+                                "tier": "platform",
+                                "content": {
+                                    "per_symbol_sentiments": [],
+                                    "aggregate_sentiment": 0.0,
+                                },
+                            },
+                        }
+                    }
+                ],
+            },
+        }
+        assert _extract_typed_payload(envelope) == {
+            "per_symbol_sentiments": [],
+            "aggregate_sentiment": 0.0,
+        }
+
+    def test_fenced_json_in_text_returns_parsed_dict(self) -> None:
+        from agent_core.runtime.marshal import _extract_typed_payload
+
+        envelope = {
+            "type": "agent_result",
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {
+                        "text": (
+                            "## Gap Detection Results\n\n"
+                            "```json\n"
+                            '{"analysis_date": "2026-05-19", '
+                            '"total_gaps_found": 0, "ranked_gaps": []}\n'
+                            "```\n"
+                        )
+                    }
+                ],
+            },
+        }
+        assert _extract_typed_payload(envelope) == {
+            "analysis_date": "2026-05-19",
+            "total_gaps_found": 0,
+            "ranked_gaps": [],
+        }
+
+    def test_no_extractable_returns_none(self) -> None:
+        from agent_core.runtime.marshal import _extract_typed_payload
+
+        envelope = {
+            "type": "agent_result",
+            "message": {
+                "role": "assistant",
+                "content": [{"text": "Narrative-only response, no JSON, no tools."}],
+            },
+        }
+        assert _extract_typed_payload(envelope) is None
+
+    def test_multiagent_envelope_skipped(self) -> None:
+        from agent_core.runtime.marshal import _extract_typed_payload
+
+        envelope = {
+            "type": "multiagent_result",
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {
+                        "toolUse": {
+                            "name": "GapDetectionOutput",
+                            "input": {"would_have_been_returned": True},
+                        }
+                    }
+                ],
+            },
+        }
+        assert _extract_typed_payload(envelope) is None
+
+    def test_malformed_content_returns_none(self) -> None:
+        from agent_core.runtime.marshal import _extract_typed_payload
+
+        # message.content is not a list
+        assert _extract_typed_payload({"message": {"content": "not a list"}}) is None
+        # message is not a dict
+        assert _extract_typed_payload({"message": "not a dict"}) is None
+        # block dicts missing fields are skipped, fall through
+        assert (
+            _extract_typed_payload({"message": {"content": [{"unrelated": 1}]}}) is None
+        )
+
+    def test_prefers_last_tooluse(self) -> None:
+        """Reversed iteration finds the last toolUse first (enforcer over earlier create_artifact)."""
+        from agent_core.runtime.marshal import _extract_typed_payload
+
+        envelope = {
+            "type": "agent_result",
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {
+                        "toolUse": {
+                            "name": "create_artifact",
+                            "input": {"content": {"early": True}},
+                        }
+                    },
+                    {
+                        "toolUse": {
+                            "name": "GapDetectionOutput",
+                            "input": {"late": True},
+                        }
+                    },
+                ],
+            },
+        }
+        assert _extract_typed_payload(envelope) == {"late": True}
+
+    def test_create_artifact_non_dict_content_falls_through(self) -> None:
+        """When create_artifact.input.content is a string (markdown body), fall through."""
+        from agent_core.runtime.marshal import _extract_typed_payload
+
+        envelope = {
+            "type": "agent_result",
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {
+                        "toolUse": {
+                            "name": "create_artifact",
+                            "input": {"content": "# Markdown not dict"},
+                        }
+                    },
+                    {"text": '```json\n{"fallback": "json"}\n```'},
+                ],
+            },
+        }
+        # The toolUse loop continues past the non-dict content; the text-pass
+        # then finds the fenced JSON.
+        assert _extract_typed_payload(envelope) == {"fallback": "json"}
+
+
+class TestSerializeResultStrands:
+    """Tests for _serialize_result against Strands AgentResult-like inputs."""
+
+    def test_strands_envelope_with_enforcer_returns_typed_payload(self) -> None:
+        from agent_core.runtime.marshal import _serialize_result
+
+        envelope = {
+            "type": "agent_result",
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {
+                        "toolUse": {
+                            "name": "GapDetectionOutput",
+                            "input": {"ranked_gaps": [], "total_gaps_found": 0},
+                        }
+                    }
+                ],
+            },
+        }
+        result = _make_strands_result(envelope)
+        assert _serialize_result(result) == {
+            "ranked_gaps": [],
+            "total_gaps_found": 0,
+        }
+
+    def test_strands_envelope_no_extractable_returns_envelope(self) -> None:
+        """Fallback: when no typed payload is found, return the envelope itself."""
+        from agent_core.runtime.marshal import _serialize_result
+
+        envelope = {
+            "type": "agent_result",
+            "message": {
+                "role": "assistant",
+                "content": [{"text": "Just prose, no JSON, no tools."}],
+            },
+        }
+        result = _make_strands_result(envelope)
+        assert _serialize_result(result) == envelope
+
+    def test_strands_multiagent_envelope_returns_envelope(self) -> None:
+        """Multiagent envelopes are out of v1 scope — return as-is."""
+        from agent_core.runtime.marshal import _serialize_result
+
+        envelope = {
+            "type": "multiagent_result",
+            "message": {
+                "role": "assistant",
+                "content": [{"text": "sub-agent results"}],
+            },
+        }
+        result = _make_strands_result(envelope)
+        assert _serialize_result(result) == envelope
+
+    def test_strands_envelope_with_create_artifact_returns_content(self) -> None:
+        from agent_core.runtime.marshal import _serialize_result
+
+        envelope = {
+            "type": "agent_result",
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {
+                        "toolUse": {
+                            "name": "create_artifact",
+                            "input": {
+                                "artifact_type": "recommendation",
+                                "content": {"recommendations": [], "no_action_symbols": []},
+                            },
+                        }
+                    }
+                ],
+            },
+        }
+        result = _make_strands_result(envelope)
+        assert _serialize_result(result) == {
+            "recommendations": [],
+            "no_action_symbols": [],
+        }
+
+
+class TestParseFencedJson:
+    """Direct tests for the fenced-JSON parser."""
+
+    def test_simple_object(self) -> None:
+        from agent_core.runtime.marshal import _parse_fenced_json
+
+        text = '```json\n{"foo": 1}\n```'
+        assert _parse_fenced_json(text) == {"foo": 1}
+
+    def test_returns_first_parseable_block(self) -> None:
+        from agent_core.runtime.marshal import _parse_fenced_json
+
+        text = (
+            "Intro\n```json\n{not valid json}\n```\n"
+            'Middle\n```json\n{"valid": true}\n```'
+        )
+        assert _parse_fenced_json(text) == {"valid": True}
+
+    def test_no_fence_returns_none(self) -> None:
+        from agent_core.runtime.marshal import _parse_fenced_json
+
+        assert _parse_fenced_json("Just text, no fences") is None
+
+    def test_non_dict_json_returns_none(self) -> None:
+        from agent_core.runtime.marshal import _parse_fenced_json
+
+        # The regex requires a {...} body, so an array would not match anyway,
+        # but defensive isinstance check is exercised by other tests.
+        assert _parse_fenced_json("```json\nnot-an-object\n```") is None
