@@ -31,6 +31,107 @@ def _parse_fenced_json(text: str) -> dict[str, Any] | None:
     return None
 
 
+def _extract_from_content_list(content: list[Any]) -> dict[str, Any] | None:
+    """Scan a single Strands message content list for a typed payload.
+
+    Priority within the list:
+      1. Reversed scan for a toolUse — if name is a create_artifact-style
+         passthrough, return ``input.content`` when it's a dict; otherwise
+         the toolUse came from StructuredOutputEnforcer (or any other tool
+         the agent invoked) and ``input`` itself is the typed payload.
+      2. Forward scan for a fenced ```json``` code block in any text block.
+      3. ``None`` if neither matches.
+    """
+    if not isinstance(content, list):
+        return None
+
+    for block in reversed(content):
+        if not isinstance(block, dict):
+            continue
+        tool_use = block.get("toolUse")
+        if not isinstance(tool_use, dict):
+            continue
+        input_ = tool_use.get("input")
+        if not isinstance(input_, dict):
+            continue
+        name = tool_use.get("name")
+        if name in _KNOWN_TOOL_PASSTHROUGH:
+            inner = input_.get("content")
+            if isinstance(inner, dict):
+                return inner
+            if isinstance(inner, str):
+                try:
+                    parsed = json.loads(inner)
+                except json.JSONDecodeError:
+                    parsed = None
+                if isinstance(parsed, dict):
+                    return parsed
+            continue
+        return input_
+
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        text = block.get("text")
+        if not isinstance(text, str):
+            continue
+        parsed = _parse_fenced_json(text)
+        if parsed is not None:
+            return parsed
+
+    return None
+
+
+def _extract_from_multiagent_envelope(
+    envelope: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Walk a multiagent_result envelope for typed sub-agent payloads.
+
+    Each ``envelope.results[node_name].result`` is either an ``agent_result``
+    envelope (with .message.content[]) or a nested ``multiagent_result``.
+    For agent_result nodes, scan the last message via
+    ``_extract_from_content_list``. For nested multiagent_result nodes,
+    recurse.
+
+    Returns an aggregate dict keyed by node name when at least one sub-agent
+    produced a typed payload. Single-node graphs return the inner payload
+    directly (no wrapping by node name). ``None`` when no sub-agent had an
+    extractable payload — caller falls back to envelope.
+    """
+    results = envelope.get("results")
+    if not isinstance(results, dict) or not results:
+        return None
+
+    extracted: dict[str, Any] = {}
+    for node_name, node in results.items():
+        if not isinstance(node, dict):
+            continue
+        node_result = node.get("result")
+        if not isinstance(node_result, dict):
+            continue
+        node_type = node_result.get("type")
+        if node_type == "multiagent_result":
+            nested = _extract_from_multiagent_envelope(node_result)
+            if isinstance(nested, dict) and nested:
+                extracted[node_name] = nested
+            continue
+        # agent_result — walk its last message content
+        message = node_result.get("message")
+        if not isinstance(message, dict):
+            continue
+        payload = _extract_from_content_list(message.get("content", []))
+        if payload is not None:
+            extracted[node_name] = payload
+
+    if not extracted:
+        return None
+    if len(extracted) == 1:
+        only_value = next(iter(extracted.values()))
+        if isinstance(only_value, dict):
+            return only_value
+    return extracted
+
+
 def _extract_typed_payload(
     envelope: dict[str, Any],
     conversation_history: list[dict[str, Any]] | None = None,
@@ -44,18 +145,14 @@ def _extract_typed_payload(
          agent already shipped to the platform tier. Catches the case where
          the final assistant message is a markdown summary with no toolUse
          (StructuredOutputEnforcer fell over silently).
-      2. Last assistant message's toolUse.input — either the StructuredOutput
+      2. Multiagent envelope (type == "multiagent_result"): walk sub-agent
+         last messages for typed payloads, aggregate by node name (v3 scope).
+      3. Last assistant message's toolUse.input — either the StructuredOutput
          Enforcer's synthetic block (input == typed payload) or a
          create_artifact tool call (input.content == typed payload).
-      3. Fenced ```json``` block in any text content of the last message.
-      4. None — caller falls back to the envelope itself.
-
-    Multiagent envelopes (type == "multiagent_result") are skipped — caller
-    falls back to envelope. Single-agent extraction is v2 scope.
+      4. Fenced ```json``` block in any text content of the last message.
+      5. None — caller falls back to the envelope itself.
     """
-    if envelope.get("type") == "multiagent_result":
-        return None
-
     if conversation_history:
         for msg in reversed(conversation_history):
             if not isinstance(msg, dict):
@@ -79,42 +176,21 @@ def _extract_typed_payload(
                 inner = input_.get("content")
                 if isinstance(inner, dict):
                     return inner
+                if isinstance(inner, str):
+                    try:
+                        parsed = json.loads(inner)
+                    except json.JSONDecodeError:
+                        parsed = None
+                    if isinstance(parsed, dict):
+                        return parsed
+
+    if envelope.get("type") == "multiagent_result":
+        return _extract_from_multiagent_envelope(envelope)
 
     message = envelope.get("message")
     if not isinstance(message, dict):
         return None
-    content = message.get("content")
-    if not isinstance(content, list):
-        return None
-
-    for block in reversed(content):
-        if not isinstance(block, dict):
-            continue
-        tool_use = block.get("toolUse")
-        if not isinstance(tool_use, dict):
-            continue
-        input_ = tool_use.get("input")
-        if not isinstance(input_, dict):
-            continue
-        name = tool_use.get("name")
-        if name in _KNOWN_TOOL_PASSTHROUGH:
-            inner = input_.get("content")
-            if isinstance(inner, dict):
-                return inner
-            continue
-        return input_
-
-    for block in content:
-        if not isinstance(block, dict):
-            continue
-        text = block.get("text")
-        if not isinstance(text, str):
-            continue
-        parsed = _parse_fenced_json(text)
-        if parsed is not None:
-            return parsed
-
-    return None
+    return _extract_from_content_list(message.get("content", []))
 
 
 def _find_create_artifact_result(
@@ -174,7 +250,11 @@ def _find_create_artifact_result(
             tool_use_id = tool_result.get("toolUseId")
             if tool_use_id not in pending_ids:
                 continue
-            if tool_result.get("status") != "success":
+            # Status field is optional in practice — some Strands transports
+            # omit it on success. Treat anything other than explicit "error"
+            # as success.
+            status = tool_result.get("status")
+            if status == "error":
                 continue
             payload = _extract_tool_result_payload(tool_result.get("content"))
             if payload is None:
@@ -191,12 +271,15 @@ def _find_create_artifact_result(
 def _extract_tool_result_payload(
     content: Any,
 ) -> dict[str, Any] | None:
-    """Extract a dict payload from a toolResult ``content`` list.
+    """Extract a dict payload from a toolResult ``content`` field.
 
-    Strands wraps toolResult bodies as a list of content blocks. The payload
-    we care about lives in either ``{"json": {...}}`` or as a JSON string in
-    ``{"text": "..."}``. Return the first dict found, else ``None``.
+    Strands typically wraps toolResult bodies as a list of content blocks,
+    each carrying either ``{"json": {...}}`` or ``{"text": "<json-string>"}``.
+    Some MCP transports surface the payload as a bare dict instead. Accept
+    all three shapes.
     """
+    if isinstance(content, dict):
+        return content
     if not isinstance(content, list):
         return None
     for block in content:

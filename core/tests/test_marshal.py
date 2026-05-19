@@ -232,22 +232,13 @@ class TestExtractTypedPayload:
         }
         assert _extract_typed_payload(envelope) is None
 
-    def test_multiagent_envelope_skipped(self) -> None:
+    def test_multiagent_envelope_with_no_results_returns_none(self) -> None:
+        """v3: empty multiagent envelope (no sub-agent results) — caller falls back."""
         from agent_core.runtime.marshal import _extract_typed_payload
 
         envelope = {
             "type": "multiagent_result",
-            "message": {
-                "role": "assistant",
-                "content": [
-                    {
-                        "toolUse": {
-                            "name": "GapDetectionOutput",
-                            "input": {"would_have_been_returned": True},
-                        }
-                    }
-                ],
-            },
+            "results": {},
         }
         assert _extract_typed_payload(envelope) is None
 
@@ -443,15 +434,22 @@ class TestSerializeResultStrands:
         result = _make_strands_result(envelope)
         assert _serialize_result(result) == envelope
 
-    def test_strands_multiagent_envelope_returns_envelope(self) -> None:
-        """Multiagent envelopes are out of v1 scope — return as-is."""
+    def test_strands_multiagent_envelope_with_no_typed_subagents_returns_envelope(self) -> None:
+        """v3: multiagent envelope where no sub-agent has a typed payload — return envelope."""
         from agent_core.runtime.marshal import _serialize_result
 
         envelope = {
             "type": "multiagent_result",
-            "message": {
-                "role": "assistant",
-                "content": [{"text": "sub-agent results"}],
+            "results": {
+                "specialist_a": {
+                    "result": {
+                        "type": "agent_result",
+                        "message": {
+                            "role": "assistant",
+                            "content": [{"text": "plain text only"}],
+                        },
+                    }
+                }
             },
         }
         result = _make_strands_result(envelope)
@@ -483,6 +481,44 @@ class TestSerializeResultStrands:
             "no_action_symbols": [],
         }
 
+    def test_strands_multiagent_envelope_with_typed_subagent_returns_payload(self) -> None:
+        """v3: multiagent envelope where a sub-agent's last message has a create_artifact
+        toolUse — extract and return that typed payload."""
+        from agent_core.runtime.marshal import _serialize_result
+
+        envelope = {
+            "type": "multiagent_result",
+            "results": {
+                "sentiment_specialist": {
+                    "result": {
+                        "type": "agent_result",
+                        "message": {
+                            "role": "assistant",
+                            "content": [
+                                {
+                                    "toolUse": {
+                                        "name": "create_artifact",
+                                        "input": {
+                                            "artifact_type": "sentiment-report",
+                                            "content": {
+                                                "per_symbol_sentiments": [
+                                                    {"symbol": "NVDA", "composite_score": 0.6}
+                                                ]
+                                            },
+                                        },
+                                    }
+                                }
+                            ],
+                        },
+                    }
+                }
+            },
+        }
+        result = _make_strands_result(envelope)
+        assert _serialize_result(result) == {
+            "per_symbol_sentiments": [{"symbol": "NVDA", "composite_score": 0.6}]
+        }
+
     def test_threads_conversation_history_into_extractor(self) -> None:
         """v2 — conversation_history passed to _serialize_result reaches extractor."""
         from agent_core.runtime.marshal import _serialize_result
@@ -509,6 +545,167 @@ class TestSerializeResultStrands:
         assert _serialize_result(result, conversation_history=history) == {
             "from_history": True,
         }
+
+
+class TestMultiAgentExtraction:
+    """Tests for _extract_from_multiagent_envelope walker (v3 scope)."""
+
+    def test_single_node_graph_unwraps_to_inner_payload(self) -> None:
+        from agent_core.runtime.marshal import _extract_from_multiagent_envelope
+
+        envelope = {
+            "type": "multiagent_result",
+            "results": {
+                "only_specialist": {
+                    "result": {
+                        "type": "agent_result",
+                        "message": {
+                            "role": "assistant",
+                            "content": [
+                                {
+                                    "toolUse": {
+                                        "name": "create_artifact",
+                                        "input": {"content": {"x": 1, "y": 2}},
+                                    }
+                                }
+                            ],
+                        },
+                    }
+                }
+            },
+        }
+        assert _extract_from_multiagent_envelope(envelope) == {"x": 1, "y": 2}
+
+    def test_multi_node_graph_returns_aggregate_by_name(self) -> None:
+        from agent_core.runtime.marshal import _extract_from_multiagent_envelope
+
+        envelope = {
+            "type": "multiagent_result",
+            "results": {
+                "gap_analysis": {
+                    "result": {
+                        "type": "agent_result",
+                        "message": {
+                            "role": "assistant",
+                            "content": [
+                                {
+                                    "toolUse": {
+                                        "name": "create_artifact",
+                                        "input": {"content": {"gaps": []}},
+                                    }
+                                }
+                            ],
+                        },
+                    }
+                },
+                "sentiment_analysis": {
+                    "result": {
+                        "type": "agent_result",
+                        "message": {
+                            "role": "assistant",
+                            "content": [
+                                {
+                                    "toolUse": {
+                                        "name": "create_artifact",
+                                        "input": {"content": {"sentiment": 0.0}},
+                                    }
+                                }
+                            ],
+                        },
+                    }
+                },
+            },
+        }
+        result = _extract_from_multiagent_envelope(envelope)
+        assert result == {
+            "gap_analysis": {"gaps": []},
+            "sentiment_analysis": {"sentiment": 0.0},
+        }
+
+    def test_no_typed_subagent_returns_none(self) -> None:
+        from agent_core.runtime.marshal import _extract_from_multiagent_envelope
+
+        envelope = {
+            "type": "multiagent_result",
+            "results": {
+                "a": {
+                    "result": {
+                        "type": "agent_result",
+                        "message": {
+                            "role": "assistant",
+                            "content": [{"text": "narrative only"}],
+                        },
+                    }
+                },
+                "b": {
+                    "result": {
+                        "type": "agent_result",
+                        "message": {
+                            "role": "assistant",
+                            "content": [{"text": "also narrative"}],
+                        },
+                    }
+                },
+            },
+        }
+        assert _extract_from_multiagent_envelope(envelope) is None
+
+    def test_nested_multiagent_recurses(self) -> None:
+        from agent_core.runtime.marshal import _extract_from_multiagent_envelope
+
+        envelope = {
+            "type": "multiagent_result",
+            "results": {
+                "outer_node": {
+                    "result": {
+                        "type": "multiagent_result",
+                        "results": {
+                            "inner_specialist": {
+                                "result": {
+                                    "type": "agent_result",
+                                    "message": {
+                                        "role": "assistant",
+                                        "content": [
+                                            {
+                                                "toolUse": {
+                                                    "name": "create_artifact",
+                                                    "input": {"content": {"deep": True}},
+                                                }
+                                            }
+                                        ],
+                                    },
+                                }
+                            }
+                        },
+                    }
+                }
+            },
+        }
+        # Single outer node containing a single-node nested multiagent — outer
+        # unwraps, inner unwraps, final dict is the payload.
+        assert _extract_from_multiagent_envelope(envelope) == {"deep": True}
+
+    def test_subagent_with_fenced_json_text_falls_back(self) -> None:
+        """Sub-agent didn't call create_artifact but emitted fenced JSON in text."""
+        from agent_core.runtime.marshal import _extract_from_multiagent_envelope
+
+        envelope = {
+            "type": "multiagent_result",
+            "results": {
+                "only_specialist": {
+                    "result": {
+                        "type": "agent_result",
+                        "message": {
+                            "role": "assistant",
+                            "content": [
+                                {"text": "## Result\n\n```json\n{\"score\": 0.42}\n```\n"}
+                            ],
+                        },
+                    }
+                }
+            },
+        }
+        assert _extract_from_multiagent_envelope(envelope) == {"score": 0.42}
 
 
 class TestFindCreateArtifactResult:
@@ -705,6 +902,86 @@ class TestFindCreateArtifactResult:
 
         assert _find_create_artifact_result(None) is None
         assert _find_create_artifact_result([]) is None
+
+    def test_accepts_missing_status_field(self) -> None:
+        """Some Strands transports omit `status` on success — treat absent as ok."""
+        from agent_core.runtime.marshal import _find_create_artifact_result
+
+        messages = [
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "toolUse": {
+                            "toolUseId": "tu-1",
+                            "name": "create_artifact",
+                            "input": {"content": {"x": 1}},
+                        }
+                    }
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "toolResult": {
+                            "toolUseId": "tu-1",
+                            # status field intentionally absent
+                            "content": [
+                                {
+                                    "json": {
+                                        "artifact_id": "uuid-nostatus",
+                                        "s3_key": "platform/uuid-nostatus/artifact.json",
+                                    }
+                                }
+                            ],
+                        }
+                    }
+                ],
+            },
+        ]
+        assert _find_create_artifact_result(messages) == {
+            "artifact_id": "uuid-nostatus",
+            "s3_key": "platform/uuid-nostatus/artifact.json",
+        }
+
+    def test_accepts_bare_dict_content(self) -> None:
+        """Some MCP transports surface toolResult.content as a bare dict."""
+        from agent_core.runtime.marshal import _find_create_artifact_result
+
+        messages = [
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "toolUse": {
+                            "toolUseId": "tu-1",
+                            "name": "create_artifact",
+                            "input": {"content": {"x": 1}},
+                        }
+                    }
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "toolResult": {
+                            "toolUseId": "tu-1",
+                            "status": "success",
+                            "content": {
+                                "artifact_id": "uuid-bare",
+                                "s3_key": "platform/uuid-bare/artifact.json",
+                            },
+                        }
+                    }
+                ],
+            },
+        ]
+        assert _find_create_artifact_result(messages) == {
+            "artifact_id": "uuid-bare",
+            "s3_key": "platform/uuid-bare/artifact.json",
+        }
 
 
 class TestAliasPlatformArtifact:

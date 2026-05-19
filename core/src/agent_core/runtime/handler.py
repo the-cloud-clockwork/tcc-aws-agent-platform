@@ -16,6 +16,46 @@ from agent_core.runtime.session import SessionManager
 logger = logging.getLogger(__name__)
 
 
+def _log_history_shape(agent_id: str, history: list[Any]) -> None:
+    """Emit a compact summary of conversation_history to CloudWatch.
+
+    Diagnostic for marshal v2/v3 — tells us per-run which tool names appear
+    in the captured Strands message list, so we can spot mismatches between
+    expected and actual create_artifact / toolResult shapes without paying
+    the cost of dumping the full conversation.
+    """
+    try:
+        tool_use_names: dict[str, int] = {}
+        tool_result_count = 0
+        tool_result_statuses: dict[str, int] = {}
+        text_blocks = 0
+        for msg in history:
+            if not isinstance(msg, dict):
+                continue
+            for block in msg.get("content", []) or []:
+                if not isinstance(block, dict):
+                    continue
+                tu = block.get("toolUse")
+                if isinstance(tu, dict):
+                    name = str(tu.get("name", "?"))
+                    tool_use_names[name] = tool_use_names.get(name, 0) + 1
+                tr = block.get("toolResult")
+                if isinstance(tr, dict):
+                    tool_result_count += 1
+                    s = str(tr.get("status", "missing"))
+                    tool_result_statuses[s] = tool_result_statuses.get(s, 0) + 1
+                if "text" in block:
+                    text_blocks += 1
+        logger.info(
+            "marshal_v2.history_shape agent=%s messages=%d tool_uses=%s "
+            "tool_results=%d statuses=%s text_blocks=%d",
+            agent_id, len(history), tool_use_names,
+            tool_result_count, tool_result_statuses, text_blocks,
+        )
+    except Exception as exc:
+        logger.warning("Failed to log history shape for %s: %s", agent_id, exc)
+
+
 class GenericHandler:
     """Configurable agent handler that renders any blueprint.
 
@@ -186,6 +226,7 @@ class GenericHandler:
                 # and (b) walk for a typed payload when the final assistant
                 # message is markdown-only.
                 conversation_history = list(session.messages)
+                _log_history_shape(agent_id, conversation_history)
 
             output = marshal_output(
                 result,
