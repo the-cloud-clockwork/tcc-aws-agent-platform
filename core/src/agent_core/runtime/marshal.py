@@ -31,21 +31,54 @@ def _parse_fenced_json(text: str) -> dict[str, Any] | None:
     return None
 
 
-def _extract_typed_payload(envelope: dict[str, Any]) -> dict[str, Any] | None:
+def _extract_typed_payload(
+    envelope: dict[str, Any],
+    conversation_history: list[dict[str, Any]] | None = None,
+) -> dict[str, Any] | None:
     """Best-effort extraction of a typed payload from a Strands envelope.
 
     Priority:
-      1. Last assistant message's toolUse.input — either the StructuredOutput
+      1. ``conversation_history`` (when provided): walk in reverse for any
+         assistant message containing a ``create_artifact`` toolUse whose
+         ``input.content`` is a dict — that dict is the typed payload the
+         agent already shipped to the platform tier. Catches the case where
+         the final assistant message is a markdown summary with no toolUse
+         (StructuredOutputEnforcer fell over silently).
+      2. Last assistant message's toolUse.input — either the StructuredOutput
          Enforcer's synthetic block (input == typed payload) or a
          create_artifact tool call (input.content == typed payload).
-      2. Fenced ```json``` block in any text content of the last message.
-      3. None — caller falls back to the envelope itself.
+      3. Fenced ```json``` block in any text content of the last message.
+      4. None — caller falls back to the envelope itself.
 
     Multiagent envelopes (type == "multiagent_result") are skipped — caller
-    falls back to envelope. Single-agent extraction is v1 scope.
+    falls back to envelope. Single-agent extraction is v2 scope.
     """
     if envelope.get("type") == "multiagent_result":
         return None
+
+    if conversation_history:
+        for msg in reversed(conversation_history):
+            if not isinstance(msg, dict):
+                continue
+            if msg.get("role") != "assistant":
+                continue
+            msg_content = msg.get("content")
+            if not isinstance(msg_content, list):
+                continue
+            for block in reversed(msg_content):
+                if not isinstance(block, dict):
+                    continue
+                tool_use = block.get("toolUse")
+                if not isinstance(tool_use, dict):
+                    continue
+                if tool_use.get("name") not in _KNOWN_TOOL_PASSTHROUGH:
+                    continue
+                input_ = tool_use.get("input")
+                if not isinstance(input_, dict):
+                    continue
+                inner = input_.get("content")
+                if isinstance(inner, dict):
+                    return inner
 
     message = envelope.get("message")
     if not isinstance(message, dict):
@@ -84,21 +117,122 @@ def _extract_typed_payload(envelope: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
-def _serialize_result(result: Any) -> dict[str, Any]:
+def _find_create_artifact_result(
+    messages: list[dict[str, Any]] | None,
+) -> dict[str, Any] | None:
+    """Locate the most recent successful create_artifact toolResult in history.
+
+    Walks messages forward, tracking create_artifact toolUseIds emitted by
+    the assistant; whenever a matching toolResult lands in a subsequent user
+    message with ``status == "success"``, extract ``artifact_id`` + ``s3_key``
+    and remember it. Returns the LAST such match (most recent call wins).
+
+    Handles two toolResult content shapes:
+      - ``[{"json": {...}}]`` — Strands' newer typed-result shape
+      - ``[{"text": "<json-string>"}]`` — older / wrapped shape
+
+    Returns ``{"artifact_id": str, "s3_key": str}`` or ``None`` when no
+    successful create_artifact call is found.
+    """
+    if not messages:
+        return None
+
+    pending_ids: set[str] = set()
+    latest: dict[str, Any] | None = None
+
+    for msg in messages:
+        if not isinstance(msg, dict):
+            continue
+        role = msg.get("role")
+        content = msg.get("content")
+        if not isinstance(content, list):
+            continue
+
+        if role == "assistant":
+            for block in content:
+                if not isinstance(block, dict):
+                    continue
+                tool_use = block.get("toolUse")
+                if not isinstance(tool_use, dict):
+                    continue
+                if tool_use.get("name") not in _KNOWN_TOOL_PASSTHROUGH:
+                    continue
+                tool_use_id = tool_use.get("toolUseId")
+                if isinstance(tool_use_id, str):
+                    pending_ids.add(tool_use_id)
+            continue
+
+        if role != "user":
+            continue
+
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            tool_result = block.get("toolResult")
+            if not isinstance(tool_result, dict):
+                continue
+            tool_use_id = tool_result.get("toolUseId")
+            if tool_use_id not in pending_ids:
+                continue
+            if tool_result.get("status") != "success":
+                continue
+            payload = _extract_tool_result_payload(tool_result.get("content"))
+            if payload is None:
+                continue
+            artifact_id = payload.get("artifact_id")
+            s3_key = payload.get("s3_key")
+            if not isinstance(artifact_id, str) or not isinstance(s3_key, str):
+                continue
+            latest = {"artifact_id": artifact_id, "s3_key": s3_key}
+
+    return latest
+
+
+def _extract_tool_result_payload(
+    content: Any,
+) -> dict[str, Any] | None:
+    """Extract a dict payload from a toolResult ``content`` list.
+
+    Strands wraps toolResult bodies as a list of content blocks. The payload
+    we care about lives in either ``{"json": {...}}`` or as a JSON string in
+    ``{"text": "..."}``. Return the first dict found, else ``None``.
+    """
+    if not isinstance(content, list):
+        return None
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        if isinstance(block.get("json"), dict):
+            return block["json"]
+        text = block.get("text")
+        if isinstance(text, str):
+            try:
+                parsed = json.loads(text)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, dict):
+                return parsed
+    return None
+
+
+def _serialize_result(
+    result: Any,
+    conversation_history: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Convert an agent result to a plain dict, preferring typed payloads.
 
     For Strands AgentResult objects (which expose to_dict()), the wire envelope
-    is searched for a typed payload before falling back to the envelope itself.
-    See _extract_typed_payload for priority. This closes the soft-failure where
-    domain-tier S3 artifacts stored the conversation envelope rather than the
-    schema the agent produced.
+    AND the optional full conversation history are searched for a typed payload
+    before falling back to the envelope itself. See _extract_typed_payload for
+    priority. This closes the soft-failure where domain-tier S3 artifacts stored
+    the conversation envelope rather than the schema the agent produced.
     """
     if hasattr(result, "to_dict"):
         output = result.to_dict()
         if hasattr(output, "to_dict"):
             output = output.to_dict()
         if isinstance(output, dict):
-            extracted = _extract_typed_payload(output)
+            extracted = _extract_typed_payload(output, conversation_history)
             return extracted if extracted is not None else output
         return {"raw_output": str(output)}
     if hasattr(result, "model_dump"):
@@ -158,6 +292,110 @@ def _register_catalog(
         logger.warning("Failed to register artifact %s in catalog: %s", artifact_id, err)
 
 
+def _alias_platform_artifact(
+    platform_ref: dict[str, str],
+    agent_id: str,
+    execution_id: str,
+    *,
+    tier: str,
+    kms_key_alias: str | None,
+    date: str,
+    s3_bucket: str | None = None,
+) -> dict[str, Any]:
+    """Register a domain-tier catalog row pointing at an existing platform artifact.
+
+    Skips the duplicate S3 write that ``marshal_output`` would otherwise do.
+    Loads the platform artifact body to populate ``output`` so SFN's ``$.output``
+    still carries the typed payload inline (preserves claim-check semantics for
+    downstream states).
+
+    Returns the same shape as ``marshal_output``: artifact_id, s3_key, bucket,
+    tier, agent_id, success, claim_check, output.
+    """
+    platform_s3_key = platform_ref["s3_key"]
+    bucket = s3_bucket or os.environ.get("ARTIFACTS_BUCKET")
+    if not bucket:
+        logger.warning("No ARTIFACTS_BUCKET configured — cannot alias platform artifact")
+        return {
+            "artifact_id": "",
+            "s3_key": platform_s3_key,
+            "bucket": "",
+            "tier": tier,
+            "agent_id": agent_id,
+            "success": False,
+            "error": "no_bucket",
+            "output": {},
+        }
+
+    domain_artifact_id = str(uuid.uuid4())
+    output: dict[str, Any] = {}
+
+    try:
+        import boto3
+
+        sts = boto3.client("sts")
+        account_id = sts.get_caller_identity()["Account"]
+
+        s3 = boto3.client("s3")
+        get_kwargs: dict[str, Any] = {
+            "Bucket": bucket,
+            "Key": platform_s3_key,
+            "ExpectedBucketOwner": account_id,
+        }
+        try:
+            obj = s3.get_object(**get_kwargs)
+            body = obj["Body"].read()
+            output = json.loads(body)
+            if not isinstance(output, dict):
+                output = {"raw_output": output}
+        except Exception as load_err:
+            # Body fetch is best-effort — the catalog row still aliases the
+            # platform artifact even if we can't inline the typed payload here.
+            logger.warning(
+                "Could not load platform artifact body %s for inlining: %s",
+                platform_s3_key, load_err,
+            )
+
+        _register_catalog(
+            artifact_id=domain_artifact_id,
+            agent_id=agent_id,
+            execution_id=execution_id,
+            s3_key=platform_s3_key,
+            bucket=bucket,
+            tier=tier,
+            kms_key_alias=kms_key_alias,
+            date=date,
+        )
+
+        logger.info(
+            "Aliased platform artifact %s -> domain catalog row %s (s3://%s/%s)",
+            platform_ref["artifact_id"], domain_artifact_id, bucket, platform_s3_key,
+        )
+
+        return {
+            "artifact_id": domain_artifact_id,
+            "s3_key": platform_s3_key,
+            "bucket": bucket,
+            "tier": tier,
+            "agent_id": agent_id,
+            "success": True,
+            "claim_check": True,
+            "output": output,
+        }
+    except Exception as exc:
+        logger.exception("Failed to alias platform artifact")
+        return {
+            "artifact_id": "",
+            "s3_key": platform_s3_key,
+            "bucket": bucket,
+            "tier": tier,
+            "agent_id": agent_id,
+            "success": False,
+            "error": str(exc),
+            "output": output,
+        }
+
+
 def marshal_output(
     result: Any,
     agent_id: str,
@@ -166,11 +404,17 @@ def marshal_output(
     tier: str = "platform",
     kms_key_alias: str | None = None,
     date: str | None = None,
+    conversation_history: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Convert agent result to dict, upload to S3, register in DynamoDB catalog.
 
     Every agent execution produces a JSON artifact in S3 + a DynamoDB catalog
     entry — unconditionally. Artifacts are the source of truth.
+
+    When ``conversation_history`` contains a successful ``create_artifact``
+    toolResult, the duplicate S3 write is skipped and a catalog row is written
+    pointing at the existing platform artifact (Option B alias path). The
+    inline ``output`` is still populated from that artifact for SFN passthrough.
 
     Args:
         result: Agent output (Pydantic model, dict, or str).
@@ -180,17 +424,33 @@ def marshal_output(
         tier: Storage tier — "platform" or "domain".
         kms_key_alias: KMS key alias for server-side encryption (optional).
         date: Analysis date (YYYY-MM-DD). Defaults to today.
+        conversation_history: Optional full Strands agent message history,
+            captured by the handler before MCP client teardown. Used to find
+            create_artifact toolResults for aliasing and to walk earlier
+            toolUse blocks for typed payload extraction.
 
     Returns:
         JSON-serializable dict with artifact_id, s3_key, bucket, tier, and output.
     """
-    output = _serialize_result(result)
-    serialized = json.dumps(output, default=str)
-
     if not date:
         date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     if not execution_id:
         execution_id = f"exec-{uuid.uuid4().hex[:8]}"
+
+    platform_ref = _find_create_artifact_result(conversation_history)
+    if platform_ref is not None:
+        return _alias_platform_artifact(
+            platform_ref,
+            agent_id,
+            execution_id,
+            tier=tier,
+            kms_key_alias=kms_key_alias,
+            date=date,
+            s3_bucket=s3_bucket,
+        )
+
+    output = _serialize_result(result, conversation_history=conversation_history)
+    serialized = json.dumps(output, default=str)
 
     bucket = s3_bucket or os.environ.get("ARTIFACTS_BUCKET")
     if not bucket:
