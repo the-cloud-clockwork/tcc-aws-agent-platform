@@ -110,3 +110,77 @@ class TestGenericHandler:
             f"Expected 'production' but got {kwargs.get('execution_mode')!r} — "
             "handler is not forwarding payload.execution_mode to create_session"
         )
+
+    def test_handler_passes_conversation_history_to_marshal_output(
+        self, monkeypatch
+    ) -> None:
+        """marshal v2: session.messages must be captured and threaded through."""
+        from unittest.mock import MagicMock, patch
+
+        monkeypatch.setenv("EXECUTION_MODE", "simulation")
+
+        history = [
+            {"role": "user", "content": [{"text": "go"}]},
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "toolUse": {
+                            "toolUseId": "tu-1",
+                            "name": "create_artifact",
+                            "input": {"content": {"typed": "payload"}},
+                        }
+                    }
+                ],
+            },
+        ]
+
+        mock_agent_session = MagicMock()
+        mock_agent_session.__enter__ = MagicMock(return_value=mock_agent_session)
+        mock_agent_session.__exit__ = MagicMock(return_value=False)
+        mock_agent_session.run.return_value = "ok"
+        # AgentSession.messages is a property; patch the attribute directly on the mock
+        type(mock_agent_session).messages = property(lambda self: history)
+
+        mock_loader = MagicMock()
+        mock_loader.build_agent_session.return_value = mock_agent_session
+        mock_loader.load_agent.return_value = MagicMock(
+            artifacts=MagicMock(tier="platform", kms_key_alias=None)
+        )
+
+        mock_config = MagicMock()
+        mock_config.defaults = {}
+        mock_config.required_fields = []
+        mock_config.operation_name = "op"
+        mock_config.build_prompt.return_value = "prompt"
+
+        mock_registry = MagicMock()
+        mock_registry.get.return_value = mock_config
+
+        from agent_core.runtime.handler import GenericHandler
+
+        handler = GenericHandler(loader=mock_loader, config_registry=mock_registry)
+
+        with patch("agent_core.runtime.handler.marshal_output") as mock_marshal:
+            mock_marshal.return_value = {
+                "artifact_id": "a",
+                "s3_key": "platform/a/x.json",
+                "bucket": "b",
+                "tier": "platform",
+                "agent_id": "gap-detector",
+                "success": True,
+                "claim_check": True,
+                "output": {"typed": "payload"},
+            }
+            handler.handle({
+                "agent_id": "gap-detector",
+                "execution_mode": "simulation",
+                "input": {"prompt": "x"},
+            })
+
+        mock_marshal.assert_called_once()
+        _, kwargs = mock_marshal.call_args
+        assert kwargs.get("conversation_history") == history, (
+            "handler did not capture session.messages and pass it as "
+            "conversation_history to marshal_output"
+        )

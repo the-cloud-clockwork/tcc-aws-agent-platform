@@ -312,6 +312,96 @@ class TestExtractTypedPayload:
         # then finds the fenced JSON.
         assert _extract_typed_payload(envelope) == {"fallback": "json"}
 
+    def test_history_walk_finds_create_artifact_when_last_message_is_markdown(self) -> None:
+        """v2 — earlier create_artifact toolUse wins when last message is plain markdown."""
+        from agent_core.runtime.marshal import _extract_typed_payload
+
+        envelope = {
+            "type": "agent_result",
+            "message": {
+                "role": "assistant",
+                "content": [{"text": "## Gap detection results\n\nNo gaps found today."}],
+            },
+        }
+        conversation_history = [
+            {"role": "user", "content": [{"text": "Run gap detection."}]},
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "toolUse": {
+                            "toolUseId": "tu-1",
+                            "name": "create_artifact",
+                            "input": {
+                                "artifact_type": "report",
+                                "content": {
+                                    "analysis_date": "2026-05-19",
+                                    "total_gaps_found": 0,
+                                    "ranked_gaps": [],
+                                },
+                            },
+                        }
+                    }
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "toolResult": {
+                            "toolUseId": "tu-1",
+                            "status": "success",
+                            "content": [{"json": {"artifact_id": "u", "s3_key": "platform/u/x.json"}}],
+                        }
+                    }
+                ],
+            },
+            {"role": "assistant", "content": envelope["message"]["content"]},
+        ]
+        assert _extract_typed_payload(envelope, conversation_history) == {
+            "analysis_date": "2026-05-19",
+            "total_gaps_found": 0,
+            "ranked_gaps": [],
+        }
+
+    def test_history_walk_picks_latest_create_artifact_in_reverse(self) -> None:
+        """v2 — when multiple create_artifact calls, the latest (most recent) wins."""
+        from agent_core.runtime.marshal import _extract_typed_payload
+
+        envelope = {
+            "type": "agent_result",
+            "message": {"role": "assistant", "content": [{"text": "summary"}]},
+        }
+        conversation_history = [
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "toolUse": {
+                            "toolUseId": "tu-1",
+                            "name": "create_artifact",
+                            "input": {"content": {"call": "first"}},
+                        }
+                    }
+                ],
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "toolUse": {
+                            "toolUseId": "tu-2",
+                            "name": "create_artifact",
+                            "input": {"content": {"call": "second"}},
+                        }
+                    }
+                ],
+            },
+        ]
+        assert _extract_typed_payload(envelope, conversation_history) == {
+            "call": "second"
+        }
+
 
 class TestSerializeResultStrands:
     """Tests for _serialize_result against Strands AgentResult-like inputs."""
@@ -392,6 +482,346 @@ class TestSerializeResultStrands:
             "recommendations": [],
             "no_action_symbols": [],
         }
+
+    def test_threads_conversation_history_into_extractor(self) -> None:
+        """v2 — conversation_history passed to _serialize_result reaches extractor."""
+        from agent_core.runtime.marshal import _serialize_result
+
+        # Envelope has no typed payload; history does.
+        envelope = {
+            "type": "agent_result",
+            "message": {"role": "assistant", "content": [{"text": "narrative only"}]},
+        }
+        history = [
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "toolUse": {
+                            "name": "create_artifact",
+                            "input": {"content": {"from_history": True}},
+                        }
+                    }
+                ],
+            },
+        ]
+        result = _make_strands_result(envelope)
+        assert _serialize_result(result, conversation_history=history) == {
+            "from_history": True,
+        }
+
+
+class TestFindCreateArtifactResult:
+    """Tests for _find_create_artifact_result history walker (Option B entry)."""
+
+    def test_returns_latest_when_multiple_create_artifact_calls(self) -> None:
+        from agent_core.runtime.marshal import _find_create_artifact_result
+
+        messages = [
+            {"role": "user", "content": [{"text": "go"}]},
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "toolUse": {
+                            "toolUseId": "tu-1",
+                            "name": "create_artifact",
+                            "input": {"content": {"first": True}},
+                        }
+                    }
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "toolResult": {
+                            "toolUseId": "tu-1",
+                            "status": "success",
+                            "content": [
+                                {
+                                    "json": {
+                                        "artifact_id": "uuid-first",
+                                        "s3_key": "platform/uuid-first/artifact.json",
+                                    }
+                                }
+                            ],
+                        }
+                    }
+                ],
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "toolUse": {
+                            "toolUseId": "tu-2",
+                            "name": "create_artifact",
+                            "input": {"content": {"second": True}},
+                        }
+                    }
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "toolResult": {
+                            "toolUseId": "tu-2",
+                            "status": "success",
+                            "content": [
+                                {
+                                    "json": {
+                                        "artifact_id": "uuid-second",
+                                        "s3_key": "platform/uuid-second/artifact.json",
+                                    }
+                                }
+                            ],
+                        }
+                    }
+                ],
+            },
+        ]
+        assert _find_create_artifact_result(messages) == {
+            "artifact_id": "uuid-second",
+            "s3_key": "platform/uuid-second/artifact.json",
+        }
+
+    def test_returns_none_when_no_create_artifact_in_history(self) -> None:
+        from agent_core.runtime.marshal import _find_create_artifact_result
+
+        messages = [
+            {"role": "user", "content": [{"text": "go"}]},
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "toolUse": {
+                            "toolUseId": "tu-1",
+                            "name": "get_ohlcv",
+                            "input": {"symbol": "NVDA"},
+                        }
+                    }
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "toolResult": {
+                            "toolUseId": "tu-1",
+                            "status": "success",
+                            "content": [{"json": {"bars": []}}],
+                        }
+                    }
+                ],
+            },
+            {"role": "assistant", "content": [{"text": "Summary"}]},
+        ]
+        assert _find_create_artifact_result(messages) is None
+
+    def test_skips_failed_status_results(self) -> None:
+        from agent_core.runtime.marshal import _find_create_artifact_result
+
+        messages = [
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "toolUse": {
+                            "toolUseId": "tu-1",
+                            "name": "create_artifact",
+                            "input": {"content": {"x": 1}},
+                        }
+                    }
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "toolResult": {
+                            "toolUseId": "tu-1",
+                            "status": "error",
+                            "content": [
+                                {
+                                    "json": {
+                                        "artifact_id": "should-be-ignored",
+                                        "s3_key": "platform/should-be-ignored/artifact.json",
+                                    }
+                                }
+                            ],
+                        }
+                    }
+                ],
+            },
+        ]
+        assert _find_create_artifact_result(messages) is None
+
+    def test_handles_json_string_text_content_shape(self) -> None:
+        from agent_core.runtime.marshal import _find_create_artifact_result
+
+        messages = [
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "toolUse": {
+                            "toolUseId": "tu-1",
+                            "name": "create_artifact",
+                            "input": {"content": {"y": 2}},
+                        }
+                    }
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "toolResult": {
+                            "toolUseId": "tu-1",
+                            "status": "success",
+                            "content": [
+                                {
+                                    "text": (
+                                        '{"artifact_id": "uuid-text", '
+                                        '"s3_key": "platform/uuid-text/artifact.json", '
+                                        '"status": "ready"}'
+                                    )
+                                }
+                            ],
+                        }
+                    }
+                ],
+            },
+        ]
+        assert _find_create_artifact_result(messages) == {
+            "artifact_id": "uuid-text",
+            "s3_key": "platform/uuid-text/artifact.json",
+        }
+
+    def test_empty_or_none_messages_returns_none(self) -> None:
+        from agent_core.runtime.marshal import _find_create_artifact_result
+
+        assert _find_create_artifact_result(None) is None
+        assert _find_create_artifact_result([]) is None
+
+
+class TestAliasPlatformArtifact:
+    """Tests for _alias_platform_artifact — Option B cross-tier alias write."""
+
+    def test_writes_domain_ddb_row_pointing_at_platform_s3_key(self) -> None:
+        from unittest.mock import call
+
+        mock_boto3, mock_s3, _ = _make_boto3_mock("123456789012")
+        mock_s3.get_object.return_value = {
+            "Body": MagicMock(read=MagicMock(return_value=b'{"typed": "payload"}'))
+        }
+        mock_ddb_table = MagicMock()
+        mock_ddb_resource = MagicMock()
+        mock_ddb_resource.Table.return_value = mock_ddb_table
+        mock_boto3.resource.return_value = mock_ddb_resource
+
+        env = {
+            "ARTIFACTS_BUCKET": "test-bucket",
+            "ARTIFACTS_TABLE": "qitp-dev-artifacts",
+        }
+        with patch.dict("os.environ", env, clear=False):
+            with patch.dict(sys.modules, {"boto3": mock_boto3}):
+                from agent_core.runtime.marshal import _alias_platform_artifact
+
+                result = _alias_platform_artifact(
+                    platform_ref={
+                        "artifact_id": "platform-uuid",
+                        "s3_key": "platform/platform-uuid/artifact.json",
+                    },
+                    agent_id="gap-detector",
+                    execution_id="exec-abc",
+                    tier="domain",
+                    kms_key_alias=None,
+                    date="2026-05-19",
+                )
+
+        assert result["success"] is True
+        assert result["s3_key"] == "platform/platform-uuid/artifact.json"
+        assert result["tier"] == "domain"
+        assert result["agent_id"] == "gap-detector"
+        assert result["claim_check"] is True
+        assert result["output"] == {"typed": "payload"}
+        # The new domain artifact_id is a fresh UUID, not the platform one
+        assert result["artifact_id"] != "platform-uuid"
+        assert len(result["artifact_id"]) == 36
+
+        mock_ddb_table.put_item.assert_called_once()
+        put_kwargs = mock_ddb_table.put_item.call_args[1]
+        item = put_kwargs["Item"]
+        assert item["agent_id"] == "gap-detector"
+        assert item["execution_id"] == "exec-abc"
+        assert item["s3_key"] == "platform/platform-uuid/artifact.json"
+        assert item["tier"] == "domain"
+        assert item["claim_check"] is True
+
+        # No S3 PUT — the whole point of aliasing
+        mock_s3.put_object.assert_not_called()
+        # But we DO read the platform body once to inline output
+        mock_s3.get_object.assert_called_once_with(
+            Bucket="test-bucket",
+            Key="platform/platform-uuid/artifact.json",
+            ExpectedBucketOwner="123456789012",
+        )
+        del call  # silence unused-import warning
+
+    def test_continues_when_platform_body_load_fails(self) -> None:
+        """S3 GET error is best-effort — catalog row still written with empty output."""
+        mock_boto3, mock_s3, _ = _make_boto3_mock("123")
+        mock_s3.get_object.side_effect = Exception("NoSuchKey")
+        mock_ddb_table = MagicMock()
+        mock_ddb_resource = MagicMock()
+        mock_ddb_resource.Table.return_value = mock_ddb_table
+        mock_boto3.resource.return_value = mock_ddb_resource
+
+        env = {
+            "ARTIFACTS_BUCKET": "test-bucket",
+            "ARTIFACTS_TABLE": "qitp-dev-artifacts",
+        }
+        with patch.dict("os.environ", env, clear=False):
+            with patch.dict(sys.modules, {"boto3": mock_boto3}):
+                from agent_core.runtime.marshal import _alias_platform_artifact
+
+                result = _alias_platform_artifact(
+                    platform_ref={
+                        "artifact_id": "platform-uuid",
+                        "s3_key": "platform/platform-uuid/artifact.json",
+                    },
+                    agent_id="a",
+                    execution_id="e",
+                    tier="domain",
+                    kms_key_alias=None,
+                    date="2026-05-19",
+                )
+
+        assert result["success"] is True
+        assert result["output"] == {}
+        mock_ddb_table.put_item.assert_called_once()
+
+    def test_no_bucket_returns_error(self) -> None:
+        from agent_core.runtime.marshal import _alias_platform_artifact
+
+        with patch.dict("os.environ", {}, clear=True):
+            result = _alias_platform_artifact(
+                platform_ref={
+                    "artifact_id": "u",
+                    "s3_key": "platform/u/artifact.json",
+                },
+                agent_id="a",
+                execution_id="e",
+                tier="domain",
+                kms_key_alias=None,
+                date="2026-05-19",
+            )
+
+        assert result["success"] is False
+        assert result["error"] == "no_bucket"
 
 
 class TestParseFencedJson:

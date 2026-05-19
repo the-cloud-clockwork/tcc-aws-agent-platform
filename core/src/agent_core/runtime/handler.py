@@ -180,6 +180,12 @@ class GenericHandler:
 
             with self._loader.build_agent_session(agent_id, mode=resolved_mode) as session:
                 result = session.run(user_prompt)
+                # Snapshot the full Strands message history before MCP teardown.
+                # marshal_output uses this to (a) alias an earlier
+                # create_artifact platform tier write instead of duplicating it
+                # and (b) walk for a typed payload when the final assistant
+                # message is markdown-only.
+                conversation_history = list(session.messages)
 
             output = marshal_output(
                 result,
@@ -188,6 +194,7 @@ class GenericHandler:
                 tier=artifact_tier,
                 kms_key_alias=artifact_kms,
                 date=artifact_date,
+                conversation_history=conversation_history,
             )
 
             # Persist session on success
