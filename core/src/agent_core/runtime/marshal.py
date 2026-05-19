@@ -4,20 +4,103 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# Tool names whose toolUse.input wraps the typed payload under a "content" key.
+# StructuredOutputEnforcer's synthetic toolUse uses the schema class name and
+# its input IS the typed payload — those are handled in the else branch.
+_KNOWN_TOOL_PASSTHROUGH = {"create_artifact"}
+
+_FENCED_JSON_RE = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
+
+
+def _parse_fenced_json(text: str) -> dict[str, Any] | None:
+    """Return the first parseable JSON object from a ```json``` code fence."""
+    for match in _FENCED_JSON_RE.finditer(text):
+        try:
+            value = json.loads(match.group(1))
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            return value
+    return None
+
+
+def _extract_typed_payload(envelope: dict[str, Any]) -> dict[str, Any] | None:
+    """Best-effort extraction of a typed payload from a Strands envelope.
+
+    Priority:
+      1. Last assistant message's toolUse.input — either the StructuredOutput
+         Enforcer's synthetic block (input == typed payload) or a
+         create_artifact tool call (input.content == typed payload).
+      2. Fenced ```json``` block in any text content of the last message.
+      3. None — caller falls back to the envelope itself.
+
+    Multiagent envelopes (type == "multiagent_result") are skipped — caller
+    falls back to envelope. Single-agent extraction is v1 scope.
+    """
+    if envelope.get("type") == "multiagent_result":
+        return None
+
+    message = envelope.get("message")
+    if not isinstance(message, dict):
+        return None
+    content = message.get("content")
+    if not isinstance(content, list):
+        return None
+
+    for block in reversed(content):
+        if not isinstance(block, dict):
+            continue
+        tool_use = block.get("toolUse")
+        if not isinstance(tool_use, dict):
+            continue
+        input_ = tool_use.get("input")
+        if not isinstance(input_, dict):
+            continue
+        name = tool_use.get("name")
+        if name in _KNOWN_TOOL_PASSTHROUGH:
+            inner = input_.get("content")
+            if isinstance(inner, dict):
+                return inner
+            continue
+        return input_
+
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        text = block.get("text")
+        if not isinstance(text, str):
+            continue
+        parsed = _parse_fenced_json(text)
+        if parsed is not None:
+            return parsed
+
+    return None
+
 
 def _serialize_result(result: Any) -> dict[str, Any]:
-    """Convert an agent result to a plain dict."""
+    """Convert an agent result to a plain dict, preferring typed payloads.
+
+    For Strands AgentResult objects (which expose to_dict()), the wire envelope
+    is searched for a typed payload before falling back to the envelope itself.
+    See _extract_typed_payload for priority. This closes the soft-failure where
+    domain-tier S3 artifacts stored the conversation envelope rather than the
+    schema the agent produced.
+    """
     if hasattr(result, "to_dict"):
         output = result.to_dict()
         if hasattr(output, "to_dict"):
             output = output.to_dict()
-        return output if isinstance(output, dict) else {"raw_output": str(output)}
+        if isinstance(output, dict):
+            extracted = _extract_typed_payload(output)
+            return extracted if extracted is not None else output
+        return {"raw_output": str(output)}
     if hasattr(result, "model_dump"):
         return result.model_dump()
     if isinstance(result, dict):
