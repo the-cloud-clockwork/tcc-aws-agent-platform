@@ -15,54 +15,6 @@ from agent_core.runtime.session import SessionManager
 
 logger = logging.getLogger(__name__)
 
-# Forcing prompt used when an agent finishes without producing a typed
-# artifact. Sent as one extra turn on the same session.
-_FORCE_ARTIFACT_PROMPT = (
-    "Your previous response did not call the create_artifact tool. "
-    "The pipeline cannot consume a free-form text answer — it requires a "
-    "structured artifact. You MUST now call create_artifact exactly once, "
-    "with the complete result of your analysis as the `content` argument "
-    "(a JSON object, not a string). Use the data you already produced above. "
-    "Do not write any explanatory text in this turn — emit only the "
-    "create_artifact tool call."
-)
-
-# Tool names that count as "the agent produced a typed payload". Anything
-# CamelCase (a Pydantic schema name from StructuredOutputEnforcer) also
-# counts — see _history_has_typed_payload.
-_ARTIFACT_TOOL_NAMES = {"create_artifact"}
-
-
-def _history_has_typed_payload(history: list[Any]) -> bool:
-    """True when the conversation already contains a structured-output toolUse.
-
-    Looks for either a ``create_artifact`` call or a CamelCase schema-named
-    toolUse (the shape StructuredOutputEnforcer injects). When neither is
-    present the agent only produced free-form text and the handler should
-    force a create_artifact turn.
-    """
-    for msg in history:
-        if not isinstance(msg, dict):
-            continue
-        if msg.get("role") != "assistant":
-            continue
-        for block in msg.get("content", []) or []:
-            if not isinstance(block, dict):
-                continue
-            tool_use = block.get("toolUse")
-            if not isinstance(tool_use, dict):
-                continue
-            name = tool_use.get("name")
-            if not isinstance(name, str):
-                continue
-            if name in _ARTIFACT_TOOL_NAMES:
-                return True
-            # CamelCase first char + no underscores → looks like a schema
-            # class name (MLPredictionReport, GapDetectionOutput, ...).
-            if name[:1].isupper() and "_" not in name:
-                return True
-    return False
-
 
 def _log_history_shape(agent_id: str, history: list[Any]) -> None:
     """Emit a compact summary of conversation_history to CloudWatch.
@@ -275,24 +227,6 @@ class GenericHandler:
                 # message is markdown-only.
                 conversation_history = list(session.messages)
                 _log_history_shape(agent_id, conversation_history)
-
-                # Guaranteed structured-output recovery. The agent may end
-                # its run with a free-form markdown summary instead of a
-                # create_artifact tool call (long-conversation instruction
-                # drift) and the StructuredOutputEnforcer hook is unreliable
-                # on LiteLLM-fronted providers. If no typed payload landed
-                # anywhere in the history, force ONE more turn on the SAME
-                # session — same model path the agent already used — that
-                # explicitly demands the create_artifact call. Bounded to a
-                # single retry; never loops.
-                if not _history_has_typed_payload(conversation_history):
-                    logger.warning(
-                        "Agent %s ended with no typed artifact — forcing a "
-                        "create_artifact turn", agent_id,
-                    )
-                    result = session.run(_FORCE_ARTIFACT_PROMPT)
-                    conversation_history = list(session.messages)
-                    _log_history_shape(agent_id, conversation_history)
 
             output = marshal_output(
                 result,
