@@ -177,6 +177,8 @@ def _extract_typed_payload(
       5. None — caller falls back to the envelope itself.
     """
     if conversation_history:
+        # 1a. Walk all history for a create_artifact toolUse (agent explicitly
+        #     shipped a typed artifact mid-conversation).
         for msg in reversed(conversation_history):
             if not isinstance(msg, dict):
                 continue
@@ -206,6 +208,23 @@ def _extract_typed_payload(
                         parsed = None
                     if isinstance(parsed, dict):
                         return parsed
+
+        # 1b. The LAST assistant message in conversation_history is the
+        #     post-hook truth — captured from session.messages AFTER
+        #     AfterInvocationEvent fired. Strands builds AgentResult BEFORE
+        #     that hook, so envelope["message"] can be a stale pre-hook copy
+        #     that misses the StructuredOutputEnforcer's synthetic toolUse.
+        #     Scan the live last message for a schema-named toolUse / fenced
+        #     JSON before falling back to the (possibly stale) envelope.
+        for msg in reversed(conversation_history):
+            if not isinstance(msg, dict):
+                continue
+            if msg.get("role") != "assistant":
+                continue
+            payload = _extract_from_content_list(msg.get("content", []))
+            if payload is not None:
+                return payload
+            break
 
     if envelope.get("type") == "multiagent_result":
         return _extract_from_multiagent_envelope(envelope)
