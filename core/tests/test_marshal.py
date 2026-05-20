@@ -573,6 +573,42 @@ class TestSerializeResultStrands:
             "from_history": True,
         }
 
+    def test_history_last_message_beats_stale_envelope(self) -> None:
+        """v3.1 — when the envelope's message is a stale pre-hook copy (plain
+        markdown) but conversation_history's last assistant message carries the
+        StructuredOutputEnforcer's synthetic schema toolUse, prefer history."""
+        from agent_core.runtime.marshal import _serialize_result
+
+        # Stale envelope — captured before AfterInvocationEvent mutated messages.
+        envelope = {
+            "type": "agent_result",
+            "message": {
+                "role": "assistant",
+                "content": [{"text": "The MLPredictionReport has been created."}],
+            },
+        }
+        # Live history — enforcer injected the synthetic toolUse post-hook.
+        history = [
+            {"role": "user", "content": [{"text": "predict"}]},
+            {
+                "role": "assistant",
+                "content": [
+                    {"text": "The MLPredictionReport has been created."},
+                    {
+                        "toolUse": {
+                            "toolUseId": "enforced_mlpredictionreport",
+                            "name": "MLPredictionReport",
+                            "input": {"per_symbol_predictions": [{"symbol": "NVDA"}]},
+                        }
+                    },
+                ],
+            },
+        ]
+        result = _make_strands_result(envelope)
+        assert _serialize_result(result, conversation_history=history) == {
+            "per_symbol_predictions": [{"symbol": "NVDA"}]
+        }
+
 
 class TestMultiAgentExtraction:
     """Tests for _extract_from_multiagent_envelope walker (v3 scope)."""
