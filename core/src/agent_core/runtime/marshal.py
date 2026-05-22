@@ -97,6 +97,15 @@ def _looks_like_schema_name(name: Any) -> bool:
     return isinstance(name, str) and bool(_SCHEMA_NAME_RE.match(name))
 
 
+def _tool_name_matches(name: Any, known: set[str]) -> bool:
+    """True when a toolUse name matches a known tool, tolerating the
+    AgentCore Gateway's '<server>___<tool>' MCP namespacing — e.g.
+    'artifacts-mcp___create_artifact' matches 'create_artifact'."""
+    if not isinstance(name, str):
+        return False
+    return name in known or name.rsplit("___", 1)[-1] in known
+
+
 def _parse_fenced_json(text: str) -> dict[str, Any] | None:
     """Return the first parseable JSON object from a ```json``` code fence."""
     for match in _FENCED_JSON_RE.finditer(text):
@@ -133,7 +142,7 @@ def _extract_from_content_list(content: list[Any]) -> dict[str, Any] | None:
         if not isinstance(input_, dict):
             continue
         name = tool_use.get("name")
-        if name in _KNOWN_TOOL_PASSTHROUGH:
+        if _tool_name_matches(name, _KNOWN_TOOL_PASSTHROUGH):
             inner = input_.get("content")
             if isinstance(inner, dict):
                 return inner
@@ -302,7 +311,7 @@ def _extract_typed_payload(
                 tool_use = block.get("toolUse")
                 if not isinstance(tool_use, dict):
                     continue
-                if tool_use.get("name") not in _KNOWN_TOOL_PASSTHROUGH:
+                if not _tool_name_matches(tool_use.get("name"), _KNOWN_TOOL_PASSTHROUGH):
                     continue
                 input_ = tool_use.get("input")
                 if not isinstance(input_, dict):
@@ -382,7 +391,7 @@ def _find_create_artifact_result(
                 tool_use = block.get("toolUse")
                 if not isinstance(tool_use, dict):
                     continue
-                if tool_use.get("name") not in _KNOWN_TOOL_PASSTHROUGH:
+                if not _tool_name_matches(tool_use.get("name"), _KNOWN_TOOL_PASSTHROUGH):
                     continue
                 tool_use_id = tool_use.get("toolUseId")
                 if isinstance(tool_use_id, str):
