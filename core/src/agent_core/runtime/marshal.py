@@ -11,69 +11,6 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-
-_DIAG_LOG: list[str] = []
-
-
-def _diag(msg: str) -> None:
-    """Diagnostic — accumulated into _DIAG_LOG and embedded in the domain
-    artifact. AgentCore ApplicationLogs does NOT surface app stdout/stdlib
-    logging, so the artifact itself is the only reliable diagnostic channel."""
-    _DIAG_LOG.append(msg)
-    print(f"[marshal-diag] {msg}", flush=True)
-
-
-def _dump_history_skeleton(history: list[Any] | None) -> None:
-    """Append a compact structural dump of conversation_history to _DIAG_LOG."""
-    if not history:
-        _diag("history_skeleton: EMPTY or None")
-        return
-    _diag(f"history_skeleton: {len(history)} messages")
-    for i, msg in enumerate(history):
-        if not isinstance(msg, dict):
-            _diag(f"  msg[{i}]: non-dict {type(msg).__name__}")
-            continue
-        role = msg.get("role")
-        blocks = msg.get("content")
-        if not isinstance(blocks, list):
-            _diag(f"  msg[{i}] role={role}: content is {type(blocks).__name__}, not list")
-            continue
-        parts: list[str] = []
-        for blk in blocks:
-            if not isinstance(blk, dict):
-                parts.append(f"<{type(blk).__name__}>")
-                continue
-            tu = blk.get("toolUse")
-            tr = blk.get("toolResult")
-            if isinstance(tu, dict):
-                inp = tu.get("input")
-                ik = list(inp.keys()) if isinstance(inp, dict) else type(inp).__name__
-                ctype = type(inp.get("content")).__name__ if isinstance(inp, dict) else "n/a"
-                parts.append(
-                    f"toolUse(name={tu.get('name')} input_keys={ik} content_type={ctype})"
-                )
-            elif isinstance(tr, dict):
-                c = tr.get("content")
-                ck = type(c).__name__
-                if isinstance(c, list) and c and isinstance(c[0], dict):
-                    ck = f"list[0_keys={list(c[0].keys())}]"
-                parts.append(f"toolResult(status={tr.get('status')} content={ck})")
-            else:
-                parts.append(f"block_keys={list(blk.keys())}")
-        _diag(f"  msg[{i}] role={role}: {parts}")
-
-
-def _payload_is_nonempty(payload: Any) -> bool:
-    """True when a typed payload dict carries at least one non-empty value."""
-    if not isinstance(payload, dict):
-        return False
-    for value in payload.values():
-        if isinstance(value, (list, dict, str)) and value:
-            return True
-        if isinstance(value, (int, float)) and value:
-            return True
-    return False
-
 # Tool names whose toolUse.input wraps the typed payload under a "content" key.
 # StructuredOutputEnforcer's synthetic toolUse uses the schema class name and
 # its input IS the typed payload — those are handled in the else branch.
@@ -248,52 +185,6 @@ def _extract_typed_payload(
       4. Fenced ```json``` block in any text content of the last message.
       5. None — caller falls back to the envelope itself.
     """
-    # --- diagnostic scan (additive, no behaviour change) -------------------
-    try:
-        ch_len = len(conversation_history) if conversation_history else 0
-        ca_count = 0
-        ca_detail: list[str] = []
-        schema_tooluses: list[str] = []
-        for _msg in (conversation_history or []):
-            if not isinstance(_msg, dict):
-                continue
-            for _blk in (_msg.get("content") or []):
-                if not isinstance(_blk, dict):
-                    continue
-                _tu = _blk.get("toolUse")
-                if not isinstance(_tu, dict):
-                    continue
-                _name = _tu.get("name")
-                _inp = _tu.get("input")
-                _inp_keys = list(_inp.keys()) if isinstance(_inp, dict) else None
-                if _name in _KNOWN_TOOL_PASSTHROUGH:
-                    ca_count += 1
-                    _content = _inp.get("content") if isinstance(_inp, dict) else None
-                    _ctype = type(_content).__name__
-                    _parsed_ok = False
-                    if isinstance(_content, str):
-                        try:
-                            _parsed_ok = isinstance(json.loads(_content), dict)
-                        except json.JSONDecodeError:
-                            _parsed_ok = False
-                    ca_detail.append(
-                        f"input_keys={_inp_keys} content_type={_ctype} "
-                        f"json_ok={_parsed_ok} nonempty={_payload_is_nonempty(_content)}"
-                    )
-                elif _looks_like_schema_name(_name):
-                    schema_tooluses.append(
-                        f"{_name}(nonempty={_payload_is_nonempty(_inp)})"
-                    )
-        _diag(
-            f"extract_typed_payload: conv_history_len={ch_len} "
-            f"envelope_type={envelope.get('type')} create_artifact_tooluses={ca_count} "
-            f"schema_tooluses={schema_tooluses}"
-        )
-        for _i, _d in enumerate(ca_detail):
-            _diag(f"  create_artifact[{_i}]: {_d}")
-    except Exception as _exc:  # diagnostics must never break marshalling
-        _diag(f"extract_typed_payload: diagnostic scan failed: {_exc}")
-    # ----------------------------------------------------------------------
     if conversation_history:
         # 1a. Walk all history for a create_artifact toolUse (agent explicitly
         #     shipped a typed artifact mid-conversation).
@@ -425,10 +316,6 @@ def _find_create_artifact_result(
                 continue
             latest = {"artifact_id": artifact_id, "s3_key": s3_key}
 
-    _diag(
-        f"find_create_artifact_result: msgs={len(messages) if messages else 0} "
-        f"create_artifact_tooluse_ids={len(pending_ids)} matched_result={latest is not None}"
-    )
     return latest
 
 
@@ -684,15 +571,7 @@ def marshal_output(
     if not execution_id:
         execution_id = f"exec-{uuid.uuid4().hex[:8]}"
 
-    _DIAG_LOG.clear()
-    _diag(f"marshal_output START agent={agent_id} tier={tier}")
-    _dump_history_skeleton(conversation_history)
-
     platform_ref = _find_create_artifact_result(conversation_history)
-    _diag(
-        f"marshal_output: agent={agent_id} tier={tier} "
-        f"platform_ref={'FOUND ' + platform_ref['s3_key'] if platform_ref else 'NONE'}"
-    )
     if platform_ref is not None:
         return _alias_platform_artifact(
             platform_ref,
@@ -705,13 +584,6 @@ def marshal_output(
         )
 
     output = _serialize_result(result, conversation_history=conversation_history)
-    _diag(
-        f"marshal_output: serialize fallback — agent={agent_id} "
-        f"output_keys={list(output.keys()) if isinstance(output, dict) else None} "
-        f"nonempty={_payload_is_nonempty(output)}"
-    )
-    if isinstance(output, dict):
-        output["_marshal_diag"] = list(_DIAG_LOG)
     serialized = json.dumps(output, default=str)
 
     bucket = s3_bucket or os.environ.get("ARTIFACTS_BUCKET")
