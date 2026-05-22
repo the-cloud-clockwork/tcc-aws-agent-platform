@@ -12,9 +12,55 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+_DIAG_LOG: list[str] = []
+
+
 def _diag(msg: str) -> None:
-    """Stdout diagnostic — AgentCore ApplicationLogs captures stdout, not stdlib logging."""
+    """Diagnostic — accumulated into _DIAG_LOG and embedded in the domain
+    artifact. AgentCore ApplicationLogs does NOT surface app stdout/stdlib
+    logging, so the artifact itself is the only reliable diagnostic channel."""
+    _DIAG_LOG.append(msg)
     print(f"[marshal-diag] {msg}", flush=True)
+
+
+def _dump_history_skeleton(history: list[Any] | None) -> None:
+    """Append a compact structural dump of conversation_history to _DIAG_LOG."""
+    if not history:
+        _diag("history_skeleton: EMPTY or None")
+        return
+    _diag(f"history_skeleton: {len(history)} messages")
+    for i, msg in enumerate(history):
+        if not isinstance(msg, dict):
+            _diag(f"  msg[{i}]: non-dict {type(msg).__name__}")
+            continue
+        role = msg.get("role")
+        blocks = msg.get("content")
+        if not isinstance(blocks, list):
+            _diag(f"  msg[{i}] role={role}: content is {type(blocks).__name__}, not list")
+            continue
+        parts: list[str] = []
+        for blk in blocks:
+            if not isinstance(blk, dict):
+                parts.append(f"<{type(blk).__name__}>")
+                continue
+            tu = blk.get("toolUse")
+            tr = blk.get("toolResult")
+            if isinstance(tu, dict):
+                inp = tu.get("input")
+                ik = list(inp.keys()) if isinstance(inp, dict) else type(inp).__name__
+                ctype = type(inp.get("content")).__name__ if isinstance(inp, dict) else "n/a"
+                parts.append(
+                    f"toolUse(name={tu.get('name')} input_keys={ik} content_type={ctype})"
+                )
+            elif isinstance(tr, dict):
+                c = tr.get("content")
+                ck = type(c).__name__
+                if isinstance(c, list) and c and isinstance(c[0], dict):
+                    ck = f"list[0_keys={list(c[0].keys())}]"
+                parts.append(f"toolResult(status={tr.get('status')} content={ck})")
+            else:
+                parts.append(f"block_keys={list(blk.keys())}")
+        _diag(f"  msg[{i}] role={role}: {parts}")
 
 
 def _payload_is_nonempty(payload: Any) -> bool:
@@ -629,6 +675,10 @@ def marshal_output(
     if not execution_id:
         execution_id = f"exec-{uuid.uuid4().hex[:8]}"
 
+    _DIAG_LOG.clear()
+    _diag(f"marshal_output START agent={agent_id} tier={tier}")
+    _dump_history_skeleton(conversation_history)
+
     platform_ref = _find_create_artifact_result(conversation_history)
     _diag(
         f"marshal_output: agent={agent_id} tier={tier} "
@@ -651,6 +701,8 @@ def marshal_output(
         f"output_keys={list(output.keys()) if isinstance(output, dict) else None} "
         f"nonempty={_payload_is_nonempty(output)}"
     )
+    if isinstance(output, dict):
+        output["_marshal_diag"] = list(_DIAG_LOG)
     serialized = json.dumps(output, default=str)
 
     bucket = s3_bucket or os.environ.get("ARTIFACTS_BUCKET")
