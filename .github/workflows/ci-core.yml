@@ -9,7 +9,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: anton
     env:
       AWS_DEFAULT_REGION: eu-west-1
       BEDROCK_REGION: us-west-2
