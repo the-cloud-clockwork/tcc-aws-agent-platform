@@ -30,6 +30,9 @@ echo ">> Copying mcp_artifacts..."
 cp -r "$REPO_ROOT/artifacts/src/mcp_artifacts" "$BUILD_DIR/"
 
 echo ">> Zipping layer..."
-cd "$PLATFORM_DIR/.build/layer" && zip -qr "$ZIP_PATH" python/
+# Use python stdlib zipfile (no `zip` binary dependency — self-hosted runner
+# lacks it). `-c <out> python/` adds the dir recursively, preserving the
+# `python/...` layer root Lambda expects.
+cd "$PLATFORM_DIR/.build/layer" && python3 -m zipfile -c "$ZIP_PATH" python/
 
 echo ">> Done: lambda-layer.zip ($(du -h "$ZIP_PATH" | cut -f1))"
