@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+import json
 import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -142,8 +143,16 @@ class CompositeObservabilityHook:
         ``after_model_invocation`` call with the real data before finalising
         the trace. This is the only reliable place to read usage because
         Strands accumulates across cycles and only exposes the total here.
+
+        Also extracts the conversation content from ``agent.messages`` so the
+        prompt, reasoning, tool I/O, and final answer reach Langfuse (the
+        token-only metadata path left trace ``input``/``output`` null).
         """
         agent = getattr(event, "agent", None)
+        messages = list(getattr(agent, "messages", []) or []) if agent is not None else []
+        prompt = self._extract_prompt(messages)
+        final_output = self._extract_final_output(messages)
+
         if agent is not None:
             try:
                 metrics = getattr(agent, "event_loop_metrics", None)
@@ -157,11 +166,13 @@ class CompositeObservabilityHook:
                         input_tokens=input_tokens,
                         output_tokens=output_tokens,
                         stop_reason=self._last_stop_reason,
+                        input_text=self._conversation_json(messages),
+                        output_text=final_output,
                     )
             except Exception:
                 logger.debug("Failed to extract usage from event_loop_metrics", exc_info=True)
 
-        self.on_agent_end()
+        self.on_agent_end(input_text=prompt, output_text=final_output)
 
     @staticmethod
     def _extract_model_id(agent: Any) -> str:
@@ -182,6 +193,36 @@ class CompositeObservabilityHook:
         except Exception:
             pass
         return "unknown"
+
+    @staticmethod
+    def _extract_prompt(messages: list[Any]) -> str:
+        """First user message's joined text blocks (the agent's input prompt)."""
+        for m in messages:
+            if isinstance(m, dict) and m.get("role") == "user":
+                t = [b["text"] for b in (m.get("content") or [])
+                     if isinstance(b, dict) and isinstance(b.get("text"), str)]
+                if t:
+                    return "\n".join(t)
+        return ""
+
+    @staticmethod
+    def _extract_final_output(messages: list[Any]) -> str:
+        """Last assistant message's joined text blocks (the final answer)."""
+        for m in reversed(messages):
+            if isinstance(m, dict) and m.get("role") == "assistant":
+                t = [b["text"] for b in (m.get("content") or [])
+                     if isinstance(b, dict) and isinstance(b.get("text"), str)]
+                if t:
+                    return "\n".join(t)
+        return ""
+
+    @staticmethod
+    def _conversation_json(messages: list[Any]) -> str:
+        """Full conversation (prompt + reasoning + tool calls + results) as JSON, capped."""
+        try:
+            return json.dumps(messages, ensure_ascii=False, default=str)[:200_000]
+        except Exception:
+            return ""
 
     # ---- Legacy callback methods (still used directly in tests) ----
 
