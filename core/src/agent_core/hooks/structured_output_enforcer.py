@@ -105,8 +105,16 @@ class StructuredOutputEnforcer:
                 "Strands hook events not available — StructuredOutputEnforcer disabled"
             )
 
-    def _build_client(self) -> Any:
-        """Lazily construct an instructor-wrapped OpenAI client."""
+    def _build_client(self, *, use_tools: bool = True) -> Any:
+        """Lazily construct an instructor-wrapped OpenAI client.
+
+        Defaults to ``Mode.TOOLS`` (function-calling) because the JSON mode was
+        unreliable on LiteLLM-fronted Claude — when the agent's response was
+        pure markdown, instructor's JSON-mode extraction failed silently after
+        retries and the synthetic typed toolUse never landed in messages[-1].
+        Tools mode lets the model return the schema as a first-class tool call
+        rather than coaxing JSON out of free-form text.
+        """
         import instructor
         from openai import OpenAI
 
@@ -127,9 +135,8 @@ class StructuredOutputEnforcer:
                 client_kwargs["default_headers"] = headers
 
         raw_client = OpenAI(**client_kwargs)
-        # Mode.JSON works on any OpenAI-compatible endpoint without requiring
-        # provider-native response_format enforcement
-        return instructor.from_openai(raw_client, mode=instructor.Mode.JSON)
+        mode = instructor.Mode.TOOLS if use_tools else instructor.Mode.JSON
+        return instructor.from_openai(raw_client, mode=mode)
 
     def _extract_prompt_text(self, event: Any) -> str:
         """Best-effort extraction of the original user prompt from the event."""
@@ -196,13 +203,33 @@ class StructuredOutputEnforcer:
                 f"Return a validated {self.schema.__name__} object."
             )
 
-            client = self._build_client()
-            validated = client.chat.completions.create(
-                model=self.model_id,
-                response_model=self.schema,
-                max_retries=self.max_retries,
-                messages=[{"role": "user", "content": enforcement_prompt}],
-            )
+            validated = None
+            mode_used = None
+            last_err: Exception | None = None
+            for use_tools in (True, False):
+                try:
+                    client = self._build_client(use_tools=use_tools)
+                    validated = client.chat.completions.create(
+                        model=self.model_id,
+                        response_model=self.schema,
+                        max_retries=self.max_retries,
+                        messages=[{"role": "user", "content": enforcement_prompt}],
+                    )
+                    mode_used = "TOOLS" if use_tools else "JSON"
+                    break
+                except Exception as inner_err:
+                    last_err = inner_err
+                    logger.warning(
+                        "StructuredOutputEnforcer mode=%s failed for %s: %s",
+                        "TOOLS" if use_tools else "JSON",
+                        self.schema.__name__, inner_err,
+                    )
+            if validated is None:
+                # Both modes failed — give up cleanly, no synthetic toolUse,
+                # caller keeps the raw markdown response.
+                raise last_err if last_err else RuntimeError(
+                    "StructuredOutputEnforcer: instructor returned no validated object"
+                )
 
             synthetic = {
                 "toolUse": {
@@ -234,8 +261,8 @@ class StructuredOutputEnforcer:
             last["content"] = new_content
 
             logger.info(
-                "StructuredOutputEnforcer injected %s (dropped_placeholder=%s)",
-                self.schema.__name__,
+                "StructuredOutputEnforcer injected %s mode=%s (dropped_placeholder=%s)",
+                self.schema.__name__, mode_used,
                 len(raw_text_parts) != len(real_text_parts),
             )
         except Exception as e:
