@@ -73,6 +73,10 @@ locals {
     OTEL_TRACES_EXPORTER        = "otlp"
     OTEL_METRICS_EXPORTER       = "otlp"
     OTEL_LOGS_EXPORTER          = "otlp"
+    # Bridge Python stdlib `logging` records into the OTel logs pipeline.
+    # Without this the LOGS exporter is enabled but no LoggingHandler is
+    # attached, so agent `logger.*` output never produces log records (Bug G).
+    OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED = "true"
   } : {}
 
   name_prefix = "${var.resource_prefix}-${var.environment}"
