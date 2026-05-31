@@ -2,7 +2,7 @@ name: CI — agent-cli
 
 on:
   push:
-    branches: [main]
+    branches: [dev]
     paths: ['cli/**', '.github/workflows/ci-cli.yml']
   pull_request:
     paths: ['cli/**', '.github/workflows/ci-cli.yml']

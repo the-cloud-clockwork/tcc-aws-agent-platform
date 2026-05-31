@@ -1,12 +1,13 @@
 name: Publish to CodeArtifact
 
-# Republishes the agent-core wheel to CodeArtifact on every push to main
+# Republishes the agent-core wheel to CodeArtifact on every push to dev
 # that touches core/. Version stays pinned at 1.0.0 — publish-wheel.sh
 # deletes the existing version and re-uploads a fresh wheel.
+# dev is the deploy source of truth; main is a vestigial snapshot.
 
 on:
   push:
-    branches: [main]
+    branches: [dev]
     paths:
       - 'core/**'
       - '.github/workflows/publish.yml'
