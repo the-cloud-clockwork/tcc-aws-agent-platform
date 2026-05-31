@@ -2,7 +2,7 @@ name: CI — agent-core
 
 on:
   push:
-    branches: [main]
+    branches: [dev]
     paths: ['core/**', 'cli/**', '.github/workflows/ci-core.yml']
   pull_request:
     paths: ['core/**', 'cli/**', '.github/workflows/ci-core.yml']

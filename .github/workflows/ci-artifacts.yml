@@ -2,7 +2,7 @@ name: CI — mcp-artifacts
 
 on:
   push:
-    branches: [main]
+    branches: [dev]
     paths: ['artifacts/**', '.github/workflows/ci-artifacts.yml']
   pull_request:
     paths: ['artifacts/**', '.github/workflows/ci-artifacts.yml']

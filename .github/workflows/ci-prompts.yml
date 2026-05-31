@@ -2,7 +2,7 @@ name: CI — prompt-registry
 
 on:
   push:
-    branches: [main]
+    branches: [dev]
     paths: ['prompts/**', '.github/workflows/ci-prompts.yml']
   pull_request:
     paths: ['prompts/**', '.github/workflows/ci-prompts.yml']
