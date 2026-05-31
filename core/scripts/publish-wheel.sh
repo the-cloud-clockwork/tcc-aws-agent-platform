@@ -72,7 +72,7 @@ CA_TOKEN="$(aws codeartifact get-authorization-token \
 
 TWINE_USERNAME=aws \
 TWINE_PASSWORD="$CA_TOKEN" \
-twine upload \
+python3 -m twine upload \
     --repository-url "https://${DOMAIN}-${DOMAIN_OWNER}.d.codeartifact.${REGION}.amazonaws.com/pypi/${REPO}/" \
     "$WHEEL"
 
