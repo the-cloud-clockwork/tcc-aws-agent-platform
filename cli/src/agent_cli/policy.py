@@ -19,7 +19,7 @@ console = Console()
 
 def _validate_and_preview_rules(config: Any) -> None:
     """Validate Cedar expressions in rules and print a preview."""
-    from agent_core.policy.translator import translate_rules, validate_cedar_expression
+    from agent_core.policy.translator import translate_rules
 
     cedar = translate_rules(config.rules, "<GATEWAY_ARN>", config.target_prefix)
 

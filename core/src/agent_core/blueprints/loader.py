@@ -30,6 +30,25 @@ logger = logging.getLogger(__name__)
 # Strands MCP clients are typed as Any here to avoid hard-coupling.
 McpClientMap = dict[str, Any]
 
+_ENV_TEMPLATE_RE = __import__("re").compile(r"\$\{([^}:]+)(?::-(.*?))?\}")
+
+
+def _expand_env_template(value: str) -> str:
+    """Expand ``${VAR}`` and ``${VAR:-default}`` patterns against os.environ.
+
+    Used for any blueprint field that carries a shell-style env template —
+    most importantly ``model.model_id`` (e.g. ``${AGENT_MODEL_ID:-gemini-3.1-pro}``).
+    Both the agent's own Strands model AND the StructuredOutputEnforcer must
+    receive the EXPANDED id; passing the raw template to the enforcer makes
+    every instructor call 400 at the LiteLLM proxy.
+    """
+    def _sub(m: Any) -> str:
+        var = m.group(1)
+        default = m.group(2)
+        return os.environ.get(var, default if default is not None else m.group(0))
+
+    return _ENV_TEMPLATE_RE.sub(_sub, value)
+
 
 class BlueprintLoadError(Exception):
     """Raised when a blueprint YAML cannot be loaded or validated."""
@@ -287,15 +306,7 @@ class BlueprintLoader:
         Model instance.  Imports are lazy so non-default providers only require
         their SDK package when actually selected by a blueprint.
         """
-        import re
-
-        def _expand_with_defaults(s: str) -> str:
-            """Expand ${VAR:-default} and ${VAR} patterns."""
-            def _sub(m):
-                var = m.group(1)
-                default = m.group(2)
-                return os.environ.get(var, default if default is not None else m.group(0))
-            return re.sub(r'\$\{([^}:]+)(?::-(.*?))?\}', _sub, s)
+        _expand_with_defaults = _expand_env_template
 
         provider_model: Any = None
         match model.provider:
@@ -626,8 +637,12 @@ class BlueprintLoader:
                 )
 
                 enforcer = StructuredOutputEnforcer(
+                    # model_id MUST be expanded — the enforcer's instructor
+                    # client hits the LiteLLM proxy directly; a raw
+                    # ${AGENT_MODEL_ID:-...} template 400s on every call and
+                    # silently disables structured-output enforcement.
                     schema=structured_output_model,
-                    model_id=blueprint.model.model_id,
+                    model_id=_expand_env_template(blueprint.model.model_id),
                     base_url=blueprint.model.base_url,
                     api_key_env=blueprint.model.api_key_env,
                     extra_headers_env=blueprint.model.extra_headers_env,

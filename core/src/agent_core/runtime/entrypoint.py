@@ -14,6 +14,9 @@ Contract:
 
 from __future__ import annotations
 
+import functools
+import importlib
+import inspect
 import logging
 from collections.abc import Callable
 from typing import Any
@@ -26,6 +29,92 @@ from agent_core.runtime.middleware import CorrelationIdMiddleware, StructuredErr
 from agent_core.runtime.adapter import InvocationContext
 
 logger = logging.getLogger(__name__)
+
+
+def _flush_telemetry() -> None:
+    """Force-flush buffered OTel telemetry before the microVM is suspended.
+
+    AgentCore *agent* runtimes are frozen/recycled immediately after they
+    return a response, so the OTLP ``BatchLogRecordProcessor`` and
+    ``PeriodicExportingMetricReader`` background threads never reach their own
+    flush interval — unlike a long-lived MCP server, whose buffers drain
+    naturally over the process lifetime. Strands force-flushes the *tracer*
+    provider per invocation (so spans reach X-Ray), but nothing flushes logs
+    or metrics. That is exactly why agent ``logger.*`` output never reaches the
+    ``runtime-logs`` CloudWatch stream while traces export fine (Bug G): the
+    log records are emitted into a real provider's buffer that is discarded
+    when the microVM suspends. Flush all three providers here, best-effort —
+    a flush failure must never break the invocation response.
+    """
+    for module_name, getter in (
+        ("opentelemetry._logs", "get_logger_provider"),
+        ("opentelemetry.metrics", "get_meter_provider"),
+        ("opentelemetry.trace", "get_tracer_provider"),
+    ):
+        try:
+            provider = getattr(importlib.import_module(module_name), getter)()
+            force_flush = getattr(provider, "force_flush", None)
+            if not callable(force_flush):
+                continue  # NoOp provider (e.g. tests/CI without the runtime image)
+            try:
+                force_flush(timeout_millis=5000)
+            except TypeError:
+                force_flush()
+        except Exception:  # noqa: BLE001 - telemetry flush is best-effort
+            logger.debug("OTel force_flush failed for %s", getter, exc_info=True)
+
+
+def _wrap_with_flush(fn: Callable) -> Callable:
+    """Wrap an entrypoint handler so OTel telemetry flushes when it finishes.
+
+    Handles all four handler shapes the SDK accepts — sync, async, sync
+    generator, async generator — flushing only once the invocation (or its
+    streamed output) is fully complete. ``functools.wraps`` preserves the
+    original signature so the SDK's ``_takes_context`` detection
+    (``params[1] == "context"``) still injects the context argument.
+    """
+    if inspect.isasyncgenfunction(fn):
+
+        @functools.wraps(fn)
+        async def _wrapped(*args: Any, **kwargs: Any) -> Any:
+            try:
+                async for item in fn(*args, **kwargs):
+                    yield item
+            finally:
+                _flush_telemetry()
+
+        return _wrapped
+
+    if inspect.iscoroutinefunction(fn):
+
+        @functools.wraps(fn)
+        async def _wrapped(*args: Any, **kwargs: Any) -> Any:
+            try:
+                return await fn(*args, **kwargs)
+            finally:
+                _flush_telemetry()
+
+        return _wrapped
+
+    if inspect.isgeneratorfunction(fn):
+
+        @functools.wraps(fn)
+        def _wrapped(*args: Any, **kwargs: Any) -> Any:
+            try:
+                yield from fn(*args, **kwargs)
+            finally:
+                _flush_telemetry()
+
+        return _wrapped
+
+    @functools.wraps(fn)
+    def _wrapped(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            _flush_telemetry()
+
+    return _wrapped
 
 
 class AgentCoreApp:
@@ -89,7 +178,10 @@ class AgentCoreApp:
             The original function, unmodified.
         """
         self._entrypoint_fn = fn
-        self._sdk_app.entrypoint(fn)
+        # Register a telemetry-flushing wrapper with the SDK so buffered OTel
+        # logs/metrics are exported before the ephemeral microVM is suspended
+        # (Bug G). `_entrypoint_fn` keeps the original for direct `.invoke()`.
+        self._sdk_app.entrypoint(_wrap_with_flush(fn))
         logger.info("Registered entrypoint: %s", fn.__name__)
         return fn
 

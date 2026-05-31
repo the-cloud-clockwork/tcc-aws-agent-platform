@@ -123,21 +123,24 @@ def _validate_by_type(bp_type: str, data: dict) -> tuple[bool, list[str]]:
     return True, []
 
 
+_EM_DASH = "—"  # em-dash placeholder; kept out of f-strings for the py311 ruff target
+
+
 def _build_summary_tree(yaml_path: Path, bp_type: str, data: dict) -> Tree:
     """Build a Rich tree summarising the blueprint."""
     tree = Tree(f"[bold]{yaml_path.name}[/bold] ({bp_type} blueprint)")
-    tree.add(f"Name: {data.get('name', '\u2014')}")
-    tree.add(f"Version: {data.get('version', '\u2014')}")
+    tree.add(f"Name: {data.get('name', _EM_DASH)}")
+    tree.add(f"Version: {data.get('version', _EM_DASH)}")
 
     model = data.get("model")
     if isinstance(model, dict):
         model_branch = tree.add("Model")
-        model_branch.add(f"provider: {model.get('provider', '\u2014')}")
-        model_branch.add(f"model_id: {model.get('model_id', '\u2014')}")
+        model_branch.add(f"provider: {model.get('provider', _EM_DASH)}")
+        model_branch.add(f"model_id: {model.get('model_id', _EM_DASH)}")
 
     ma = data.get("multi_agent")
     if ma:
-        ma_branch = tree.add(f"Multi-Agent: {ma.get('pattern', '\u2014')}")
+        ma_branch = tree.add(f"Multi-Agent: {ma.get('pattern', _EM_DASH)}")
         if "nodes" in ma:
             ma_branch.add(f"Nodes: {len(ma['nodes'])}")
         if "edges" in ma:
