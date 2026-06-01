@@ -823,6 +823,7 @@ class BlueprintLoader:
                     current_mode,
                     evaluation_wiring=evaluation_wiring,
                     policy_wiring=policy_wiring,
+                    role=ma.role,
                 )
 
             # Single-node path (Phase 4 backward compat)
@@ -841,6 +842,7 @@ class BlueprintLoader:
                     mcp_clients=mcp_clients,
                     multi_agent=swarm,
                     pattern="swarm",
+                    role=ma.role,
                     identity_wiring=identity_wiring,
                     memory_wiring=memory_wiring,
                     builtin_wiring=builtin_wiring,
@@ -865,6 +867,7 @@ class BlueprintLoader:
                     mcp_clients=mcp_clients,
                     multi_agent=graph,
                     pattern="graph",
+                    role=ma.role,
                     identity_wiring=identity_wiring,
                     memory_wiring=memory_wiring,
                     builtin_wiring=builtin_wiring,
@@ -989,6 +992,7 @@ class BlueprintLoader:
         current_mode: ExecutionMode,
         evaluation_wiring: Any = None,
         policy_wiring: Any = None,
+        role: str = "standalone",
     ) -> AgentSession:
         """Build a multi-node Swarm or Graph session from node configs.
 
@@ -1068,6 +1072,7 @@ class BlueprintLoader:
                 mcp_clients=all_mcp_clients,
                 multi_agent=swarm,
                 pattern="swarm",
+                role=role,
                 evaluation_wiring=evaluation_wiring,
                 policy_wiring=policy_wiring,
             )
@@ -1126,6 +1131,7 @@ class BlueprintLoader:
                 mcp_clients=all_mcp_clients,
                 multi_agent=graph,
                 pattern="graph",
+                role=role,
                 evaluation_wiring=evaluation_wiring,
                 policy_wiring=policy_wiring,
             )
