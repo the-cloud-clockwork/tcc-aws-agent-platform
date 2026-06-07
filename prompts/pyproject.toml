@@ -25,7 +25,7 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "moto[dynamodb,s3]>=5.0",
-    "pytest-cov>=5.0",
+    "pytest-cov>=7.1.0",
     "ruff>=0.4,<1",
 ]
 
