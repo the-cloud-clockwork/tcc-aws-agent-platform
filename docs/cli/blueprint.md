@@ -114,28 +114,32 @@ for f in agents/*.yaml; do agentcli blueprint lint "$f"; done
 
 ### Agent Blueprint
 
-Required fields: `id`, `name`, `version`, `model`.
+Required fields: `id`, `name`, `version`, `model` (with `model_id`, `temperature`, and `max_tokens`), and `prompt_ref`. All other blocks (`runtime`, `gateway`, `memory`, etc.) have defaults and are optional.
 
 ```yaml
 id: my-agent
 name: My Agent
 version: 1.0.0
+prompt_ref: my-agent-system          # required; Prompt Registry key
 model:
-  provider: bedrock
-  model_id: ${MODEL_ID}
-runtime:
-  type: agentcore
+  provider: bedrock                  # optional — defaults to bedrock
+  model_id: ${MODEL_ID}             # required; supports ${VAR:-default} expansion
+  temperature: 0.3                   # required
+  max_tokens: 4096                   # required
 ```
 
 ### Strategy Blueprint
 
-Required fields: `id`, `name`, `version`. Detected by `required_signals`, `entry_conditions`, or `exit_conditions`.
+Required fields: `id`, `name`, `version`. All other fields (`required_agents`, `required_signals`, `entry_conditions`, `exit_conditions`, etc.) are optional. Detected by the presence of `required_signals`, `entry_conditions`, or `exit_conditions`.
 
 ### Workflow Blueprint
 
-Required fields: `id`, `version`, `states`. Detected by the `states` field.
+Required fields: `id`, `name`, `version`. The `states` field defaults to an empty list and is optional in the schema — though a workflow without states is a no-op. Detected by the presence of a `states` field.
 
 ## See Also
 
-- [Agent Blueprint Spec](../blueprints/agent-blueprint) — full YAML schema reference
+- [Agent Blueprint](../blueprints/agent-blueprint) — full YAML schema reference including all optional blocks
+- [Strategy Blueprint](../blueprints/strategy-blueprint) — strategy-specific fields (`required_agents`, `entry_conditions`, `exit_conditions`, `risk_controls`)
+- [Workflow Blueprint](../blueprints/workflow-blueprint) — Step Functions state machine schema (`states`, `trigger`, `timeout_minutes`)
 - [agentcli deploy](deploy) — deploy a validated blueprint to AgentCore Runtime
+- [agentcli graph](graph) — visualize the `multi_agent` block of an agent blueprint

@@ -6,22 +6,23 @@ parent: SDK Reference
 
 # MCP Base Classes
 
-The MCP subsystem provides base classes for building domain-specific MCP (Model Context Protocol) servers that integrate cleanly with the platform's gateway, caching, and routing infrastructure. Domain repos extend these classes rather than building MCP servers from scratch.
+The MCP subsystem provides base classes for building domain-specific MCP (Model Context Protocol) servers that integrate cleanly with the platform's Gateway, caching, and provider routing. Domain repos extend `BaseMCPServer` rather than building MCP servers from scratch.
 
-## Key Classes
+> **Architecture guide:** [Tools, MCP & Gateway](../tools.md)
 
-| Class | Module | Purpose |
-|-------|--------|---------|
-| `BaseMCPServer` | `agent_core.mcp.base_server` | Shared server skeleton — tool registration, transport selection, error wrapping, health endpoint |
-| `MCPCache` | `agent_core.mcp.cache` | Shared cache layer for MCP tool results |
-| `MCPProviderRouter` | `agent_core.mcp.provider_routing` | Routes tool calls to the correct backend provider |
-| `MCPVersionedStore` | `agent_core.mcp.versioned_store` | Versioned key-value store for MCP server state |
+## Key Classes and Functions
 
-## BaseMCPServer
+| Class / Function | Module | Purpose |
+|-----------------|--------|---------|
+| `BaseMCPServer` | `agent_core.mcp.base_server` | Shared server skeleton — tool registration, transport selection, health endpoint, `$defs` flattening |
+| `cache_get()` / `cache_set()` | `agent_core.mcp.cache` | Module-level cache functions backed by Redis or in-process dict |
+| `resolve_provider()` | `agent_core.mcp.provider_routing` | Resolves the correct provider class from `EXECUTION_MODE` env var |
 
-`BaseMCPServer` handles the boilerplate of running an MCP server: transport selection (stdio, HTTP, SSE), tool registration via decorators, error wrapping on `call_tool` responses, health endpoint, background task hooks, and logging setup. It wraps the upstream `mcp.server.Server` from the `mcp` library (which itself builds on `FastMCP` from `mcp.server.fastmcp`).
+## `BaseMCPServer`
 
-Domain servers instantiate `BaseMCPServer` and register tools using the `@mcp.tool()` decorator:
+`BaseMCPServer` wraps `mcp.server.Server` directly (no FastMCP dependency). It handles transport selection, tool registration, error wrapping, health endpoints, and background tasks.
+
+> **Critical:** `BaseMCPServer` flattens JSON Schema `$defs` on tool registration. AgentCore Gateway rejects tool schemas that contain `$defs` references — the flattening is applied automatically to every registered tool schema so domain authors do not need to handle it manually.
 
 ```python
 from agent_core.mcp.base_server import BaseMCPServer
@@ -29,130 +30,137 @@ from mcp.types import Tool
 
 mcp = BaseMCPServer("document-server", default_port=8080)
 
-@mcp.tool(Tool(name="get_document", description="Retrieve a document by ID", inputSchema={
-    "type": "object",
-    "properties": {"document_id": {"type": "string"}},
-    "required": ["document_id"],
-}))
+@mcp.tool(Tool(
+    name="get_document",
+    description="Retrieve a document by ID",
+    inputSchema={
+        "type": "object",
+        "properties": {"document_id": {"type": "string"}},
+        "required": ["document_id"],
+    },
+))
 async def get_document(arguments: dict) -> dict:
     doc_id = arguments["document_id"]
     doc = await store.get(doc_id)
     return {"id": doc.id, "content": doc.content}
 
-@mcp.tool(Tool(name="search_documents", description="Search documents", inputSchema={
-    "type": "object",
-    "properties": {"query": {"type": "string"}, "top_k": {"type": "integer"}},
-    "required": ["query"],
-}))
-async def search_documents(arguments: dict) -> list:
-    results = await search_index.query(arguments["query"], arguments.get("top_k", 10))
-    return [{"id": r.id, "score": r.score} for r in results]
-
 if __name__ == "__main__":
     mcp.run()
 ```
 
-`BaseMCPServer` automatically:
-- Selects transport based on `MCP_TRANSPORT` env var (`stdio`, `http`, or `sse`)
-- Exposes HTTP health endpoint at `/health` and MCP endpoint at `/mcp` (HTTP mode) or `/sse` + `/messages` (SSE mode)
-- Wraps tool handler errors into JSON `TextContent` responses with traceback
-- Integrates `MCPObservabilityHook` for tool call metrics
-- Supports background tasks via `add_background_task()` for polling patterns
-
-## MCPCache
-
-`MCPCache` is a shared result cache that prevents redundant calls to expensive backends (databases, external APIs). It uses a pluggable backend — ElastiCache (Redis) in production or an in-process dict for local development:
+### `BaseMCPServer` API
 
 ```python
-from agent_core.mcp.cache import MCPCache
+class BaseMCPServer:
+    def __init__(
+        self,
+        name: str,
+        default_port: int = 8080,
+    ) -> None: ...
 
-cache = MCPCache.from_config(config)
+    def tool(self, definition: Tool) -> Callable:
+        """Decorator. Registers an async function as an MCP tool.
+        Automatically flattens $defs in the inputSchema before registration."""
+        ...
 
-cached = await cache.get("doc:123")
-if not cached:
-    result = await fetch_document("123")
-    await cache.set("doc:123", result, ttl_seconds=300)
+    def add_background_task(self, coro_factory: Callable[[], Coroutine]) -> None:
+        """Register a background coroutine factory. Runs alongside the server."""
+        ...
+
+    def run(self) -> None:
+        """Start the server. Transport selected via MCP_TRANSPORT env var."""
+        ...
 ```
 
-Cache configuration in the server config YAML:
+### Transport Selection (`MCP_TRANSPORT` env var)
 
-```yaml
-cache:
-  backend: redis               # redis | memory
-  redis_url: "${REDIS_URL}"
-  default_ttl_seconds: 300
-  max_size_mb: 128
-```
+| `MCP_TRANSPORT` value | Transport | Endpoints |
+|----------------------|-----------|-----------|
+| `stdio` (default) | Stdio JSON-RPC | — |
+| `http` | Streamable HTTP (Starlette/uvicorn) | `GET /ping`, `GET /health`, `POST /mcp`, `POST /` |
+| `sse` | Legacy SSE | `GET /health`, `GET /sse`, `POST /messages` |
 
-## MCPProviderRouter
+## `cache_get()` / `cache_set()`
 
-`MCPProviderRouter` routes tool calls to different backend providers based on the request context. Use this when a single tool needs to fan out to multiple data sources or switch providers by environment:
+Module-level cache functions backed by Redis (when `REDIS_URL` is set) or an in-process dict:
 
 ```python
-from agent_core.mcp.provider_routing import MCPProviderRouter
+from agent_core.mcp.cache import cache_get, cache_set
 
-router = MCPProviderRouter.from_config(config)
-
-provider = router.resolve("primary")
-result = await provider.query(query)
+# Namespace + kwargs form a cache key
+cached = cache_get("documents", prefix="v2", doc_id="abc-123")
+if cached is None:
+    result = await fetch_document("abc-123")
+    cache_set("documents", result, 300, prefix="v2", doc_id="abc-123")
 ```
-
-Router configuration:
-
-```yaml
-providers:
-  primary:
-    type: opensearch
-    endpoint: "${OPENSEARCH_ENDPOINT}"
-  archive:
-    type: s3
-    bucket: "${ARCHIVE_BUCKET}"
-  default: primary
-```
-
-## MCPVersionedStore
-
-`MCPVersionedStore` is a lightweight versioned key-value store backed by DynamoDB. Use it to persist MCP server state that needs audit history or rollback capability:
 
 ```python
-from agent_core.mcp.versioned_store import MCPVersionedStore
+def cache_get(
+    namespace: str,
+    *,
+    prefix: str = "",
+    **kwargs,             # Remaining kwargs form the deterministic SHA-256 cache key
+) -> Any | None: ...
 
-vstore = MCPVersionedStore.from_config(config)
-
-# Get current or specific version
-current = await vstore.get("config-key")
-old = await vstore.get("config-key", version="3")
-
-# Put new version
-version = await vstore.put("config-key", {"setting": "value"})
-
-# List version history
-versions = await vstore.list_versions("config-key")
+def cache_set(
+    namespace: str,
+    value: Any,
+    ttl_seconds: int = 300,   # Positional arg — default 300 s
+    *,
+    prefix: str = "",
+    **kwargs,
+) -> None: ...
 ```
 
-## Gateway Auto-Registration
+No class instantiation or configuration YAML is needed. Redis connection is read from `REDIS_URL` at first use. If Redis is unavailable at first use, caching is silently disabled for the process lifetime — tool calls proceed normally.
 
-When `gateway.auto_register: true` is set, `BaseMCPServer` registers itself as a Gateway target at startup and deregisters at shutdown. This means the server's tools appear automatically in `ToolDiscovery` without any manual Gateway configuration:
+## `resolve_provider()`
 
-```yaml
-# server-config.yaml
-gateway:
-  auto_register: true
-  gateway_endpoint: "${GATEWAY_ENDPOINT}"
-  target_name: "document-server"
-  auth:
-    type: api_key
-    secret_arn: "arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:mcp-server-key"
+Routes to the correct provider class based on `EXECUTION_MODE` env var. Each MCP server declares a registry dict mapping `ExecutionMode` to a provider class, then calls `resolve_provider()`:
+
+```python
+from agent_core.mcp.provider_routing import resolve_provider
+from agent_core.execution.mode import ExecutionMode
+
+PROVIDERS = {
+    ExecutionMode.SIMULATION: MockDataProvider,
+    ExecutionMode.STAGING: StagingAPIProvider,
+    ExecutionMode.PRODUCTION: ProductionAPIProvider,
+}
+
+# Reads EXECUTION_MODE, picks the class, instantiates it
+provider = resolve_provider(PROVIDERS)
 ```
+
+```python
+def resolve_provider(
+    registry: dict[ExecutionMode, type[T]],
+    *,
+    aliases: dict[str, str] | None = None,  # Optional mode name aliases
+) -> T: ...
+```
+
+The selected provider class is always instantiated with no arguments. Provider configuration should be read inside `__init__` from environment variables.
+
+There is no `MCPProviderRouter` class. Provider routing is a single function call.
+
+## Gateway Target Registration
+
+Gateway target registration for an MCP server is performed by `TargetRegistry` at deploy time, not by `BaseMCPServer` at startup. There is no `gateway.auto_register` feature. See [Gateway SDK reference](gateway.md) for target registration details.
 
 ## Building a Domain MCP Server
 
-The recommended pattern for domain repos:
+Recommended pattern for domain repos:
 
-1. Create a new Python package (e.g., `my-domain-mcp`)
+1. Create a Python package (e.g., `analytics-mcp`)
 2. Instantiate `BaseMCPServer` and register tools with `@mcp.tool()`
-3. Use `MCPCache` for expensive lookups
-4. Use `MCPProviderRouter` if you have multiple data sources
-5. Package as a Docker container and deploy via the platform's `agents/` Terraform module
+3. Use `cache_get` / `cache_set` for expensive lookups
+4. Use `resolve_provider()` if different backends are needed per environment
+5. Package as a Docker container; declare as a `mcp_server` target in `gateway-targets.yaml`
 
-The platform's Terraform infrastructure provisions the ECR repository, ECS service, and Gateway target registration. Domain repos only write Python.
+The platform's Terraform infrastructure provisions the ECR repository, ECS service, and Gateway target entry. Domain repos only write Python.
+
+## See Also
+
+- [Gateway SDK reference](gateway.md) — Target types, registration
+- [Tools, MCP & Gateway guide](../tools.md) — Architecture, deployment patterns

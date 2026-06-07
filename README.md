@@ -2,12 +2,12 @@
 
 > A configuration-driven, domain-agnostic runtime that lets you declare AI agents in YAML and deploy them on AWS with zero boilerplate — built as an abstraction layer over [Strands Agents SDK](https://github.com/strands-agents/sdk-python) and [Amazon Bedrock AgentCore](https://aws.amazon.com/bedrock/agentcore/).
 
-> **Status (Apr 2026):** 92/100 production readiness. Phase 1 (provider-agnostic inference) + Phase 2 (observability decoupling) shipped and validated in production via `pilot-t6-1775766858` (16/16 Step Functions states SUCCEEDED, end-to-end, empty-gaps path). Bedrock is **no longer required for inference** — the loader dispatches across `bedrock | anthropic | litellm | vertex` per blueprint, and all 9 QITP agents run on LiteLLM-proxied `claude-sonnet-4-6`. Stage 3 (standalone runtime / ECS Fargate / memory optionality) is **postponed** — the current decoupling is sufficient. See `operator/inference-migration.md` for detail.
+**Phase 1** (provider-agnostic inference across `bedrock | anthropic | litellm | vertex`) and **Phase 2** (observability decoupling — Langfuse, Presidio, and provider-agnostic evaluation) are production-validated. Stage 3 (standalone runtime / ECS Fargate / memory optionality) is deferred.
 
 ```
 Your Domain Repo                          This Platform
 -----------------                         -------------
-blueprints/                               agent-core SDK
+blueprints/
   agents/my-agent.yaml       ------>      BlueprintLoader -> AgentCore Runtime container
   strategies/my-strat.yaml   ------>      StrategyBlueprint -> evaluation engine
   workflows/pipeline.yaml    ------>      Step Functions state machine
@@ -18,47 +18,100 @@ src/my_agents/
   app.py                     ------>      @app.entrypoint -> microVM per session
 ```
 
+---
+
 ## What This Is
 
-A monorepo providing the foundational runtime, tooling, and infrastructure for AI agent systems on AWS. You define your agents, strategies, and workflows as YAML blueprints in your **domain repo**. This platform turns those declarations into fully operational AWS infrastructure.
+A monorepo providing the foundational runtime, tooling, and Terraform infrastructure for AI agent systems on AWS. You define your agents, strategies, and workflows as YAML blueprints in your **domain repo**. This platform turns those declarations into fully operational AWS infrastructure.
 
 **One handler serves every agent.** The YAML blueprint determines which model, tools, prompts, memory strategies, identity providers, and Cedar policies are wired. Domain repos only provide: prompt builders, business schemas, and domain-specific tool implementations.
 
+---
+
 ## Packages
 
-| Package | Directory | Distribution | Purpose |
-|---------|-----------|-------------|---------|
-| `agent-core` | `core/` | CodeArtifact | Blueprint engine, runtime, hooks, schemas, observability, gateway, memory, identity, policy, evaluation, A2A, MCP base classes |
-| `prompt-registry` | `prompts/` | CodeArtifact | Versioned prompt management — S3 + DynamoDB + mode-gated resolution |
-| `mcp-artifacts` | `artifacts/` | Docker | Artifact store MCP server — S3 + DynamoDB + signed URLs + claim-check pattern |
-| `agent-cli` | `cli/` | pip | CLI for blueprint validation, prompt management, strategy lifecycle |
+| Package | Directory | Purpose |
+|---------|-----------|---------|
+| `agent-core` | `core/` | Blueprint engine, runtime, hooks, schemas, observability, gateway, memory, identity, policy, evaluation, A2A, MCP base classes |
+| `prompt-registry` | `prompts/` | Versioned prompt management — S3 + DynamoDB + mode-gated resolution |
+| `mcp-artifacts` | `artifacts/` | Artifact store MCP server — S3 + DynamoDB + signed URLs + claim-check pattern |
+| `agent-cli` | `cli/` | CLI for blueprint validation, prompt management, strategy lifecycle |
 
-## Infrastructure
+> **Installation:** packages are distributed via AWS CodeArtifact. See [Getting Started](docs/getting-started/installation.md) for CodeArtifact authentication and `pip install` instructions.
+
+---
+
+## Terraform Infrastructure
 
 | Module | Directory | Purpose |
 |--------|-----------|---------|
-| `platform` | `modules/platform/` | Core infra — 7 sub-modules (network, security, data, observability, api, agentcore, prompt_registry) |
+| `platform` | `modules/platform/` | Core infra — 6 sub-modules (security, data, observability, api, agentcore, prompt_registry). VPC and subnets are consumed as inputs from your networking layer, not managed here. |
 | `agents` | `modules/agents/` | Per-agent deployment — blueprint-driven `for_each` over YAML |
 | `workflows` | `modules/workflows/` | Step Functions from workflow YAML — parallel branches, choice routing, retry/catch |
 
+**Utility modules** (`modules/lambda/`, `modules/lambda_alarms/`, `modules/scheduled_lambda/`, `modules/s3_encrypted_bucket/`) are reusable building blocks for domain repos building their own Lambda functions, alarms, and encrypted buckets.
+
+Domain repos consume all modules as remote git sources:
+
+```hcl
+module "platform" {
+  source = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform//modules/platform?ref=v1.0.0"
+  # ...
+}
+```
+
+---
+
 ## The 12 Building Blocks
 
-This platform is an abstraction layer over 12 AgentCore concepts. Each maps from a YAML configuration to a fully wired AWS service.
+Each building block maps a YAML configuration key to a fully wired AWS service. All blocks are optional except Runtime, which is always active.
 
 | # | Block | What It Does |
 |---|-------|-------------|
 | 1 | **Runtime** | Hosts agents in isolated microVMs per session (`POST /invocations` on port 8080) |
-| 2 | **Gateway** | Protocol translator — any backend (Lambda, REST, MCP, OpenAPI) looks like MCP to the agent |
-| 3 | **Identity** | JWT inbound auth, API key/OAuth/M2M outbound credentials |
-| 4 | **Memory** | Short-term (raw turns with TTL) + long-term (strategy-extracted knowledge in pgvector) |
-| 5 | **Tools** | Managed Code Interpreter (sandboxed Python) + Browser (Chromium + Nova Act) |
-| 6 | **Observability** | OTEL auto-instrumentation, CloudWatch traces, Langfuse integration |
-| 7 | **Evaluation** | 12 built-in LLM-as-judge evaluators + custom domain-specific judges |
-| 8 | **Policy** | Cedar access control on Gateway — default DENY, explicit PERMIT per tool |
-| 9 | **Strands** | Full Strands integration: BedrockModel, HookProvider, MCPClient, A2AServer |
-| 10 | **A2A** | Agent-to-agent communication via standardized protocol on port 9000 |
+| 2 | **Gateway** | Protocol translator — any backend (Lambda, MCP server, OpenAPI, Smithy) looks like MCP to the agent |
+| 3 | **Identity** | JWT inbound auth (Cognito, custom JWT, AWS IAM); API key / OAuth / M2M outbound credentials |
+| 4 | **Memory** | Short-term (raw turns with TTL) + long-term (strategy-extracted knowledge via pgvector semantic search) |
+| 5 | **Tools** | Managed Code Interpreter (sandboxed Python) + Browser (Chromium); lifecycle managed by AgentCore |
+| 6 | **Observability** | OTEL auto-instrumentation, CloudWatch traces, Langfuse integration, audit logging, cost tracking |
+| 7 | **Evaluation** | 12 built-in LLM-as-judge evaluators + custom evaluators; agentcore or Langfuse backend |
+| 8 | **Policy** | Cedar access control on the Gateway — default DENY, explicit PERMIT per tool |
+| 9 | **Strands** | Native Strands Agents SDK integration: BedrockModel, HookProvider, MCPClient, A2AServer |
+| 10 | **A2A** | Agent-to-agent communication via the A2A protocol; specialist agents expose an A2A server automatically |
 | 11 | **IaC** | Terraform modules as the primary consumable unit for domain repos |
 | 12 | **Blueprints** | YAML declarations that wire all 12 blocks — the platform's core abstraction |
+
+---
+
+## Inference Providers
+
+The loader dispatches on `model.provider` via `match/case`. All four providers are production-supported:
+
+| Provider | Value | Notes |
+|----------|-------|-------|
+| Amazon Bedrock | `bedrock` (default) | Requires `BEDROCK_REGION` env var |
+| Anthropic | `anthropic` | Requires `api_key_env` pointing to your Anthropic API key env var |
+| LiteLLM proxy | `litellm` | Set `base_url` + `api_key_env`. When `base_url` is set, loader sets `custom_llm_provider="openai"` in client args to prevent LiteLLM's provider heuristic from routing around the proxy. `model_id` is passed through unchanged. |
+| Google Vertex / Gemini | `vertex` | Requires Google ADC credentials (`GOOGLE_APPLICATION_CREDENTIALS`, `VERTEX_PROJECT`, `VERTEX_LOCATION`). `api_key_env` and `base_url` are not forwarded for this provider. |
+
+Blueprints with `output_schema` use Strands native `structured_output_model` for all providers (requires strands-agents ≥ 1.41.0).
+
+```yaml
+model:
+  provider: litellm
+  model_id: claude-sonnet-4-6
+  base_url: https://llm.example.com
+  api_key_env: LITELLM_API_KEY
+  extra_headers_env:
+    CF-Access-Client-Id: CF_ACCESS_CLIENT_ID
+    CF-Access-Client-Secret: CF_ACCESS_CLIENT_SECRET
+  temperature: 0.3
+  max_tokens: 8192
+```
+
+`model_id` supports `${VAR:-default}` env-template expansion at load time, allowing runtime model switching without image rebuilds.
+
+---
 
 ## Quick Start
 
@@ -73,15 +126,18 @@ This scaffolds a complete domain repo with agents, MCPs, lambdas, and Terraform 
 ### 1. Deploy the Platform
 
 ```bash
-cd modules/platform
+cd infra/
 terraform init
 terraform apply -var-file=envs/dev.tfvars
 ```
 
+The platform module consumes your VPC and subnets as inputs — set `vpc_id`, `public_subnet_ids`, `private_subnet_ids`, and `isolated_subnet_ids` in your tfvars.
+
 ### 2. Install the SDK
 
 ```bash
-pip install agent-core  # from CodeArtifact
+# Authenticate to CodeArtifact first — see docs/getting-started/installation.md
+pip install agent-core agent-cli
 ```
 
 ### 3. Define a Blueprint
@@ -94,16 +150,12 @@ version: "1.0.0"
 prompt_ref: "my-domain/my-agent"
 
 model:
-  # Provider is dispatched in loader: bedrock | anthropic | litellm | vertex.
-  # LiteLLM is the current production path for multi-model (Claude/Gemini/GPT) inference.
-  provider: litellm
+  provider: litellm          # bedrock | anthropic | litellm | vertex
   model_id: claude-sonnet-4-6
   base_url: https://llm.example.com
   api_key_env: LITELLM_API_KEY
-  extra_headers_env:
-    CF-Access-Client-Id: CF_ACCESS_CLIENT_ID
-    CF-Access-Client-Secret: CF_ACCESS_CLIENT_SECRET
-  # temperature / max_tokens intentionally omitted — set per-blueprint, never hardcoded.
+  temperature: 0.3
+  max_tokens: 8192
 
 runtime:
   type: agentcore
@@ -143,30 +195,32 @@ REGISTRY.register(AgentConfig(
 
 ```python
 # app.py — identical for every domain repo
-from agent_core import BlueprintLoader, GenericHandler
+from agent_core import BlueprintLoader
 from agent_core.runtime.entrypoint import AgentCoreApp
 
 app = AgentCoreApp()
-HANDLER = GenericHandler(loader=BlueprintLoader(blueprints_dir="blueprints"))
+loader = BlueprintLoader("blueprints", prompt_dir="prompts")
 
 @app.entrypoint
 def handler(payload, context):
-    return HANDLER.handle(payload, context)
+    return loader.build_entrypoint(payload["agent_id"])
 
 if __name__ == "__main__":
     app.run()
 ```
 
-### 6. Deploy
+### 6. Validate and Deploy
 
 ```bash
 agentcli blueprint lint blueprints/agents/my-agent.yaml
 agentcli deploy agent blueprints/agents/my-agent.yaml --env production
 ```
 
+---
+
 ## Domain Repo Guide
 
-Domain-specific repos consume this platform by following a **convention-driven folder structure**. The Terraform modules, build scripts, and SDK all rely on specific directory layouts and naming patterns. This section documents every convention.
+Domain repos consume this platform by following a **convention-driven folder structure**. The Terraform modules, build scripts, and SDK all rely on specific directory layouts and naming patterns.
 
 ### Required Folder Structure
 
@@ -209,7 +263,7 @@ my-domain-repo/
 │   └── stubs/                         # Placeholder handlers for workflow steps
 │       └── handler.py
 ├── infra/                             # Terraform — consumes platform modules
-│   ├── main.tf                        # 3 module calls: platform, agents, mcps, workflows
+│   ├── main.tf                        # Module calls: platform, agents, mcps, workflows
 │   ├── variables.tf
 │   ├── providers.tf
 │   ├── backend.tf
@@ -239,7 +293,7 @@ All agents share a **single Docker image**. The YAML blueprint determines behavi
 
 ```hcl
 module "agents" {
-  source = "git::https://github.com/org/aws-agent-platform//modules/agents?ref=v1.0.0"
+  source = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform//modules/agents?ref=v1.0.0"
 
   blueprint_dir  = "${path.module}/../agents/blueprints/agents"
   source_dir     = "${path.root}/../agents"
@@ -289,7 +343,7 @@ Each MCP server has its **own subdirectory with its own Dockerfile**.
 
 ```hcl
 module "mcps" {
-  source = "git::https://github.com/org/aws-agent-platform//modules/agents?ref=v1.0.0"
+  source = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform//modules/agents?ref=v1.0.0"
 
   resource_prefix  = "${var.resource_prefix}-mcp"    # Distinguish from agent resources
   blueprint_dir    = "${path.module}/../mcps/blueprints"
@@ -307,7 +361,7 @@ module "mcps" {
 
 ### Lambdas
 
-Lambda functions are **not managed by platform modules** — the domain's `infra/` declares `aws_lambda_function` resources directly.
+Lambda functions are **not managed by platform modules** — the domain's `infra/` declares `aws_lambda_function` resources directly, or uses the `modules/lambda/` utility module.
 
 Lambdas integrate with the platform through **workflow blueprints**:
 - Workflow YAML references functions via `lambda_ref: my-function`
@@ -320,22 +374,27 @@ Convention: one directory per function under `lambdas/`. A `stubs/` directory ho
 The `infra/` directory makes **three to four module calls** in dependency order:
 
 ```
-platform  →  agents  →  workflows
-              mcps  ↗
+platform  →  agents   →  workflows
+              mcps   ↗
 ```
 
 ```hcl
-# 1. Platform foundation (VPC, KMS, DynamoDB, Gateway, Memory, API)
+# 1. Platform foundation (KMS, DynamoDB, Gateway, Memory, API)
+#    Note: VPC and subnets come from YOUR networking layer as inputs.
 module "platform" {
-  source = "git::https://github.com/org/aws-agent-platform//modules/platform?ref=v1.0.0"
-  environment     = var.environment
-  resource_prefix = var.resource_prefix
+  source = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform//modules/platform?ref=v1.0.0"
+  environment         = var.environment
+  resource_prefix     = var.resource_prefix
+  vpc_id              = var.vpc_id
+  public_subnet_ids   = var.public_subnet_ids
+  private_subnet_ids  = var.private_subnet_ids
+  isolated_subnet_ids = var.isolated_subnet_ids
   # ...
 }
 
 # 2a. Agent runtimes (depends on platform)
 module "agents" {
-  source     = "git::https://github.com/org/aws-agent-platform//modules/agents?ref=v1.0.0"
+  source     = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform//modules/agents?ref=v1.0.0"
   depends_on = [module.platform]
 
   blueprint_dir           = "${path.module}/../agents/blueprints/agents"
@@ -350,19 +409,19 @@ module "agents" {
 
 # 2b. MCP runtimes (depends on platform, uses same agents module)
 module "mcps" {
-  source     = "git::https://github.com/org/aws-agent-platform//modules/agents?ref=v1.0.0"
+  source     = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform//modules/agents?ref=v1.0.0"
   depends_on = [module.platform]
 
-  resource_prefix         = "${var.resource_prefix}-mcp"
-  blueprint_dir           = "${path.module}/../mcps/blueprints"
-  source_layout           = "polyrepo"
-  polyrepo_suffix         = "-mcp"
+  resource_prefix = "${var.resource_prefix}-mcp"
+  blueprint_dir   = "${path.module}/../mcps/blueprints"
+  source_layout   = "polyrepo"
+  polyrepo_suffix = "-mcp"
   # ... same platform outputs
 }
 
 # 3. Workflows (depends on agents for runtime ARNs)
 module "workflows" {
-  source     = "git::https://github.com/org/aws-agent-platform//modules/workflows?ref=v1.0.0"
+  source     = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform//modules/workflows?ref=v1.0.0"
   depends_on = [module.agents]
 
   workflow_dir       = "${path.module}/../agents/blueprints/workflows"
@@ -382,6 +441,7 @@ Blueprints are the platform's core abstraction. Both Terraform and the SDK rely 
 | Files must be `*.yaml` (not `.yml` for Terraform) | `fileset(dir, "*.yaml")` in `locals.tf` |
 | Each file must have a top-level `id` field | Terraform `yamldecode().id` for `for_each` key |
 | The `id` is used for all resource naming | ECR repos, CodeBuild projects, IAM roles, runtimes |
+| IDs use kebab-case by convention | All shipped examples use kebab-case (e.g., `my-agent`, `data-service-mcp`) |
 | Agent blueprints live in `blueprints/agents/` | `BlueprintLoader._find_yaml("agents", id)` |
 | Strategy blueprints live in `blueprints/strategies/` | `BlueprintLoader._find_yaml("strategies", id)` |
 | Workflow blueprints live in `blueprints/workflows/` | `BlueprintLoader._find_yaml("workflows", id)` |
@@ -431,42 +491,55 @@ Log groups follow the pattern: `/aws/bedrock-agentcore/runtimes/{runtime-short-n
 
 Platform deploys FIRST. Domain repos deploy SECOND.
 
+---
+
 ## Development
 
 ```bash
+# Install all packages in editable mode
 pip install -e "core/[dev]"       # agent-core
 pip install -e "prompts/[dev]"    # prompt-registry
 pip install -e "artifacts/[dev]"  # mcp-artifacts
 pip install -e "cli/[dev]"        # agent-cli
 
-# Linting
+# Lint and format
 ruff check .
 ruff format --check .
+
+# Type checking
+mypy core/src/
 ```
+
+Tests run through CI only — push to `dev` and monitor via `gh run list`.
+
+---
 
 ## Documentation
 
-Full docs at [the-cloud-clockwork.github.io/tcc-aws-agent-platform](https://the-cloud-clockwork.github.io/tcc-aws-agent-platform/)
+Full documentation at **[the-cloud-clockwork.github.io/tcc-aws-agent-platform](https://the-cloud-clockwork.github.io/tcc-aws-agent-platform/)**
 
 | Section | Content |
 |---------|---------|
 | [Getting Started](docs/getting-started.md) | Installation, quickstart, first agent tutorial |
-| [Concepts](docs/concepts.md) | Mental models for each of the 12 building blocks |
-| [Architecture](docs/architecture.md) | How the pieces connect, platform vs domain |
-| [SDK Reference](docs/sdk.md) | API reference for all 12 subsystems |
+| [Concepts](docs/concepts.md) | Mental models for the 12 building blocks |
 | [Blueprints](docs/blueprints.md) | Agent, strategy, and workflow YAML specs |
+| [Inference Providers](docs/inference.md) | Provider guide — Bedrock, Anthropic, LiteLLM, Vertex |
+| [Observability & Evaluation](docs/observability.md) | Langfuse, CloudWatch, Presidio, cost tracking, evaluation |
+| [Identity, Policy & IAM](docs/policy.md) | JWT auth, Cedar policies, IAM role scoping |
+| [Tools, MCP & Gateway](docs/tools.md) | Gateway targets, MCP servers, builtin tools, artifacts |
+| [Runtime & Memory](docs/runtime.md) | AgentCore Runtime, memory strategies, A2A, prompts |
 | [Infrastructure](docs/infrastructure.md) | Terraform module reference |
-| [CLI](docs/cli.md) | Command reference for `agentcli` |
+| [SDK Reference](docs/sdk.md) | API reference for all subsystems |
+| [CLI Reference](docs/cli.md) | Command reference for `agentcli` |
 
-## AWS Configuration
+---
 
-| Setting | Value |
-|---------|-------|
-| Primary Region | `eu-west-1` |
-| Bedrock Region | `us-west-2` |
-| CodeArtifact Domain | `platform` |
-| CodeArtifact Repo | `platform-python` |
+## Contributing
+
+Contributions are welcome. Please open an issue to discuss significant changes before submitting a pull request. See `CONTRIBUTING.md` for coding conventions, branch policy, and the CI/test requirements.
+
+---
 
 ## License
 
-Proprietary.
+This project will be released under an open-source license (see `LICENSE`). _License selection pending._

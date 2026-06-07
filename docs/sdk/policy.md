@@ -6,195 +6,276 @@ parent: SDK Reference
 
 # Policy
 
-The Policy subsystem enforces access control for agent tool invocations using [Cedar](https://www.cedarpolicy.com/), an open-source policy language developed by AWS. The platform uses the AgentCore Policy Engine for policy storage and evaluation. The default model is DENY-all: every tool call is denied unless an explicit permit policy allows it.
+The Policy subsystem enforces access control for agent tool invocations using [Cedar](https://www.cedarpolicy.com/), an open-source policy language developed by AWS. The platform uses the AgentCore Policy Engine for policy storage and evaluation. The default model is **default-DENY**: every tool call is denied unless an explicit `permit` policy allows it.
 
-## Key Classes
+> **Architecture guide:** [Identity, Policy & IAM](../policy.md)
 
-| Class | Purpose |
-|-------|---------|
-| `PolicyClient` | Creates policy engines, manages Cedar policies, attaches to Gateways, generates policies via NL2Cedar |
-| `CedarPolicyBuilder` | Fluent Python API for constructing Cedar policies |
-| `PolicyTranslator` | Converts platform policy schemas to Cedar syntax |
+## Key Classes and Functions
 
-## Cedar Syntax Basics
+| Class / Function | Module | Purpose |
+|-----------------|--------|---------|
+| `PolicyClient` | `agent_core.policy.client` | Creates policy engines, manages Cedar policies, attaches to Gateway, generates via NL2Cedar |
+| `CedarPolicyBuilder` | `agent_core.policy.cedar_policies` | Builds `CedarPolicy` dataclass instances and serializes them to Cedar syntax |
+| `translate_rule()` | `agent_core.policy.translator` | Converts a single `PolicyRuleConfig` to Cedar syntax |
+| `translate_rules()` | `agent_core.policy.translator` | Converts a list of `PolicyRuleConfig` objects to Cedar syntax |
 
-A Cedar policy has a principal (who), action (what), and resource (which):
+## Cedar Runtime Entity Namespaces
 
-```cedar
-// Permit users with role "analyst" to call the search_records tool
-permit (
-  principal in Role::"analyst",
-  action == Action::"invoke_tool",
-  resource == Tool::"search_records"
-);
+The platform uses specific Cedar entity namespaces at runtime. **These differ from generic Cedar tutorials:**
 
-// Forbid any principal from calling the delete_record tool
-forbid (
-  principal,
-  action == Action::"invoke_tool",
-  resource == Tool::"delete_record"
-);
-```
+| Entity | Namespace |
+|--------|-----------|
+| Action | `AgentCore::Action::"<target>___<tool>"` |
+| Resource | `AgentCore::Gateway::"<gateway_arn>"` |
+| Principal | `AgentCore::Agent::"<agent_id>"` or `AgentCore::AgentGroup::"<group>"` |
 
-Cedar evaluates all matching policies. A single `forbid` overrides any number of `permit` policies.
+The three controlled actions are `invoke_tool`, `read_memory`, and `write_memory`.
 
-## Default DENY Model
-
-When the policy engine is enabled, all tool invocations are denied by default. You must write explicit `permit` policies for every tool the agent should be able to call. This prevents accidental capability escalation when new tools are registered.
-
-## Policy Patterns
-
-### Role-Based Access
+## `PolicyClient`
 
 ```python
-from agent_core.policy import CedarPolicyBuilder
+class PolicyClient:
+    def __init__(self, region: str | None = None) -> None: ...
+
+    def create_engine(self, name: str, description: str = "") -> dict[str, Any]:
+        """Create a new policy engine. Returns {"policyEngineId": ..., "policyEngineArn": ...}"""
+        ...
+
+    def get_engine(self, engine_id: str) -> dict[str, Any]: ...
+    def delete_engine(self, engine_id: str) -> None: ...
+
+    def create_policy(
+        self,
+        engine_id: str,
+        name: str,
+        cedar_statement: str,
+    ) -> dict[str, Any]:
+        """Create a Cedar policy. Uses validationMode=IGNORE_ALL_FINDINGS."""
+        ...
+
+    def list_policies(self, engine_id: str) -> list[dict[str, Any]]: ...
+    def delete_policy(self, engine_id: str, policy_id: str) -> None: ...
+
+    def attach_to_gateway(
+        self,
+        gateway_identifier: str,
+        policy_engine_arn: str,
+        mode: PolicyMode,       # PolicyMode.ENFORCE | PolicyMode.LOG_ONLY
+    ) -> None: ...
+
+    def detach_from_gateway(self, gateway_identifier: str) -> None: ...
+
+    def generate_policy(
+        self,
+        engine_id: str,
+        name: str,
+        gateway_arn: str,
+        natural_language: str,
+    ) -> dict[str, Any]:
+        """NL2Cedar — converts natural language to Cedar. Review output before deploying."""
+        ...
+```
+
+## Enforcement Modes
+
+| `PolicyMode` | Behavior |
+|-------------|----------|
+| `ENFORCE` | Unauthorized tool calls are blocked; agent receives an authorization error |
+| `LOG_ONLY` | All calls proceed; unauthorized decisions are logged only (audit mode) |
+
+## `CedarPolicyBuilder`
+
+`CedarPolicyBuilder` collects `CedarPolicy` dataclass instances and serializes them to Cedar format. It does **not** expose a fluent chain API — policies are constructed as `CedarPolicy` dataclass instances and added via `add_policy`:
+
+```python
+from agent_core.policy.cedar_policies import (
+    CedarPolicyBuilder,
+    CedarPolicy,
+    PolicyEffect,
+    PolicyAction,
+)
 
 builder = CedarPolicyBuilder()
 
-policy = (
-    builder
-    .permit()
-    .principal_in_role("analyst")
-    .action("invoke_tool")
-    .resource_in_group("read-only-tools")
-    .build()
+# permit — any principal can invoke search_records (with condition)
+builder.add_policy(CedarPolicy(
+    policy_id="allow-search",
+    effect=PolicyEffect.PERMIT,
+    description="Any caller can search with limit <= 100",
+    principal='principal',
+    action=PolicyAction.INVOKE_TOOL,
+    resource='Tool::"DataTarget___search_records"',
+    conditions=["context.input.limit <= 100"],  # list of Cedar expressions, AND-ed together
+))
+
+# forbid — no condition, blocks everyone from delete_record
+builder.add_policy(CedarPolicy(
+    policy_id="deny-delete",
+    effect=PolicyEffect.FORBID,
+    description="Forbid delete_record for all principals",
+    principal='principal',
+    action=PolicyAction.INVOKE_TOOL,
+    resource='Tool::"DataTarget___delete_record"',
+    conditions=[],  # no conditions = unconditional forbid
+))
+
+# Serialize all policies to Cedar syntax
+cedar_text = builder.build()
+
+# Write to a .cedar file
+builder.write_to_file("/tmp/policies.cedar")
+
+# Load policies from a YAML file (list of policy dicts under "policies" key)
+builder.load_policies_from_file("/tmp/rules.yaml")
+```
+
+`PolicyEffect` enum: `PERMIT`, `FORBID`. `PolicyAction` enum: `INVOKE_TOOL`, `READ_MEMORY`, `WRITE_MEMORY`.
+
+## `translate_rule()` / `translate_rules()`
+
+Convert blueprint YAML `PolicyRuleConfig` objects to Cedar syntax. Used internally by `PolicyWiring` during blueprint loading. Each rule sets exactly one of `allow` (generates `permit`) or `deny` (generates `forbid`):
+
+```python
+from agent_core.policy.translator import translate_rule, translate_rules
+from agent_core.schemas.policy_config import PolicyRuleConfig
+
+# allow generates a Cedar permit statement
+rule = PolicyRuleConfig(
+    name="limit-search",
+    allow="search_records",
+    when="context.input.limit <= 100",
+)
+
+cedar = translate_rule(
+    rule=rule,
+    gateway_arn="arn:aws:bedrock-agentcore:us-east-1:123456789012:gateway/gw-abc",
+    target_prefix="DataTarget",
+    # → permit(principal,
+    #     action == AgentCore::Action::"DataTarget___search_records",
+    #     resource == AgentCore::Gateway::"arn:...")
+    #   when { context.input.limit <= 100 };
+)
+
+# deny generates a Cedar forbid statement
+deny_rule = PolicyRuleConfig(
+    name="admins-only-delete",
+    deny="delete_record",
+    unless='principal.scope.contains("group:Admins")',
+)
+
+# Translate a list of rules in one call
+full_cedar = translate_rules(
+    [rule, deny_rule],
+    gateway_arn="arn:aws:bedrock-agentcore:us-east-1:123456789012:gateway/gw-abc",
+    target_prefix="DataTarget",
 )
 ```
 
-### Rate Limit Guard
+## `PolicyWiring`
+
+`PolicyWiring` is the high-level orchestrator called by `BlueprintLoader`. It creates a per-agent policy engine, translates blueprint rules to Cedar, deploys each as a named policy, attaches the engine to the Gateway with the configured mode, and optionally persists a versioned DynamoDB snapshot.
+
+`PolicyWiring.__init__` does all the work — pass `config`, `agent_id`, `gateway_identifier`, and optionally `versions_table_name`:
 
 ```python
-policy = (
-    builder
-    .permit()
-    .principal_in_role("api-user")
-    .action("invoke_tool")
-    .resource("expensive-computation-tool")
-    .when("context.request_count_today < 100")
-    .build()
-)
-```
+from agent_core.policy.wiring import PolicyWiring
+from agent_core.schemas.policy_config import PolicyConfig, PolicyRuleConfig
 
-### Parameter Guard
-
-```python
-# Restrict a tool's allowed parameter values
-policy = (
-    builder
-    .permit()
-    .principal_in_role("operator")
-    .action("invoke_tool")
-    .resource("data-export-tool")
-    .when('resource.parameters.format in ["csv", "json"]')
-    .build()
-)
-```
-
-## Policy Engine Lifecycle
-
-`PolicyClient` wraps both the boto3 `bedrock-agentcore-control` client (for engine CRUD) and the `bedrock_agentcore_starter_toolkit` policy SDK (for policy CRUD and NL2Cedar):
-
-```python
-from agent_core.policy.client import PolicyClient, PolicyMode
-
-client = PolicyClient(region="us-west-2")
-
-# Create a policy engine
-result = client.create_engine(name="my-agent-policies")
-engine_id = result["policyEngineId"]
-
-# Create a Cedar policy in the engine
-client.create_policy(
-    engine_id=engine_id,
-    name="allow-search",
-    cedar_statement='permit(principal in Role::"analyst", action == Action::"invoke_tool", resource == Tool::"search");',
+config = PolicyConfig(
+    engine="MyAgentPolicies",
+    mode="ENFORCE",
+    target_prefix="DataTarget",
+    rules=[
+        PolicyRuleConfig(name="allow-search", allow="search_records"),
+        PolicyRuleConfig(
+            name="limit-results",
+            allow="search_records",
+            when="context.input.limit <= 100",
+        ),
+        PolicyRuleConfig(
+            name="admins-only-delete",
+            deny="delete_record",
+            unless='principal.scope.contains("group:Admins")',
+        ),
+    ],
 )
 
-# List policies
-policies = client.list_policies(engine_id)
-```
-
-## Policy Engine Attachment to Gateway
-
-The policy engine is evaluated before every tool invocation routed through the Gateway. Attach a policy engine to a Gateway with an enforcement mode:
-
-```python
-# Attach with enforcement
-client.attach_to_gateway(
-    gateway_identifier="gw-abc123",
-    policy_engine_arn=result["policyEngineArn"],
-    mode=PolicyMode.ENFORCE,  # or PolicyMode.LOG_ONLY
+wiring = PolicyWiring(
+    config=config,
+    agent_id="my-agent",
+    gateway_identifier="arn:aws:bedrock-agentcore:us-west-2:123456789012:gateway/gw-abc",
+    region="us-west-2",
+    versions_table_name="my-policy-versions-table",  # optional; enables versioning
 )
 
-# Later, detach
-client.detach_from_gateway(gateway_identifier="gw-abc123")
-```
+# Inspect what was deployed
+print(wiring.engine_id)           # AgentCore policy engine ID
+print(wiring.engine_arn)          # ARN of the policy engine
+print(wiring.deployed_policy_ids) # list of deployed policy IDs
 
-If a policy decision is DENY, `GatewayClient` raises `PolicyDeniedError` with the matching `forbid` policy attached for logging and audit.
+# List stored versions (requires versions_table_name)
+versions = wiring.list_versions()  # → [{version, timestamp_ms, rules_hash, mode, ...}, ...]
 
-## NL-to-Cedar Generation
+# Roll back to version 2 (redeploys Cedar from stored snapshot)
+wiring.rollback(version=2)
 
-`PolicyClient.generate_policy()` uses the AgentCore NL2Cedar API to convert a plain-language policy description into valid Cedar syntax:
-
-```python
-result = client.generate_policy(
-    engine_id=engine_id,
-    name="reviewer-access",
-    gateway_arn="arn:aws:bedrock-agentcore:us-west-2:123456789012:gateway/gw-abc",
-    natural_language="Allow users in the 'reviewer' role to view documents but not edit or delete them.",
-)
-
-# result contains {"generatedPolicies": [...]}
-for policy in result.get("generatedPolicies", []):
-    print(policy)
-```
-
-Always review LLM-generated Cedar policies before deploying them. `generate_policy()` is a productivity tool, not a security guarantee.
-
-## Storing and Loading Policies
-
-Policies are stored in the AgentCore Policy Engine. The `PolicyClient` manages the full lifecycle:
-
-```python
-client = PolicyClient(region="us-west-2")
-
-# List all policies in an engine
-policies = client.list_policies(engine_id)
-
-# Add a new policy (idempotent — uses create_or_get_policy)
-client.create_policy(engine_id, name="allow-search", cedar_statement=cedar_text)
-
-# Remove a policy
-client.delete_policy(engine_id, policy_id="pol-123")
+# Tear down — detach from Gateway and delete the engine
+wiring.cleanup()
 ```
 
 ## Blueprint Configuration
 
+`PolicyConfig` schema — all valid fields:
+
 ```yaml
 policy:
-  enabled: true
-  policy_store_id: "${POLICY_STORE_ID}"
-  cache_ttl_seconds: 60
-  default_decision: DENY         # DENY | ALLOW — strongly recommend DENY
-  nl2cedar:
-    enabled: false               # Enable only in non-production environments
-    model: anthropic.claude-3-haiku-20240307-v1:0
+  engine: MyAgentPolicies          # policy engine name (required)
+  mode: ENFORCE                    # ENFORCE | LOG_ONLY (required)
+  target_prefix: DataTarget        # prepended to all action names as TargetName___tool (optional)
+  rules:
+    # allow → generates Cedar permit()
+    - name: allow-search
+      allow: search_records
+
+    # allow with condition
+    - name: limit-search-results
+      allow: search_records
+      when: "context.input.limit <= 100"
+
+    # deny → generates Cedar forbid()
+    - name: admins-only-delete
+      deny: delete_record
+      unless: "principal.scope.contains('group:Admins')"
+
+    # per-rule target override (overrides target_prefix for this rule)
+    - name: analytics-export
+      allow: bulk_export
+      target: AnalyticsTarget
+
+    # restrict to a specific principal
+    - name: service-account-only
+      allow: internal_api
+      principal: "AgentCore::Principal::\"service-account\""
+
+  versioning:
+    enabled: true
+    table_env: POLICY_VERSIONS_TABLE   # env var holding DynamoDB table name
+    max_versions: 10
 ```
 
-## PolicyTranslator
+`PolicyRuleConfig` field reference:
 
-`PolicyTranslator` bridges the platform's YAML policy schema with Cedar. It is used internally during blueprint loading and can be called directly for programmatic policy generation:
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | `str` | Yes | Rule identifier |
+| `allow` | `str \| None` | Conditional | Tool name to permit — exactly one of `allow`/`deny` |
+| `deny` | `str \| None` | Conditional | Tool name to forbid — exactly one of `allow`/`deny` |
+| `when` | `str \| None` | No | Cedar `when` condition expression (passed verbatim) |
+| `unless` | `str \| None` | No | Cedar `unless` condition expression (passed verbatim) |
+| `target` | `str \| None` | No | Per-rule target override (overrides `target_prefix`) |
+| `principal` | `str \| None` | No | Cedar principal — defaults to any principal when `None` |
 
-```python
-from agent_core.policy import PolicyTranslator
+## See Also
 
-translator = PolicyTranslator()
-
-# Convert a platform policy dict to Cedar
-cedar = translator.to_cedar({
-    "effect": "permit",
-    "principal": {"role": "analyst"},
-    "actions": ["search_records", "get_record"],
-    "condition": "context.classification == 'internal'"
-})
-```
+- [Identity, Policy & IAM guide](../policy.md) — Cedar default-DENY model, enforcement modes, NL2Cedar
+- [Identity SDK reference](identity.md) — Inbound and outbound authentication

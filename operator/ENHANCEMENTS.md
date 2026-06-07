@@ -29,9 +29,11 @@
 
 ## Next Moves — Platform-Agnostic Readiness Items
 
+> **Status note (2026-06-07):** This list (NM-001–NM-008) is the historical tracking document. It is no longer the active priority list — see the roadmap pivot in `STATE.md` and `CLAUDE.md`. Items remain here for reference.
+>
 > These are domain-agnostic improvements that any consuming project benefits from.
 > Each is self-contained and can be kicked off independently by any agent.
-> Ordered by impact on production readiness score (currently 73/100).
+> Ordered by impact on production readiness score (as of 2026-04-09).
 
 ---
 
@@ -168,4 +170,4 @@
 | ENH-006 | AG-UI protocol for dashboard streaming | nice-to-have | Medium |
 | ENH-009 | A2A protocol (cross-runtime invocation) | someday | High |
 | ENH-010 | Memory streaming to Kinesis | someday | Medium |
-| ENH-020 | `build_entrypoint()` zero-boilerplate app | someday | Low |
+| ENH-020 | `build_entrypoint()` zero-boilerplate app | ~~someday~~ **shipped** — `BlueprintLoader.build_entrypoint()` exists and is the production pattern | Low |

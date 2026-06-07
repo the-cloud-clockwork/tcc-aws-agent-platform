@@ -178,6 +178,7 @@ rules:
 
 ## See Also
 
-- [Policy Concepts](../concepts/policy) — Cedar model, default DENY, and policy architecture
-- [Policy SDK Reference](../sdk/) — programmatic policy management
+- [Cedar Policy](../policy/cedar-policy) — Cedar model, default-DENY enforcement, ENFORCE vs LOG_ONLY modes, and the policy architecture
+- [Identity, Policy & IAM](../policy) — full policy section including identity, Cedar, and IAM
+- [Policy SDK Reference](../sdk/policy) — programmatic policy management via `PolicyWiring` and `translate_rules()`
 - [agentcli blueprint lint](blueprint) — validate the full blueprint before generating policies

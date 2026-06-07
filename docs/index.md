@@ -6,25 +6,27 @@ description: "Complete documentation for the AWS Agent Platform."
 
 # Documentation
 
-Welcome to the AWS Agent Platform documentation. This platform lets you declare AI agents in YAML and deploy them on AWS with zero boilerplate — built as an abstraction layer over Strands Agents SDK and Amazon Bedrock AgentCore.
+The AWS Agent Platform lets you declare AI agents in YAML and deploy them on AWS with zero boilerplate — a configuration-driven, provider-agnostic abstraction layer over the Strands Agents SDK and Amazon Bedrock AgentCore.
 
-The platform ships four packages: `agent-core` (SDK), `prompt-registry` (versioned prompt management via S3 + DynamoDB), `mcp-artifacts` (artifact store MCP server with claim-check pattern), and `agent-cli` (CLI tooling).
+The platform ships four packages: `agent-core` (SDK), `prompt-registry` (versioned prompt management via S3 + DynamoDB), `mcp-artifacts` (claim-check artifact store backed by S3 + DynamoDB), and `agent-cli` (blueprint validation and deployment tooling).
 
 ---
 
 ## Sections
 
-| Section | Description |
-|---------|-------------|
-| [**Getting Started**](getting-started/) | Install the SDK, create your first agent, deploy to AgentCore Runtime |
-| [**Architecture**](architecture/) | The 12 building blocks, platform vs. domain separation, end-to-end flows |
-| [**SDK Reference**](sdk/) | Detailed API reference for all 12 building blocks in the `agent-core` package |
-| [**Infrastructure**](infrastructure/) | Terraform modules (platform, agents, workflows) and deployment patterns |
-| [**CLI Reference**](cli/) | Command reference for `agentcli` — blueprint validation, prompt management, deployment |
+| Section | What's Inside |
+|---------|---------------|
+| [**Getting Started**](getting-started/) | Install the SDK, run your first agent, deploy to AgentCore Runtime |
+| [**Concepts**](concepts/) | Mental models for the platform architecture, blueprint model, and platform-vs-domain split |
 | [**Blueprints**](blueprints/) | YAML specification for agent, strategy, and workflow blueprints |
-| [**Concepts**](concepts/) | Deep mental models explaining the "why" behind each AgentCore component |
-| [**Prompt Registry**](sdk/prompts/) | Versioned prompt management — S3 + DynamoDB storage, mode-gated resolution, push/get/promote lifecycle |
-| [**MCP Artifacts**](sdk/artifacts/) | Artifact store MCP server — claim-check pattern, S3 + DynamoDB, signed URLs, 8 tools |
+| [**Inference Providers**](inference/) | Bedrock, Anthropic, LiteLLM, and Vertex — configuration and provider-specific notes |
+| [**Observability & Evaluation**](observability/) | OTEL traces, Langfuse, CloudWatch, audit logging, cost tracking, data protection, and evaluation |
+| [**Identity, Policy & IAM**](policy/) | Inbound JWT auth, outbound credential injection, Cedar fine-grained access control, and IAM roles |
+| [**Tools, MCP & Gateway**](tools/) | Gateway protocol translation, MCP server development, builtin tools, and artifact store |
+| [**Runtime & Memory**](runtime/) | AgentCore Runtime, memory tiers, A2A protocol, and prompt registry |
+| [**Infrastructure (Terraform)**](infrastructure/) | Platform, agents, workflows, and utility modules — variables, outputs, and deployment patterns |
+| [**SDK Reference**](sdk/) | Terse API reference for all `agent-core` subsystems |
+| [**CLI Reference**](cli/) | Command reference for `agentcli` — blueprint lint, prompt management, deployment |
 
 ---
 
@@ -34,7 +36,7 @@ The platform ships four packages: `agent-core` (SDK), `prompt-registry` (version
 graph TB
     subgraph "Your Domain Repo"
         BP[YAML Blueprints]
-        PB[Prompt Builders]
+        PB[Prompt Content]
         DT[Domain Tools]
     end
 
@@ -42,6 +44,13 @@ graph TB
         BL[BlueprintLoader]
         SDK[agent-core SDK]
         TF[Terraform Modules]
+    end
+
+    subgraph "Inference Providers"
+        BE[Amazon Bedrock]
+        AN[Anthropic]
+        LL[LiteLLM Proxy]
+        VX[Vertex AI]
     end
 
     subgraph "AWS Infrastructure"
@@ -57,6 +66,10 @@ graph TB
     BP --> BL
     PB --> SDK
     DT --> GW
+    BL --> BE
+    BL --> AN
+    BL --> LL
+    BL --> VX
     BL --> RT
     SDK --> RT
     TF --> GW
@@ -76,9 +89,11 @@ graph TB
 
 ## Quick Links
 
-- **Starting a new project?** Run the [Domain Repo Scaffolder](getting-started/create-domain-repo) — one command, full project
+- **Starting a new project?** Run the [Domain Repo Scaffolder](getting-started/create-domain-repo) — one command, full project structure
 - **New to the platform?** Start with the [Quickstart](getting-started/quickstart)
-- **Building your first agent?** Follow [First Agent](getting-started/first-agent)
-- **Writing a blueprint?** See the [Agent Blueprint Spec](blueprints/agent-blueprint)
+- **Building your first agent?** Follow the [First Agent guide](getting-started/first-agent)
+- **Writing a blueprint?** See the [Agent Blueprint reference](blueprints/agent-blueprint)
+- **Choosing an inference provider?** See the [Inference Providers overview](inference/)
+- **Setting up observability?** See [Observability & Evaluation](observability/)
 - **Deploying infrastructure?** Read [Deployment Patterns](infrastructure/deployment-patterns)
-- **Understanding the architecture?** Explore the [12 Building Blocks](architecture/building-blocks)
+- **Understanding the architecture?** Explore [Concepts](concepts/)

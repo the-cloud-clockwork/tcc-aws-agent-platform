@@ -259,7 +259,7 @@ var.litellm_api_key_secret != "" ? { LITELLM_API_KEY = data.aws_ssm_parameter.li
 - [x] Add `LITELLM_BASE_URL`, `LITELLM_API_KEY`, `CF_ACCESS_*` env var passthrough in `modules/agents/runtime.tf`
 - [x] Add `litellm`, `anthropic`, `structured_output` optional extras in `pyproject.toml`
 - [x] Swap gap-detector blueprint to `provider: litellm` (first real validation)
-- [x] Build `StructuredOutputEnforcer` hook (instructor-based) for non-Bedrock `output_schema` support
+- [x] Build `StructuredOutputEnforcer` hook (instructor-based) for non-Bedrock `output_schema` support — **superseded in `8c784df`:** enforcer deleted from loader wiring; Strands native `structured_output_model` used for all providers as of strands-agents 1.41.0 (upstream bugs #743/#1005/#891 resolved)
 - [x] Deploy all 9 QITP agents on LiteLLM proxy + Cloudflare Access service tokens
 - [x] **Wire `LITELLM_API_KEY` through the whole chain** — Secrets Manager (`qitp/platform/litellm` field `TOKEN`) → `data.aws_secretsmanager_secret_version.platform_litellm` → `module.agents.litellm_api_key` / `module.mcps.litellm_api_key` → `environment_variables.LITELLM_API_KEY` → `os.environ[model.api_key_env]` → `LiteLLMModel(client_args={"api_key": ...})`. The platform key scope covers `claude-sonnet-4-6`, `claude-max-sonnet`, `claude-max-opus`, `gpt-5-codex`, `gpt-5.4-codex`, `gemini-3.1-pro`, `deepseek-r1`, `claude-max-haiku-worker-001`, `llama-3.3-70b`.
 - [x] **Fix market-calendar Lambda contract** — handler now defaults to validate mode with `date.today().isoformat()` when no `date` field is present in the payload; EventBridge quarterly refresh passes `{"seed": true}` explicitly. Removes the dual-mode ambiguity that silently seeded the DynamoDB table from every Step Functions invocation.

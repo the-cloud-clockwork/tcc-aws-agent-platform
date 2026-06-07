@@ -27,7 +27,7 @@ aux_links_new_tab: true
 gh_edit_link: true
 gh_edit_link_text: "Edit this page on GitHub"
 gh_edit_repository: "https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform"
-gh_edit_branch: "main"
+gh_edit_branch: "dev"
 gh_edit_view_mode: "edit"
 
 footer_content: >-
@@ -48,36 +48,10 @@ defaults:
       path: "docs"
     values:
       layout: "default"
-  - scope:
-      path: "docs/getting-started"
-    values:
-      parent: "Getting Started"
-  - scope:
-      path: "docs/architecture"
-    values:
-      parent: "Architecture"
-  - scope:
-      path: "docs/sdk"
-    values:
-      parent: "SDK Reference"
-  - scope:
-      path: "docs/infrastructure"
-    values:
-      parent: "Infrastructure"
-  - scope:
-      path: "docs/cli"
-    values:
-      parent: "CLI Reference"
-  - scope:
-      path: "docs/blueprints"
-    values:
-      parent: "Blueprints"
-  - scope:
-      path: "docs/concepts"
-    values:
-      parent: "Concepts"
 
 exclude:
+  - operator/
+  - .claude/
   - core/
   - prompts/
   - artifacts/
@@ -107,9 +81,4 @@ exclude:
   - README.md
   - "*.log"
   - "*.zip"
-  - .github/workflows/ci-core.yml
-  - .github/workflows/ci-prompts.yml
-  - .github/workflows/ci-artifacts.yml
-  - .github/workflows/ci-cli.yml
-  - .github/workflows/publish.yml
-  - .github/workflows/sonar-scan.yml
+  - .github/

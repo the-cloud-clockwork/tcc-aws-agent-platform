@@ -131,9 +131,9 @@ Output panel:
 ## Example: Write to File
 
 ```bash
-agentcli graph render agents/document-pipeline.yaml \
-  --output docs/architecture/document-pipeline-graph.md
-# Written graph diagram to docs/architecture/document-pipeline-graph.md
+agentcli graph render agents/my-pipeline.yaml \
+  --output diagrams/my-pipeline-graph.md
+# Written graph diagram to diagrams/my-pipeline-graph.md
 ```
 
 ## Graph Summary
@@ -162,4 +162,4 @@ After rendering, a summary table is always printed to the terminal:
 ## See Also
 
 - [Agent Blueprint](../blueprints/agent-blueprint) — `multi_agent` block reference
-- [A2A Concepts](../concepts/a2a) — architectural reasoning behind multi-agent communication
+- [A2A Protocol](../runtime/a2a) — architectural reasoning behind multi-agent communication
