@@ -6,6 +6,10 @@ description: >-
 url: "https://the-cloud-clockwork.github.io"
 baseurl: "/tcc-aws-agent-platform"
 
+# Directory-style URLs (/docs/inference/) so section-landing relative links
+# ([Overview](overview)) and trailing-slash links resolve correctly.
+permalink: pretty
+
 remote_theme: just-the-docs/just-the-docs@v0.10.0
 
 plugins:
