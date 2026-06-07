@@ -542,4 +542,4 @@ Contributions are welcome. Please open an issue to discuss significant changes b
 
 ## License
 
-This project will be released under an open-source license (see `LICENSE`). _License selection pending._
+Licensed under the Apache License, Version 2.0 — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE). Copyright 2026 The Cloud Clockwork.
