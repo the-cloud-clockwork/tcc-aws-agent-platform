@@ -4,6 +4,8 @@ nav_order: 3
 parent: SDK Reference
 ---
 
+> **Architecture guide:** [Identity, Policy & IAM](../policy.md)
+
 # Identity
 
 The Identity subsystem manages all authentication and credential flows for agents. It handles outbound auth (acquiring credentials to call external systems), with an in-process credential cache to avoid redundant token fetches.
@@ -12,12 +14,13 @@ The Identity subsystem manages all authentication and credential flows for agent
 
 ## Key Classes
 
-| Class | Purpose |
-|-------|---------|
-| `IdentityWiring` | Bridge between blueprint credential config and runtime decorators |
-| `CredentialCache` | TTL-based in-process cache for tokens and API keys |
-| `requires_access_token` | Decorator — injects an OAuth2 access token into the wrapped function |
-| `requires_api_key` | Decorator — injects an API key from Secrets Manager into the wrapped function |
+| Class | Module | Purpose |
+|-------|--------|---------|
+| `IdentityWiring` | `agent_core.identity.wiring` | Bridge between blueprint credential config and runtime decorators |
+| `CredentialCache` | `agent_core.identity.cache` | TTL-based in-process cache for tokens and API keys |
+| `requires_access_token` | `agent_core.identity.decorators` | Decorator — injects an OAuth2 access token into the wrapped function |
+| `requires_api_key` | `agent_core.identity.decorators` | Decorator — injects an API key into the wrapped function |
+| `IdentityClient` | `agent_core.identity.client` | One-time setup — create credential providers in AgentCore Identity |
 
 ## Three Authentication Patterns
 
@@ -147,10 +150,62 @@ if not cache.has("my-service"):
 
 Cache entries are invalidated automatically on expiry. There is no distributed cache — each container instance maintains its own. For short-lived containers this is sufficient; for long-lived instances, TTLs ensure tokens are refreshed before expiry.
 
+## Credential Provider Provisioning
+
+Credential providers are created once (at infrastructure setup time), not at runtime. There are two provisioning paths:
+
+**Terraform path (standard):** `modules/agents/identity_providers.tf` reads API key values from SSM SecureString parameters and OAuth2 client secrets from separate SSM SecureString parameters, then creates `aws_bedrockagentcore_api_key_credential_provider` and `aws_bedrockagentcore_oauth2_credential_provider` resources.
+
+> **SSM pre-population required:** The SSM parameters must be created before `terraform apply`. The plan will fail if they do not exist. See `modules/agents/identity_providers.tf` for the expected parameter names.
+
+**SDK path (one-time manual setup):**
+
+```python
+from agent_core.identity.client import IdentityClient
+
+client = IdentityClient(region="us-west-2")
+
+# Create an API key credential provider
+# secret_name refers to a Secrets Manager secret holding the key value
+client.create_api_key_credential_provider(
+    name="weather-key-provider",
+    secret_name="prod/weather-service/api-key",
+)
+
+# Create an OAuth2 credential provider
+client.create_oauth2_credential_provider(
+    name="data-platform-provider",
+    client_id="my-client-id",
+    client_secret_secret_name="prod/data-platform/oauth-secret",
+    token_url="https://auth.example.com/token",
+)
+```
+
+At runtime, all credential resolution is delegated to `bedrock_agentcore.identity.AgentCoreIdentityClient`. There is no Lambda or env-var fallback path.
+
+## Inbound Auth (Gateway Side)
+
+Inbound authentication to the Gateway is configured in the platform infrastructure, not in agent runtime code. Three authorizer types are supported:
+
+| `AuthorizerType` | Configuration |
+|----------------|---------------|
+| `custom_jwt` | Requires `discovery_url` (JWKS endpoint) and `allowed_clients` list |
+| `cognito_jwt` | Requires `user_pool_id` and `client_id` |
+| `aws_iam` | No additional configuration — uses SigV4 signing |
+
+These are set in `identity.authorizer` in the blueprint and provisioned by `modules/platform/modules/agentcore/gateway.tf`.
+
 ## Blueprint Configuration
 
 ```yaml
 identity:
+  # Inbound: how callers authenticate to this agent's Gateway endpoint
+  authorizer:
+    type: custom_jwt                        # custom_jwt | cognito_jwt | aws_iam
+    discovery_url: "${JWKS_DISCOVERY_URL}"
+    allowed_clients: ["${CLIENT_ID}"]
+
+  # Outbound: credentials this agent uses to call external systems
   credentials:
     - name: data-platform
       type: oauth2
@@ -169,3 +224,8 @@ identity:
       type: api_key
       provider: weather-key-provider
 ```
+
+## See Also
+
+- [Identity, Policy & IAM guide](../policy.md) — Inbound auth, outbound credential flows, M2M Gateway-to-Runtime
+- [Policy SDK reference](policy.md) — Cedar authorization policies

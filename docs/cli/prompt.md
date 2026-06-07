@@ -6,9 +6,11 @@ parent: CLI Reference
 
 # agentcli prompt
 
-Manage versioned prompt templates in the Prompt Registry. Supports the full lifecycle: push a new version, inspect and diff versions, promote to stable, and rollback if a bad version ships.
+Manage versioned prompt templates in the Prompt Registry. Supports the full lifecycle: push a new version, inspect and diff versions, promote to `stable`, and rollback if a bad version ships.
 
-The CLI communicates with the Prompt Registry API. Set `AGENT_REGISTRY_URL` to point at your registry instance.
+Prompt versions move through three statuses: `draft` (newly pushed, only accessible in `simulation` and `dev` execution modes), `stable` (the active production version resolved when no explicit version is specified), and `deprecated` (a previous stable version demoted by a promote or rollback).
+
+The CLI communicates with the Prompt Registry API over HTTP. Set `AGENT_REGISTRY_URL` to point at your registry instance (e.g., the API Gateway URL for the deployed Prompt Registry Lambda).
 
 ## Synopsis
 
@@ -182,5 +184,6 @@ agentcli prompt rollback my-agent-system 1.1.0
 
 ## See Also
 
-- [Prompt Registry SDK](../sdk/) — programmatic access to the Prompt Registry
+- [Prompts](../runtime/prompts) — lifecycle (draft → stable → deprecated), version pinning, mode-gating, and resolution order
+- [Prompts SDK Reference](../sdk/prompts) — programmatic access to the Prompt Registry via `PromptRegistryClient`
 - [Agent Blueprint](../blueprints/agent-blueprint) — how blueprints reference prompt versions with `prompt_ref`

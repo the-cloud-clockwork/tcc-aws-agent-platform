@@ -6,76 +6,153 @@ parent: Blueprints
 
 # Agent Blueprint
 
-An agent blueprint is a YAML file that fully declares an AI agent. Every configurable aspect -- the model it uses, how it runs, which tools it calls, how it remembers, who can invoke it, and how it is observed -- is expressed here. The platform reads this file at both SDK load time and Terraform plan time.
+An agent blueprint is a YAML file that fully declares an AI agent. Every configurable aspect — the model and inference provider, runtime configuration, tools, memory, identity, observability, and access-control policy — is expressed here. The platform reads this file at both SDK load time (for runtime wiring) and Terraform plan time (for infrastructure provisioning).
+
+**Required fields:** `id`, `version`, `name`, `model`, `prompt_ref`. Every other top-level block is optional and has a safe default.
 
 ---
 
 ## Identity Fields
 
 ```yaml
-id: researcher                  # Unique agent identifier (snake_case). Used as resource name key.
+id: researcher                  # Unique agent identifier. Kebab-case by convention.
 name: Research Agent            # Human-readable name displayed in dashboards.
 version: "1.0.0"               # Semantic version. Stamped on Runtime and ECR tags.
 description: Researches topics  # Optional. Used as Runtime description in AWS console.
-prompt_ref: researcher-system-v1  # Required. Reference key for the Prompt Registry (a string).
+prompt_ref: researcher-system-v1  # Required. Prompt Registry key (string).
 ```
 
-The `prompt_ref` field is a **required string** referencing a versioned prompt in the Prompt Registry (e.g., `researcher-system-v1`). It is not a nested object.
+`prompt_ref` is a **required plain string** referencing a versioned prompt in the Prompt Registry. It is not a nested object.
 
 ---
 
 ## `model:` Block
 
-Declares the LLM this agent uses. `model_id`, `temperature`, and `max_tokens` are all **required** -- the platform never assumes a default model or sampling parameters.
+Declares the LLM this agent uses. **`model_id`, `temperature`, and `max_tokens` are required** — the platform never assumes defaults for sampling parameters. `provider` defaults to `bedrock`.
+
+### Provider: `bedrock` (default)
 
 ```yaml
 model:
-  provider: bedrock                               # bedrock | anthropic | litellm | vertex
-  model_id: us.anthropic.claude-sonnet-4-20250514-v1:0  # Fully qualified model ID. Required.
-  temperature: 0.3                                # 0.0-1.0. Required.
-  max_tokens: 4096                                # Maximum output tokens. Required.
-  cache_prompt: default                           # Prompt caching policy: default | none | <key>
-  cache_tools: default                            # Tool-result caching policy
+  provider: bedrock
+  model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
+  temperature: 0.3
+  max_tokens: 4096
+  cache_prompt: default          # Prompt caching policy. default | none | <custom key>
+  cache_tools: default           # Tool-result caching policy.
 ```
 
-{: .warning }
-> There is no `region` field in `ModelConfig`. The Bedrock region is resolved from the `BEDROCK_REGION` environment variable.
+The Bedrock region is resolved from the `BEDROCK_REGION` environment variable, which **must** be set — `BlueprintLoader` raises `BlueprintLoadError` if it is absent. There is no `region` field on `ModelConfig`.
+
+### Provider: `anthropic`
+
+Calls the Anthropic API directly (not via Bedrock).
+
+```yaml
+model:
+  provider: anthropic
+  model_id: claude-sonnet-4-5
+  temperature: 0.3
+  max_tokens: 4096
+  api_key_env: ANTHROPIC_API_KEY   # Optional. Env var holding the Anthropic API key.
+```
+
+{: .note }
+> `temperature` is required by the schema but is **not forwarded** to `AnthropicModel` at runtime — only `model_id` and `max_tokens` are passed. Declare it for schema compliance; it has no effect on Anthropic inference.
+
+### Provider: `litellm`
+
+Routes requests through any LiteLLM-compatible proxy (LiteLLM server, vLLM, Ollama with OpenAI adapter, etc.).
+
+```yaml
+model:
+  provider: litellm
+  model_id: claude-sonnet-4-6           # Model name as the proxy expects it.
+  temperature: 0.3
+  max_tokens: 4096
+  base_url: https://llm.example.com     # Proxy base URL. Required for proxy routing.
+  api_key_env: LITELLM_API_KEY          # Optional. Env var holding the proxy API key.
+  extra_headers_env:                    # Optional. Header name → env var name map.
+    CF-Access-Client-Id: CF_CLIENT_ID   # Header resolved from $CF_CLIENT_ID at runtime.
+    CF-Access-Client-Secret: CF_CLIENT_SECRET
+```
+
+**How `base_url` works:** When `base_url` is set, the loader sets `custom_llm_provider="openai"` in the LiteLLM client arguments. This tells the litellm library to treat the endpoint as OpenAI-compatible and route all requests to `base_url`, regardless of what the model name looks like. Without this flag, litellm's model-name heuristic would detect `claude-*` or `gemini-*` and attempt to route to the native provider endpoint instead of your proxy.
+
+`model_id` is passed through unchanged — set it to the exact string your proxy expects.
+
+`temperature` and `max_tokens` are passed as LiteLLM `params`, not as constructor arguments.
+
+`extra_headers_env` is a map of HTTP header name to environment variable name. Each entry is resolved at runtime: if the env var is set and non-empty, the header is included in every request. This is the correct way to pass Cloudflare Access service tokens or similar per-request credentials.
+
+**Version constraint:** The platform pins `litellm>=1.83.0,<2`. Versions 1.82.7 and 1.82.8 were subject to a supply-chain attack (CVE-2026-33634) and must not be used.
+
+### Provider: `vertex`
+
+Uses the Strands `GeminiModel` backed by Google Vertex AI.
+
+```yaml
+model:
+  provider: vertex
+  model_id: gemini-2.0-flash    # Supports ${VAR} expansion via os.path.expandvars.
+  temperature: 0.3              # Required by schema; not forwarded to GeminiModel.
+  max_tokens: 4096              # Required by schema; not forwarded to GeminiModel.
+```
+
+{: .note }
+> For `vertex`, only `model_id` is forwarded to `GeminiModel`. `temperature`, `max_tokens`, `api_key_env`, `base_url`, and `extra_headers_env` are not wired by the loader. Vertex credentials are resolved from the environment via `GOOGLE_APPLICATION_CREDENTIALS`, `VERTEX_PROJECT`, and `VERTEX_LOCATION` — set these in your Runtime environment, not in the blueprint.
+
+### `model:` Field Reference
+
+| Field | Type | Required | Default | Notes |
+|-------|------|----------|---------|-------|
+| `provider` | `str` | No | `bedrock` | `bedrock` \| `anthropic` \| `litellm` \| `vertex` |
+| `model_id` | `str` | **Yes** | — | Supports `${VAR:-default}` expansion |
+| `temperature` | `float` | **Yes** | — | `0.0`–`1.0` |
+| `max_tokens` | `int` | **Yes** | — | Must be `> 0` |
+| `cache_prompt` | `str` | No | `default` | `default` \| `none` \| custom key |
+| `cache_tools` | `str` | No | `default` | Tool-result caching policy |
+| `base_url` | `str` | No | `null` | Used by `litellm`; ignored by others |
+| `api_key_env` | `str` | No | `null` | Env var name holding the API key |
+| `extra_headers_env` | `dict[str,str]` | No | `null` | Header → env var name map; `litellm` only |
 
 ---
 
 ## `runtime:` Block
 
-Controls how the agent runs on AgentCore Runtime (microVM per session, port 8080).
+Controls how the agent runs on AgentCore Runtime (microVM, one per session, port 8080).
 
 ```yaml
 runtime:
-  type: agentcore                 # Always agentcore -- the only supported runtime type
-  max_iterations: 10              # Maximum agentic loop iterations per session
-  max_execution_time: 300         # Hard timeout in seconds
-  idle_timeout_minutes: 30        # Session idle timeout before microVM terminates
-  network_mode: PUBLIC            # PUBLIC (internet-facing) | PRIVATE (VPC-only)
-  protocol: HTTP                  # HTTP (standard agents) | MCP (hosted MCP servers)
-  port: 8080                      # Container listen port for /invocations and /ping
-  a2a_port: 8081                  # A2A server port. 0 = disabled. Used when role=specialist.
-  platform: linux/arm64           # linux/arm64 (Graviton, required for AgentCore) | linux/amd64
-  observability_enabled: true     # Enable OTEL auto-instrumentation via opentelemetry-instrument
+  type: agentcore                 # Always agentcore — the only supported runtime type.
+  max_iterations: 10              # Maximum agentic loop iterations per session.
+  max_execution_time: 300         # Hard timeout in seconds.
+  idle_timeout_minutes: 30        # Session idle timeout before microVM terminates.
+  network_mode: PUBLIC            # PUBLIC (internet-facing) | PRIVATE (VPC-only).
+  protocol: HTTP                  # HTTP (standard agents) | MCP (hosted MCP servers).
+  port: 8080                      # Container listen port for /invocations and /ping.
+  a2a_port: 8081                  # A2A server port. 0 = disabled. Required for role=specialist.
+  platform: linux/arm64           # linux/arm64 (Graviton, required for AgentCore) | linux/amd64.
+  observability_enabled: true     # Enable OTEL auto-instrumentation in the container image.
 ```
 
-For PRIVATE network mode, VPC subnet IDs and security group IDs are resolved from the platform module outputs and wired automatically by Terraform -- no additional YAML is needed.
+For `PRIVATE` network mode, VPC subnet IDs and security group IDs are resolved from platform module outputs and wired automatically by Terraform.
+
+`observability_enabled` controls the OTEL `opentelemetry-instrument` wrapper in the Dockerfile — this is the infrastructure-level telemetry toggle. Application-level observability (Langfuse, audit log, cost tracking) is controlled separately by `observability.enabled`.
 
 ---
 
 ## `tools:` Block
 
-Declares which tools the agent can call. Two tool declaration types are supported and can be mixed freely.
+Declares which tools the agent can call. Three tool declaration types are supported and can be mixed freely.
 
 ### MCP Tools (via Gateway)
 
 ```yaml
 tools:
-  - mcp: data-service-mcp         # MCP server name registered as a Gateway target
+  - mcp: data-service-mcp          # MCP server name registered as a Gateway target.
     tools:
-      - query_records              # Individual tool names to expose
+      - query_records              # Individual tool names to expose from this server.
       - list_schemas
       - describe_table
 
@@ -89,30 +166,42 @@ tools:
 
 ```yaml
 tools:
-  - builtin: code_interpreter      # Sandboxed Python execution environment
-    network_mode: PUBLIC            # PUBLIC | PRIVATE
-    region: null                    # null = resolved from config/env
+  - builtin: code_interpreter      # Sandboxed Python execution environment.
+    network_mode: PRIVATE          # PUBLIC | PRIVATE (default: PUBLIC).
 
-  - builtin: browser               # Headless browser for web research
+  - builtin: browser               # Headless browser for web research.
     network_mode: PUBLIC
 ```
 
-Built-in tools must also be enabled in the platform module via `builtin_code_interpreter_enabled` and `builtin_browser_enabled` variables.
+Built-in tools are discovered dynamically from the Gateway at runtime — the platform filters Gateway tools by the `code-interpreter::` and `browser::` name prefixes respectively. Their lifecycle is fully managed by AgentCore; the platform makes no local SDK calls. Both must also be enabled in the platform module via `builtin_code_interpreter_enabled` and `builtin_browser_enabled` variables.
+
+### A2A Remote Agent Tools
+
+```yaml
+tools:
+  - a2a: specialist-agent          # Blueprint ID or A2A URL of a remote agent.
+```
+
+Wraps a remote A2A-capable agent as a callable tool within this agent's tool list. The platform resolves the agent card from `/.well-known/agent.json` on the remote endpoint and surfaces its skills as tools.
 
 ---
 
 ## `gateway:` Block
 
-Configures how the agent connects to AgentCore Gateway for tool access. All tool calls route through the Gateway -- no direct MCP connections.
+Configures how the agent connects to AgentCore Gateway for tool access.
 
 ```yaml
 gateway:
-  url: null                        # Gateway URL. Falls back to AGENTCORE_GATEWAY_URL env var.
+  url: null                        # Gateway URL. Defaults to AGENTCORE_GATEWAY_URL env var.
   auth_type: aws_iam               # aws_iam | custom_jwt | none
-  jwt_env_var: null                # Env var holding the JWT (for custom_jwt auth)
-  region: null                     # AWS region for SigV4 signing. Falls back to AWS_REGION.
-  service_name: bedrock-agentcore  # AWS service name for SigV4 signing
+  jwt_env_var: null                # Env var holding the JWT (for custom_jwt auth only).
+  region: null                     # AWS region for SigV4 signing. Defaults to AWS_REGION.
+  service_name: bedrock-agentcore  # AWS service name for SigV4 signing.
 ```
+
+`auth_type: aws_iam` uses SigV4 signing. The platform prefers the `mcp-proxy-for-aws` library for SigV4 transport when available, and falls back to a bundled implementation if not installed.
+
+`auth_type: none` is for local development only and must not be used in production.
 
 ---
 
@@ -120,7 +209,7 @@ gateway:
 
 Controls inbound authorisation (who can call this agent) and outbound credentials (what external services the agent can authenticate to).
 
-### Authorizer
+### Inbound Authorizer
 
 ```yaml
 identity:
@@ -130,36 +219,39 @@ identity:
     allowed_clients:
       - client-app-id-1
       - client-app-id-2
+```
 
-  # For cognito_jwt type:
-  # authorizer:
-  #   type: cognito_jwt
-  #   user_pool_id: ${COGNITO_USER_POOL_ID}
-  #   client_id: ${COGNITO_CLIENT_ID}
+For `cognito_jwt`, both `user_pool_id` and `client_id` are required (schema-enforced):
+
+```yaml
+  authorizer:
+    type: cognito_jwt
+    user_pool_id: ${USER_POOL_ID}
+    client_id: ${COGNITO_CLIENT_ID}
 ```
 
 ### Outbound Credentials
 
-Only two credential types are supported: `api_key` and `oauth2`.
+Two credential types are supported: `api_key` and `oauth2`. All credential resolution delegates to AgentCore Identity — there is no local env-var fallback.
 
 ```yaml
 identity:
   credentials:
     # API key credential
     - name: data-api-key
-      type: api_key                # api_key | oauth2 (only these two types)
-      provider: DataServiceApiKey  # Provider name registered in AgentCore Identity
+      type: api_key
+      provider: DataServiceApiKey  # Provider name registered in AgentCore Identity.
 
-    # OAuth2 credential (M2M -- machine-to-machine)
+    # OAuth2 M2M (machine-to-machine / client credentials)
     - name: internal-service-token
       type: oauth2
       provider: InternalServiceOAuth
       scopes:
         - read:records
         - write:records
-      auth_flow: M2M               # M2M | USER_FEDERATION
+      auth_flow: M2M
 
-    # OAuth2 credential (USER_FEDERATION -- three-legged)
+    # OAuth2 USER_FEDERATION (three-legged / delegated user auth)
     - name: user-delegated-token
       type: oauth2
       provider: UserDelegatedOAuth
@@ -174,69 +266,70 @@ identity:
 
 ## `memory:` Block
 
-Configures long-term memory integration via AgentCore Memory. There is no `mode` field -- the presence of strategies enables memory automatically.
+Configures AgentCore Memory integration. Memory is enabled automatically when `strategies` is non-empty — there is no `mode` field. The `AGENTCORE_MEMORY_ID` environment variable must be set at runtime; `BlueprintLoader` raises `BlueprintLoadError` if it is absent when strategies are declared.
 
-The canonical strategy type for summarization is `SUMMARY`. The alias `SUMMARIZATION` is accepted and automatically normalized to `SUMMARY`.
+The canonical strategy type for summarisation is `SUMMARY`. `SUMMARIZATION` is accepted as an alias and normalised automatically.
 
 ```yaml
 memory:
   strategies:
     - type: SEMANTIC              # SEMANTIC | SUMMARY | USER_PREFERENCE | EPISODIC
-      name: knowledge-base        # Human-readable strategy name
-      namespace: "{actorId}/knowledge"  # Namespace template with {actorId}/{sessionId} placeholders
+      name: knowledge-base
+      namespace: "{actorId}/knowledge"   # Supports {actorId} and {sessionId} placeholders.
 
     - type: USER_PREFERENCE
       name: preferences
       namespace: "{actorId}/preferences"
 
-    - type: SUMMARY               # Canonical name. SUMMARIZATION accepted as alias.
+    - type: SUMMARY               # SUMMARIZATION is accepted as an alias.
       name: session-summaries
       namespace: "{actorId}/{sessionId}/summary"
 
-  event_expiry_days: 30           # Memory event retention (1-365 days)
-  short_term_k: 5                 # Number of recent memories to surface per turn
-  enable_tool_provider: true      # Expose memory_recall and memory_record as agent tools
+  event_expiry_days: 30           # Short-term event TTL. Range: 1–365. Default: 30.
+  short_term_k: 5                 # Last-K turns injected at agent init. Default: 5.
+  enable_tool_provider: false     # Expose memory_recall / memory_record as agent tools.
   retrieval:
-    - namespace: "{actorId}/knowledge"   # Namespaces queried on agent initialisation
-      top_k: 10
-      relevance_score: 0.4
+    - namespace: "{actorId}/knowledge"   # Namespaces queried on agent initialisation.
+      top_k: 10                          # Default: 5. Range: 1–100.
+      relevance_score: 0.4              # Default: 0.3. Range: 0.0–1.0.
 ```
+
+Long-term memory extraction is asynchronous — strategy results typically appear within ~30 seconds of the source conversation turn. Short-term events respect the `event_expiry_days` TTL; long-term strategy-extracted memories persist until explicitly deleted.
 
 ---
 
 ## `observability:` Block
 
-Controls tracing, audit logging, dashboards, and data protection.
+Controls application-level tracing, audit logging, dashboards, and data protection. Setting `enabled: false` skips all hooks in this section (Langfuse, audit log, structured logger, cost tracker).
 
 ```yaml
 observability:
-  enabled: true
-  trace_attributes:              # Static key-value pairs attached to every OTEL span
+  enabled: true                   # Master toggle for all application-level observability.
+  trace_attributes:               # Static key-value pairs on every OTEL span.
     team: platform
     tier: core
 
   langfuse:
     enabled: true
-    public_key_env: LANGFUSE_PUBLIC_KEY   # Env var holding the Langfuse public key
-    secret_key_env: LANGFUSE_SECRET_KEY   # Env var holding the Langfuse secret key
+    public_key_env: LANGFUSE_PUBLIC_KEY   # Env var holding the Langfuse public key.
+    secret_key_env: LANGFUSE_SECRET_KEY
     host_env: LANGFUSE_HOST
     tags:
       - production
-      - researcher-agent
 
   audit_log:
     enabled: true
-    ttl_days: 1825                         # ~5 years retention (field is ttl_days, not ttl_years)
-    table_env: AUDIT_LOG_TABLE             # Env var holding DynamoDB table name
+    ttl_days: 1825                         # Retention period. Default: 1825 (~5 years).
+    table_env: AUDIT_LOG_TABLE             # Env var holding DynamoDB table name.
 
   dashboard:
     metric_namespace: AgentPlatform
     log_group_prefix: agents/
     custom_metrics:
       - custom_tool_latency_ms
-      - domain_specific_score
 
   data_protection:
+    provider: bedrock              # bedrock | presidio | none
     guardrail_id_env: BEDROCK_GUARDRAIL_ID
     guardrail_version_env: BEDROCK_GUARDRAIL_VERSION
     cloudwatch_masking_identifiers:
@@ -244,32 +337,61 @@ observability:
       - USPhoneNumber
 ```
 
+### Data Protection Providers
+
+The `data_protection.provider` field selects the in-process PII filtering mechanism:
+
+| Provider | Mechanism | Requirements |
+|----------|-----------|-------------|
+| `bedrock` | AWS Bedrock Guardrails API (`ApplyGuardrail`) | `model.provider: bedrock` **and** `BEDROCK_GUARDRAIL_ID` env var set. If either is absent the hook is a no-op — no crash. |
+| `presidio` | Local Microsoft Presidio redaction (no AWS dependency) | `pip install 'agent-core[presidio]'`. Works with any inference provider. |
+| `none` | No in-process PII filter | — |
+
+For `presidio`, configure which entity types to detect and the analyzer language:
+
+```yaml
+  data_protection:
+    provider: presidio
+    presidio_entities:            # Empty list = Presidio default entity set.
+      - EMAIL_ADDRESS
+      - PHONE_NUMBER
+      - CREDIT_CARD
+      - US_SSN
+    presidio_language: en
+```
+
+Presidio engines are lazy-loaded on the first hook invocation — there is no startup cost unless the hook actually fires.
+
+**CloudWatch Data Protection** (`cloudwatch_masking_identifiers`) is a separate Layer 2 mechanism that masks PII patterns in CloudWatch log streams at storage time. It is independent of the `provider` selection and is always active when the list is non-empty.
+
 ---
 
 ## `evaluation:` Block
 
-Configures online (continuous production) evaluation and custom LLM-as-judge evaluators.
+Configures continuous production monitoring and custom LLM-as-judge evaluators. The `provider` field selects the evaluation backend.
 
 ```yaml
 evaluation:
+  provider: agentcore             # agentcore | langfuse. Default: agentcore.
+
   online:
-    sampling_rate: 20             # Evaluate 20% of production sessions
+    sampling_rate: 20             # Percentage of sessions to evaluate. Range: 1–100.
     evaluators:
-      - Builtin.Correctness       # 12 built-in evaluators available
+      - Builtin.Correctness       # 12 built-in evaluators available (see table below).
       - Builtin.Helpfulness
       - Builtin.Harmlessness
       - Builtin.GoalSuccessRate
-      - custom-quality-judge      # Reference a custom evaluator by name
+      - custom-quality-judge      # Reference a custom evaluator by name.
     auto_create_execution_role: true
 
   custom_evaluators:
     - name: custom-quality-judge
       level: TRACE                # TRACE | SESSION | SPAN
-      model_id: us.anthropic.claude-haiku-4-20250514-v1:0
+      model_id: ${EVAL_JUDGE_MODEL_ID}
       max_tokens: 512
       temperature: 0.0
       instructions: |
-        Evaluate the assistant response for quality given the conversation context.
+        Evaluate the assistant response for quality given the conversation.
         Context: {context}
         Response: {assistant_turn}
         Rate from 1 to 5 where 5 is excellent.
@@ -277,11 +399,17 @@ evaluation:
 
   persistence:
     enabled: true
-    table_env: EVALUATION_TABLE
+    table_env: EVALUATION_TABLE   # Env var holding the DynamoDB table name.
     retention_days: 90
 ```
 
-Available built-in evaluators:
+**`provider: agentcore`** wraps `bedrock_agentcore_starter_toolkit.Evaluation` and requires `AWS_REGION`. The judge model must be a Bedrock model ARN.
+
+**`provider: langfuse`** wraps `LangfuseEvaluationClient` and requires `LANGFUSE_HOST`, `LANGFUSE_PUBLIC_KEY`, and `LANGFUSE_SECRET_KEY`. Online evaluation rules are configured in the Langfuse dashboard — `create_online_config` is a no-op stub that logs a reminder. This provider is agnostic to the inference provider used by the agent.
+
+`persistence` stores evaluation scores independently in DynamoDB and is available regardless of which `provider` is selected.
+
+### 12 Built-in Evaluators
 
 | Category | Evaluator | Level |
 |----------|-----------|-------|
@@ -302,13 +430,13 @@ Available built-in evaluators:
 
 ## `policy:` Block
 
-Configures Cedar access-control policies attached to the AgentCore Gateway. The platform translates simplified YAML rules into Cedar and attaches them to the Gateway policy engine.
+Configures Cedar access-control policies attached to the AgentCore Gateway. The platform translates YAML rules into Cedar and attaches them to a per-agent policy engine.
 
 ```yaml
 policy:
-  engine: ResearchServicePolicies   # Policy engine name
+  engine: ResearchServicePolicies   # Policy engine name.
   mode: ENFORCE                     # ENFORCE | LOG_ONLY
-  target_prefix: ResearchTarget     # Actions become ResearchTarget___<tool_name>
+  target_prefix: ResearchTarget     # Actions become ResearchTarget___<tool_name>.
 
   rules:
     - name: allow_public_query
@@ -322,86 +450,168 @@ policy:
       deny: delete_record
       unless: "principal.scope.contains('group:Admins')"
 
-    - name: managers_approve
-      allow: approve_action
-      principal: 'AgentCore::Principal::"manager-role"'
-
   versioning:
     enabled: true
     table_env: POLICY_VERSIONS_TABLE
     max_versions: 10
 ```
 
+`ENFORCE` mode blocks unauthorised calls — the agent receives an authorization error. `LOG_ONLY` mode allows all calls through and logs the unauthorized decisions only.
+
+Cedar uses a **default-deny** model: an empty policy engine blocks all tool calls. Any `permit` match with no `forbid` match allows the call; any `forbid` match overrides all permits.
+
+See [Identity, Policy & IAM](../policy) for the full Cedar semantics reference.
+
 ---
 
 ## `multi_agent:` Block
 
-Configures multi-agent coordination when this agent participates in a graph or swarm topology.
-
-The field is `pattern` (not `type`). Nodes use `agent_ref` and `node_id` (not `id`).
+Configures this agent's role in a multi-agent coordination topology. The field is `pattern` (not `type`). Nodes use `agent_ref` and `node_id`.
 
 ```yaml
 multi_agent:
-  pattern: graph                 # Orchestration pattern: swarm | graph
+  pattern: graph                 # swarm | graph
   role: coordinator              # coordinator | specialist | standalone
-  execution_timeout: 180         # Total execution timeout in seconds
-  node_timeout: 60               # Per-node timeout in seconds
-  max_handoffs: 10               # Maximum handoff count
-  max_iterations: 30             # Maximum iterations
-  entry_point: data_collection   # Node ID to start execution from (must be in nodes)
+  execution_timeout: 180         # Total execution timeout in seconds.
+  node_timeout: 60               # Per-node timeout in seconds.
+  max_handoffs: 10               # Maximum handoff count.
+  max_iterations: 30             # Maximum agentic loop iterations.
+  entry_point: data_collection   # node_id to start from (must exist in nodes).
   nodes:
-    - agent_ref: simple-agent    # Blueprint ID to load for this node
-      node_id: data_collection   # Unique node identifier within the graph
+    - agent_ref: collector-agent  # Blueprint ID to load for this node.
+      node_id: data_collection    # Unique identifier within the graph.
     - agent_ref: analyzer-agent
       node_id: deep_analysis
   edges:
     - from_node: data_collection
       to_node: deep_analysis
-      condition: null             # Optional safe expression, or null for unconditional
+      condition: null             # Condition expression or null for unconditional.
 ```
 
-For specialist agents:
+For **specialist** agents that expose an A2A server, set `role: specialist` and set `a2a_port` in the `runtime:` block to a non-zero port (e.g. 8081). `BlueprintLoader` detects this combination and auto-mounts an A2A server on that port.
 
-```yaml
-multi_agent:
-  pattern: swarm
-  role: specialist
-  # a2a_port in runtime: block must be non-zero for A2A server to start
-```
-
-### Remote Node Options
-
-For cross-runtime A2A communication, nodes support remote addressing:
+### Remote Node Addressing
 
 ```yaml
 nodes:
   - agent_ref: remote-specialist
     node_id: remote_step
-    a2a_url_env: REMOTE_SPECIALIST_A2A_URL   # Env var holding the A2A URL
+    a2a_url_env: REMOTE_SPECIALIST_A2A_URL   # Env var holding the A2A URL.
   - agent_ref: another-specialist
     node_id: direct_invoke
-    runtime_arn_env: SPECIALIST_RUNTIME_ARN   # Env var holding the Runtime ARN
+    runtime_arn_env: SPECIALIST_RUNTIME_ARN  # Env var holding the Runtime ARN.
+```
+
+### Gate Nodes
+
+Gate nodes evaluate a condition rather than running an agent:
+
+```yaml
+nodes:
+  - node_id: confidence_gate
+    type: gate
+    trip_condition: "confidence >= 0.8"
+    fallback: low_confidence_handler   # node_id to route to when condition is not met.
+```
+
+---
+
+## `output_schema:` Field
+
+Declares the name of a structured output schema registered in `BlueprintLoader`'s schema registry. When set, the platform wires Strands native structured output (`structured_output_model` kwarg) so the agent's final response is validated against the schema.
+
+```yaml
+output_schema: AnalysisOutput    # Schema name registered in BlueprintLoader.
+```
+
+Strands native structured output (forced-tool pattern) is used for all providers as of strands-agents 1.41.0. The minimum required version is `strands-agents>=1.0.0,<2`.
+
+---
+
+## `thinking:` Block
+
+Enables extended thinking for agents that require deeper reasoning steps. Supported on models that implement Anthropic's extended thinking API.
+
+```yaml
+thinking:
+  enabled: true
+  budget_tokens: 10000           # Token budget for reasoning. Default: 10000.
+```
+
+---
+
+## `artifacts:` Block
+
+Configures mandatory artifact storage for agent outputs. Artifacts are persisted via the claim-check pattern — large outputs land in S3 with a reference key passed through the workflow.
+
+```yaml
+artifacts:
+  tier: platform                 # platform | domain. Selects the S3 bucket.
+  type: report                   # Artifact type label (e.g. report, analysis_result).
+```
+
+---
+
+## `execution_modes:` Block
+
+Controls in which execution environments the agent is active. Defaults: `simulation: true`, `staging: false`, `production: false`.
+
+```yaml
+execution_modes:
+  simulation: true               # Active in simulation / testing environment.
+  staging: true                  # Active in staging environment.
+  production: false              # Disabled in production until promoted.
+```
+
+---
+
+## `hooks:` Field
+
+Lists custom hook names resolved via `BlueprintLoader`'s hook registry. The observability hook is auto-wired from the `observability:` block and must **not** be declared here.
+
+```yaml
+hooks:
+  - my-custom-validation-hook
+  - domain-specific-audit-hook
+```
+
+---
+
+## `tags:` Field
+
+`tags` on `AgentBlueprint` is a **list of strings**, not a key-value map:
+
+```yaml
+tags:
+  - production
+  - researcher
+  - v2
 ```
 
 ---
 
 ## Complete Annotated Example
 
+The example below shows all major blocks wired together using the `litellm` provider. For a `bedrock` equivalent, replace the `model:` block and set `data_protection.provider: bedrock`.
+
 ```yaml
-id: researcher
+id: research-agent
 name: Research Agent
 version: "1.2.0"
-description: Researches topics using web search and internal knowledge bases
+description: Researches topics using web search and internal knowledge bases.
 
-prompt_ref: researcher-system-v1
+prompt_ref: research-agent-system-v1
 
 model:
-  provider: bedrock
-  model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
+  provider: litellm
+  model_id: ${AGENT_MODEL_ID:-claude-sonnet-4-6}
   temperature: 0.2
   max_tokens: 8192
-  cache_prompt: default
-  cache_tools: default
+  base_url: https://llm.example.com
+  api_key_env: LITELLM_API_KEY
+  extra_headers_env:
+    CF-Access-Client-Id: CF_CLIENT_ID
+    CF-Access-Client-Secret: CF_CLIENT_SECRET
 
 runtime:
   type: agentcore
@@ -457,7 +667,7 @@ observability:
   enabled: true
   trace_attributes:
     team: platform
-    agent: researcher
+    agent: research-agent
   langfuse:
     enabled: true
     public_key_env: LANGFUSE_PUBLIC_KEY
@@ -467,8 +677,14 @@ observability:
     enabled: true
     ttl_days: 1825
     table_env: AUDIT_LOG_TABLE
+  data_protection:
+    provider: presidio            # Provider-agnostic PII filtering.
+    presidio_entities:
+      - EMAIL_ADDRESS
+      - PHONE_NUMBER
 
 evaluation:
+  provider: langfuse              # Provider-agnostic evaluation backend.
   online:
     sampling_rate: 10
     evaluators:
@@ -484,4 +700,37 @@ policy:
       allow: search_documents
     - name: allow_retrieve
       allow: retrieve_by_id
+
+execution_modes:
+  simulation: true
+  staging: true
+  production: false
 ```
+
+---
+
+## Top-Level Field Reference
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `id` | `str` | **Yes** | — | Unique agent identifier (kebab-case recommended) |
+| `version` | `str` | **Yes** | — | Semantic version string |
+| `name` | `str` | **Yes** | — | Human-readable display name |
+| `description` | `str` | No | `""` | Runtime description in AWS console |
+| `model` | `ModelConfig` | **Yes** | — | Inference provider + model parameters |
+| `prompt_ref` | `str` | **Yes** | — | Prompt Registry key |
+| `tools` | `list[ToolDeclaration]` | No | `[]` | MCP tools, built-ins, and A2A remote agents |
+| `gateway` | `GatewayConfig` | No | auth_type=aws_iam | Gateway connection config |
+| `identity` | `IdentityConfig` | No | empty | Inbound authoriser and outbound credentials |
+| `memory` | `MemoryConfig` | No | empty | AgentCore Memory strategies |
+| `observability` | `ObservabilityConfig` | No | enabled=true | OTEL, Langfuse, audit, data protection |
+| `runtime` | `RuntimeConfig` | No | sensible defaults | Runtime type, timeouts, network mode |
+| `evaluation` | `EvaluationConfig` | No | provider=agentcore | Online evaluation configuration |
+| `policy` | `PolicyConfig` | No | `null` | Cedar access-control policy |
+| `execution_modes` | `ExecutionModes` | No | simulation=true | Environment gates |
+| `output_schema` | `str` | No | `null` | Structured output schema name |
+| `hooks` | `list[str]` | No | `[]` | Custom hook names (not observability) |
+| `multi_agent` | `MultiAgentConfig` | No | `null` | Multi-agent topology configuration |
+| `tags` | `list[str]` | No | `[]` | Arbitrary string tags |
+| `thinking` | `ThinkingConfig` | No | `null` | Extended thinking configuration |
+| `artifacts` | `ArtifactConfig` | No | tier=platform | Artifact storage configuration |

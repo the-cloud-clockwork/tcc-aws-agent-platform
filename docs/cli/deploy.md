@@ -143,6 +143,7 @@ The CLI passes this through to the starter toolkit's `configure()` call.
 
 ## See Also
 
-- [Runtime Concepts](../concepts/runtime) — what AgentCore Runtime is and how it works
-- [agentcli generate](generate) — generate artifacts without deploying
+- [Runtime & Memory](../runtime/runtime) — the `/invocations` + `/ping` container contract, and how AgentCore Runtime manages agent lifecycle
+- [agentcli generate](generate) — generate `.bedrock_agentcore.yaml` and `Dockerfile` without deploying (for CI pipelines)
 - [agentcli blueprint lint](blueprint) — validate the blueprint before deploying
+- [Inference Providers](../inference) — configure `provider: bedrock | anthropic | litellm | vertex` in the blueprint model block

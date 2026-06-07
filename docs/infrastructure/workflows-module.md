@@ -1,7 +1,7 @@
 ---
 title: Workflows Module
 nav_order: 3
-parent: Infrastructure
+parent: "Infrastructure (Terraform)"
 ---
 
 # Workflows Module
