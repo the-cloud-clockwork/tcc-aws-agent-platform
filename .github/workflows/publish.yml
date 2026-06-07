@@ -36,4 +36,8 @@ jobs:
         run: pip install build twine
 
       - name: Publish agent-core via publish-wheel.sh
-        run: ./core/scripts/publish-wheel.sh
+        run: |
+          # Resolve the account id at runtime from the configured AWS creds,
+          # so it is not hardcoded in the public repo.
+          export CODEARTIFACT_DOMAIN_OWNER="$(aws sts get-caller-identity --query Account --output text)"
+          ./core/scripts/publish-wheel.sh
