@@ -1064,7 +1064,7 @@ class TestAliasPlatformArtifact:
 
         env = {
             "ARTIFACTS_BUCKET": "test-bucket",
-            "ARTIFACTS_TABLE": "qitp-dev-artifacts",
+            "ARTIFACTS_TABLE": "test-artifacts",
         }
         with patch.dict("os.environ", env, clear=False):
             with patch.dict(sys.modules, {"boto3": mock_boto3}):
@@ -1122,7 +1122,7 @@ class TestAliasPlatformArtifact:
 
         env = {
             "ARTIFACTS_BUCKET": "test-bucket",
-            "ARTIFACTS_TABLE": "qitp-dev-artifacts",
+            "ARTIFACTS_TABLE": "test-artifacts",
         }
         with patch.dict("os.environ", env, clear=False):
             with patch.dict(sys.modules, {"boto3": mock_boto3}):

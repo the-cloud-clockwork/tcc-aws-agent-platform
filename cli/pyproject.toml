@@ -7,6 +7,15 @@ name = "agent-cli"
 version = "0.1.0"
 description = "Agent CLI tool for prompt management, blueprint validation, and graph rendering"
 requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [
+    {name = "The Cloud Clockwork"},
+]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.12",
+    "Development Status :: 4 - Beta",
+]
 dependencies = [
     "typer>=0.12.0",
     "rich>=13.7.0",
@@ -23,6 +32,12 @@ dev = [
     "pytest-cov>=5.0.0",
     "ruff>=0.4,<1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform"
+Documentation = "https://the-cloud-clockwork.github.io/tcc-aws-agent-platform"
+Source = "https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform"
+Issues = "https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform/issues"
 
 [project.scripts]
 agentcli = "agent_cli.main:app"

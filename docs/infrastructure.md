@@ -69,7 +69,7 @@ A typical root module wires all three together:
 
 ```hcl
 module "platform" {
-  source = "git::https://github.com/your-org/aws-agent-platform.git//modules/platform?ref=v1.0.0"
+  source = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git//modules/platform?ref=v1.0.0"
 
   # Networking (externally managed)
   vpc_id              = var.vpc_id
@@ -85,7 +85,7 @@ module "platform" {
 }
 
 module "agents" {
-  source     = "git::https://github.com/your-org/aws-agent-platform.git//modules/agents?ref=v1.0.0"
+  source     = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git//modules/agents?ref=v1.0.0"
   depends_on = [module.platform]
 
   blueprint_dir        = "${path.module}/blueprints/agents"
@@ -111,7 +111,7 @@ module "agents" {
 }
 
 module "workflows" {
-  source     = "git::https://github.com/your-org/aws-agent-platform.git//modules/workflows?ref=v1.0.0"
+  source     = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git//modules/workflows?ref=v1.0.0"
   depends_on = [module.agents]
 
   workflow_dir       = "${path.module}/blueprints/workflows"

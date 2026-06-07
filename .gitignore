@@ -21,7 +21,10 @@ ENV/
 coverage.xml
 htmlcov/
 .tox/
-.build/**
+**/.build/
+
+# Internal / operator-only docs — NOT part of the public open-source repo
+operator/
 
 # Type checking
 .mypy_cache/

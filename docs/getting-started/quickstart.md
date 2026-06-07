@@ -24,7 +24,14 @@ Install the SDK and CLI, write a minimal agent blueprint, and validate it — in
 
 ## Step 1: Configure Your Package Index
 
-> **Package availability:** `agent-core`, `agent-cli`, `prompt-registry`, and `mcp-artifacts` are currently published to a **private** package registry (AWS CodeArtifact). A public distribution channel (PyPI or GitHub Packages) is planned but not yet available. Until then, access requires an authorized CodeArtifact token from your organization.
+> **Package availability — not on PyPI.** `agent-core`, `agent-cli`, `prompt-registry`, and `mcp-artifacts` are published to a **private AWS CodeArtifact registry** and are **not yet available on PyPI**. External users without CodeArtifact access should install directly from source:
+> ```bash
+> git clone https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git
+> cd tcc-aws-agent-platform
+> pip install -e "core/"        # agent-core
+> pip install -e "cli/"         # agent-cli
+> ```
+> A public distribution channel (PyPI or GitHub Packages) is planned but not yet available. Organizations with CodeArtifact access: configure your index URL below.
 
 Configure pip to point at your organization's registry before installing:
 

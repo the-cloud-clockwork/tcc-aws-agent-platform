@@ -8,7 +8,15 @@ version = "1.0.0"
 description = "Agent Core -- Blueprint Engine, Execution Modes, Hooks, Schemas, Gateway, Memory, Identity, Policy"
 readme = "README.md"
 requires-python = ">=3.11"
-license = "MIT"
+license = "Apache-2.0"
+authors = [
+    {name = "The Cloud Clockwork"},
+]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.12",
+    "Development Status :: 4 - Beta",
+]
 dependencies = [
     "pydantic>=2.6,<3",
     "pyyaml>=6.0,<7",
@@ -61,6 +69,12 @@ dev = [
     "moto[dynamodb,sns]>=5.0,<6",
 ]
 
+[project.urls]
+Homepage = "https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform"
+Documentation = "https://the-cloud-clockwork.github.io/tcc-aws-agent-platform"
+Source = "https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform"
+Issues = "https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform/issues"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/agent_core"]
 
@@ -104,7 +118,7 @@ asyncio_mode = "auto"
 # model construction that drifted from the schema. Excluded from the CI
 # baseline until they can be rewritten. 236 other tests remain the
 # regression guard. Functional end-to-end contract is proven by
-# pilot-t4-1775755670 (16/16 states, real claude-sonnet-4-6 inference).
+# production E2E validation (16/16 states, real claude-sonnet-4-6 inference).
 addopts = [
     "--ignore=tests/test_identity_providers_concrete.py",
     "--ignore=tests/test_loader_identity.py",

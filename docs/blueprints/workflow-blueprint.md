@@ -338,7 +338,7 @@ The workflows module receives agent Runtime ARNs from the agents module:
 
 ```hcl
 module "workflows" {
-  source = "git::https://github.com/your-org/aws-agent-platform.git//modules/workflows"
+  source = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git//modules/workflows"
 
   workflow_dir       = "./blueprints/workflows"
   agent_runtime_arns = module.agents.runtime_arns  # map of agent_id -> Runtime ARN

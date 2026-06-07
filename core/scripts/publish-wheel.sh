@@ -23,9 +23,15 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CORE_DIR="$(cd "$HERE/.." && pwd)"
 REGION="${AWS_REGION:-eu-west-1}"
 DOMAIN="${CODEARTIFACT_DOMAIN:-platform}"
-DOMAIN_OWNER="${CODEARTIFACT_DOMAIN_OWNER:-123456789012}"
+DOMAIN_OWNER="${CODEARTIFACT_DOMAIN_OWNER:-}"
 REPO="${CODEARTIFACT_REPO:-platform-python}"
 PACKAGE="agent-core"
+
+if [[ -z "$DOMAIN_OWNER" ]]; then
+    echo "ERROR: CODEARTIFACT_DOMAIN_OWNER is not set. Export it before running this script." >&2
+    echo "  export CODEARTIFACT_DOMAIN_OWNER=<your-aws-account-id>" >&2
+    exit 1
+fi
 
 # Read the fixed version straight from pyproject.toml
 VERSION="$(grep -E '^version = ' "$CORE_DIR/pyproject.toml" | head -1 | sed -E 's/version = "(.*)"/\1/')"
