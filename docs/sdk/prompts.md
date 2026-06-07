@@ -6,178 +6,151 @@ parent: SDK Reference
 
 # Prompt Registry
 
-The Prompt Registry provides versioned, environment-aware management of agent prompts. Prompts move through a lifecycle (draft → active → archived) and are resolved at runtime based on the deployment mode — so a staging environment can use different prompt versions than production without code changes.
+The Prompt Registry provides versioned, environment-aware management of agent system prompts. Prompts move through a three-state lifecycle and are resolved at runtime based on the deployment mode — staging environments pick up different versions than production without any code changes.
 
-## Concepts
+> **Architecture guide:** [Runtime & Memory](../runtime.md)
 
-### Versioning Lifecycle
+## Key Classes
 
-Every prompt version follows a three-state lifecycle:
+| Class | Module | Purpose |
+|-------|--------|---------|
+| `PromptRegistryClient` | `agent_core.prompt.client` | Runtime prompt resolution — three-tier resolution order |
+
+## Versioning Lifecycle
 
 ```
-draft → active → archived
+draft → stable → deprecated
 ```
 
-- **draft**: Work in progress. Never served to production traffic. Safe for iteration and review.
-- **active**: The version currently served. Only one version per prompt can be active at a time in each mode. Promoting a new version atomically deactivates the previous one.
-- **archived**: Historical versions. Readable for audit and rollback, not served.
+| Status | Description |
+|--------|-------------|
+| `draft` | Work in progress. Accessible in `simulation` and `dev` modes only. Never served to staging or production. |
+| `stable` | The version currently served. Only one version per prompt can be stable at a time. Promotion atomically deprecates the previous stable version. |
+| `deprecated` | Historical versions. Readable for audit and rollback, not served to live traffic. |
 
-### Mode-Gated Resolution
+## Mode-Gated Resolution
 
-The registry distinguishes three deployment modes:
+| Mode | Draft Allowed | Resolves |
+|------|--------------|---------|
+| `simulation` | Yes | Latest draft or stable version |
+| `dev` | Yes | Latest draft or stable version |
+| `staging` | No | Latest stable version |
+| `production` | No | Latest stable version |
 
-| Mode | Typical Environment | Behavior |
-|------|--------------------|---------:|
-| `simulation` | Local / CI | Resolves the latest draft or active version |
-| `staging` | Pre-production | Resolves the active version for staging |
-| `production` | Production | Resolves the active version for production |
-
-Modes ensure a prompt can be validated in staging before going live, and that simulation environments pick up draft changes immediately.
-
-## PromptRegistryClient
+## `PromptRegistryClient`
 
 ```python
-from prompt_registry import PromptRegistryClient
+class PromptRegistryClient:
+    def __init__(
+        self,
+        registry_url: str | None = None,           # Fallback: PROMPT_REGISTRY_URL env var
+        lambda_function_name: str | None = None,   # Fallback: PROMPT_REGISTRY_FUNCTION env var
+        local_dir: str | Path | None = None,       # Local file fallback root
+        timeout: float = 10.0,
+    ) -> None: ...
 
-client = PromptRegistryClient.from_env()
+    def get(self, prompt_ref: str) -> str:
+        """Resolve a prompt to its text content.
+        
+        prompt_ref formats:
+          "my-prompt"          — latest stable (or draft in simulation/dev)
+          "my-prompt@v3"       — explicit version pin
+          "my-prompt_v3"       — alternate pin syntax
+        
+        Returns the prompt text as a plain string.
+        """
+        ...
 ```
 
-The client reads its configuration from environment variables set by the platform's Terraform deployment.
+**There is no `from_env()` classmethod.** Environment variables are read in `__init__` via `os.environ.get`.
 
-## API Reference
+## Three-Tier Resolution Order
 
-### push
+`PromptRegistryClient.get()` resolves prompts in this order (first success wins):
 
-Upload a new draft version of a prompt:
+1. **Direct Lambda invoke** via `boto3` when `PROMPT_REGISTRY_FUNCTION` is set — the standard production path. Bypasses HTTP for lower latency and no Function URL exposure.
+2. **HTTP GET** to `PROMPT_REGISTRY_URL` — used when the Lambda ARN is not available (external callers, cross-account).
+3. **Local file fallback** from `local_dir/{prompt_ref}.txt` — for local development and CI without a deployed registry.
+
+Set `PROMPT_REGISTRY_FUNCTION` to the Lambda function name in production environments.
+
+## Version Pinning
 
 ```python
-version_id = await client.push(
-    name="customer-greeting",
-    content="You are a helpful assistant. Greet the user warmly and ask how you can help.",
-    metadata={"author": "platform-team", "ticket": "PLAT-42"},
-)
-print(version_id)  # "customer-greeting:v5"
+client = PromptRegistryClient()
+
+# Latest stable version
+text = client.get("customer-greeting")
+
+# Pinned to a specific version
+text = client.get("customer-greeting@v3")
+text = client.get("customer-greeting_v3")   # Equivalent alternate syntax
 ```
 
-A pushed version always starts in `draft` state.
-
-### get
-
-Retrieve a prompt, resolved for the current mode:
-
-```python
-# Resolves active version for the current deployment mode
-prompt = await client.get("customer-greeting")
-
-# Resolve a specific version explicitly
-prompt = await client.get("customer-greeting", version="v3")
-
-# Resolve for a specific mode
-prompt = await client.get("customer-greeting", mode="staging")
-
-print(prompt.content)
-print(prompt.version)   # "v5"
-print(prompt.state)     # "active"
-```
-
-### list
-
-List all versions of a prompt:
-
-```python
-versions = await client.list("customer-greeting")
-for v in versions:
-    print(v.version, v.state, v.created_at)
-```
-
-### diff
-
-Show the text diff between two versions:
-
-```python
-diff = await client.diff("customer-greeting", from_version="v3", to_version="v5")
-print(diff.unified_diff)
-```
-
-### promote
-
-Move a draft version to active for a specific mode:
-
-```python
-await client.promote(
-    name="customer-greeting",
-    version="v5",
-    mode="staging",
-)
-```
-
-Promotion is atomic: the previous active version for that mode moves to `archived` in the same operation. To promote to production, call promote again with `mode="production"` after validating in staging.
-
-### rollback
-
-Reactivate a previously archived version:
-
-```python
-await client.rollback(
-    name="customer-greeting",
-    to_version="v3",
-    mode="production",
-)
-```
-
-Rollback follows the same atomic swap — the current active version archives, and `v3` becomes active.
-
-## Data Models
-
-### PromptVersion
+## `PromptVersion` Data Model
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `name` | `str` | Prompt name (immutable identifier) |
-| `version` | `str` | Version string (e.g., `"v5"`) |
+| `prompt_id` | `str` | Prompt identifier (stored in DynamoDB as `prompt_key`) |
+| `version` | `str` | Version string (e.g., `"v3"`) |
 | `content` | `str` | Prompt text |
-| `state` | `str` | `draft`, `active`, or `archived` |
-| `mode` | `str` | Mode this version is active in, or `None` if draft/archived |
-| `metadata` | `dict` | Arbitrary key-value metadata |
+| `status` | `PromptStatus` | `draft`, `stable`, or `deprecated` |
+| `description` | `str \| None` | Optional description |
+| `tags` | `list[str]` | Optional tags |
 | `created_at` | `datetime` | Creation timestamp |
-| `promoted_at` | `datetime \| None` | Timestamp of last promotion |
+
+## Prompt Registry Lambda API
+
+The Lambda handler (in `modules/platform/modules/prompt_registry/`) is the authoritative server. The `PromptRegistryClient` accesses it via direct boto3 invoke or HTTP. The Lambda routes:
+
+| HTTP Method | Path | Description |
+|-------------|------|-------------|
+| `POST` | `/prompts` | Create a new prompt version |
+| `GET` | `/prompts/{id}` | Resolve a prompt (mode-gated) |
+| `GET` | `/prompts/{id}/versions` | List all versions |
+| `POST` | `/prompts/{id}/promote` | Atomically promote a draft to stable |
+| `POST` | `/prompts/{id}/rollback` | Atomically roll back to a prior stable version |
+| `GET` | `/prompts/{id}/diff` | Text diff between two versions |
+
+Promote and rollback operations are DynamoDB conditional-expression gated — they are atomic swaps.
+
+`PromptRegistryClient` only implements `get()`. The other operations are performed by the `agent-cli prompts` CLI commands or direct Lambda invocations.
 
 ## Blueprint Integration
 
-Agents reference prompts by name in their blueprint. The runtime resolves the correct version at startup:
+Agents reference prompts by name in their blueprint. `BlueprintLoader` resolves the prompt text at agent load time:
 
 ```yaml
-# agent.yaml
-prompts:
-  system: "customer-greeting"
-  tool_use_instructions: "tool-calling-guide"
-  error_recovery: "error-recovery-v2"
+id: my-agent
+prompt_ref: customer-greeting      # Resolves via PromptRegistryClient.get()
 ```
 
-At runtime, `AgentCoreApp.from_blueprint` calls `client.get(name)` for each declared prompt and injects the resolved content into the agent's system prompt.
+Env-template expansion is supported in `prompt_ref`:
+
+```yaml
+prompt_ref: "customer-greeting@${PROMPT_VERSION:-v1}"
+```
 
 ## Promotion Workflow
 
-The recommended workflow for updating a production prompt:
-
 ```bash
-# 1. Push a new draft
+# Push a new draft
 agent-cli prompts push customer-greeting --file new-greeting.txt
 
-# 2. Review the diff
-agent-cli prompts diff customer-greeting --from active --to latest-draft
+# Review the diff against the current stable version
+agent-cli prompts diff customer-greeting
 
-# 3. Promote to staging and validate
-agent-cli prompts promote customer-greeting --mode staging
+# Promote to stable
+agent-cli prompts promote customer-greeting
 
-# 4. After validation, promote to production
-agent-cli prompts promote customer-greeting --mode production
+# Roll back to a previous version if needed
+agent-cli prompts rollback customer-greeting --version v3
 ```
 
-See the [CLI reference](../cli/) for the full `agent-cli prompts` command set.
+See the [CLI reference](../cli.md) for the full `agent-cli prompts` command set.
 
 ## Infrastructure
 
-The Prompt Registry Lambda and Function URL are deployed by the platform's `prompt_registry` Terraform submodule. The `PROMPT_REGISTRY_URL` environment variable is auto-injected into all agent and MCP runtimes when `prompt_registry_url` is passed to the agents module.
+Prompt text is stored in S3 at `{prompt_id}/{version}.txt`. Metadata is stored in DynamoDB (`prompt_registry` table) with partition key `prompt_key`. The Lambda function ARN is available as Terraform output `prompt_registry_function_arn` from the platform module — pass it to `modules/agents` as `prompt_registry_function_arn` to grant agent roles `lambda:InvokeFunction` on the registry.
 
-See [Prompt Registry Module]({{ '/docs/infrastructure/prompt-registry-module' | relative_url }}) for deployment details, input variables, and domain seeding patterns.
+See [Infrastructure: Platform Module](../infrastructure/platform-module.md) for deployment details.

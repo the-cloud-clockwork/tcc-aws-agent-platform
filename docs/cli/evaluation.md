@@ -6,7 +6,7 @@ parent: CLI Reference
 
 # agentcli eval
 
-Run on-demand evaluation against a specific agent session, or check the status of continuous online evaluation. Communicates with AgentCore Evaluation via the `agent-core` SDK.
+Run on-demand evaluation against a specific agent session, or check the status of continuous online evaluation. Uses the `EvaluationClient` from the `agent-core` SDK, which dispatches to either the AgentCore Evaluation backend (`evaluation.provider: agentcore`, the default) or the Langfuse backend (`evaluation.provider: langfuse`) depending on what the agent blueprint declares.
 
 ## Synopsis
 
@@ -140,6 +140,6 @@ Scores are on a 0–1 scale. Labels vary by evaluator but follow the same patter
 
 ## See Also
 
-- [Evaluation Concepts](../concepts/evaluation) — how evaluation works, 13 built-in evaluators, LLM-as-judge
-- [Observability Concepts](../concepts/observability) — OTEL traces that evaluation reads
-- [Evaluation SDK Reference](../sdk/) — programmatic evaluation API
+- [Observability & Evaluation](../observability/evaluation) — how evaluation works, 12 built-in evaluators, LLM-as-judge
+- [Observability & Evaluation](../observability) — OTEL traces that evaluation reads, and the agentcore vs langfuse provider choice
+- [Evaluation SDK Reference](../sdk/evaluation) — programmatic evaluation API and `CustomEvaluatorConfig`

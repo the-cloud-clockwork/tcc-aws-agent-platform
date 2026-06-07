@@ -8,42 +8,73 @@ parent: SDK Reference
 
 The Gateway subsystem provides a unified client for Amazon Bedrock AgentCore Gateway. Agents consume the Gateway as a single MCP endpoint — all tools registered as Gateway targets appear as MCP tools via one connection.
 
-> **Note:** Gateway creation and target registration are handled automatically by the platform from blueprint YAML. The `GatewayClient` is a consumption-side client that agents use to discover and invoke tools at runtime.
+> **Architecture guide:** [Tools, MCP & Gateway](../tools.md)
+
+> **Note:** Gateway creation and target registration are handled automatically by the platform from blueprint YAML. `GatewayClient` is a consumption-side client that agents use to discover and invoke tools at runtime.
 
 ## Key Classes
 
-| Class | Purpose |
-|-------|---------|
-| `GatewayClient` | Strands MCPClient wrapper — discovers tools, manages auth, context-manager lifecycle |
-| `TargetRegistry` | Tracks available Gateway targets and their tool manifests |
-| `ToolDiscovery` | Semantic search over registered tools across all targets |
+| Class | Module | Purpose |
+|-------|--------|---------|
+| `GatewayClient` | `agent_core.gateway.client` | Strands `MCPClient` wrapper — discovers tools, manages auth, context-manager lifecycle |
+| `TargetRegistry` | `agent_core.gateway.target_registry` | Tracks available Gateway targets and their tool manifests |
+
+## `GatewayClient`
+
+```python
+class GatewayClient:
+    def __init__(
+        self,
+        gateway_url: str | None = None,   # Falls back to AGENTCORE_GATEWAY_URL env var
+        auth_type: str = "aws_iam",        # "aws_iam" | "custom_jwt" | "none"
+        jwt_env_var: str | None = None,    # Env var name holding the JWT (custom_jwt only)
+        region: str | None = None,         # Falls back to AWS_DEFAULT_REGION / AWS_REGION
+        service_name: str = "bedrock-agentcore",
+    ) -> None: ...
+
+    @classmethod
+    def from_config(cls, config: GatewayConfig) -> GatewayClient:
+        """Create from a GatewayConfig schema object (e.g. blueprint.gateway)."""
+        ...
+
+    def list_tools_sync(self) -> list[Any]:
+        """Discover all tools exposed by the Gateway."""
+        ...
+
+    def as_tool_provider(self) -> MCPClient:
+        """Return the underlying Strands MCPClient for direct use as a tool provider."""
+        ...
+
+    def __enter__(self) -> GatewayClient: ...
+    def __exit__(self, *args) -> None: ...
+    def close(self) -> None: ...
+```
+
+`GatewayClient` appends `/mcp` to the URL automatically if the URL does not already end with `/mcp`.
 
 ## Target Types
 
-| Type | Use Case | Auth |
-|------|----------|------|
-| `LAMBDA` | AWS Lambda functions | IAM SigV4 |
-| `MCP` | MCP servers (Streamable HTTP) | API key, OAuth, or none |
-| `REST` | Generic HTTP APIs | API key or OAuth |
-| `OPENAPI` | APIs described by an OpenAPI spec | API key or OAuth |
-| `SMITHY` | Smithy-modeled services | IAM SigV4 |
-| `API_GATEWAY` | Amazon API Gateway endpoints | IAM SigV4 or API key |
+| YAML `type` value | Use Case |
+|-------------------|----------|
+| `lambda` | AWS Lambda functions |
+| `mcp_server` | MCP servers (Streamable HTTP) |
+| `openapi` | APIs described by an OpenAPI spec |
+| `smithy` | Smithy-modeled services |
+| `api_gateway` | Amazon API Gateway endpoints |
 
-## Two Auth Layers
+## Outbound Auth Types
 
-Gateway enforces authentication at two points:
+| `OutboundAuthType` | Description |
+|-------------------|-------------|
+| `GATEWAY_IAM_ROLE` | Gateway uses its IAM role to sign requests to the target |
+| `OAUTH2_CREDENTIAL` | Gateway uses a registered OAuth2 credential provider |
+| `NONE` | No outbound auth |
 
-1. **Agent to Gateway**: The agent must authenticate to the Gateway endpoint itself. This is typically IAM-based (SigV4) when running inside AWS, or JWT-based for external callers.
-
-2. **Gateway to Target**: The Gateway authenticates to each backend target on the agent's behalf. Credentials are stored in Secrets Manager and resolved at invocation time.
-
-The `GatewayClient` handles both layers automatically when configured from a blueprint.
-
-## Three Auth Modes
+## Inbound Auth Modes
 
 | Mode | Transport | Use Case |
 |------|-----------|----------|
-| `aws_iam` | SigV4 via `streamable_http_sigv4` | Agents running inside AWS (default) |
+| `aws_iam` | SigV4 via `mcp-proxy-for-aws` (fallback: bundled `streamable_http_sigv4`) | Agents inside AWS (default) |
 | `custom_jwt` | Bearer token in `Authorization` header | External callers, cross-account |
 | `none` | No auth | Local development only |
 
@@ -53,93 +84,93 @@ The `GatewayClient` handles both layers automatically when configured from a blu
 from agent_core.gateway import GatewayClient
 from strands import Agent
 
-client = GatewayClient(gateway_url="https://gw.example.com/mcp")
-
-with client:
+with GatewayClient(gateway_url="https://gw.example.com") as client:
     tools = client.list_tools_sync()
-    agent = Agent(tools=[local_tool] + tools)
+    agent = Agent(tools=tools)
     result = agent("What orders are pending?")
 ```
 
-## Strands Tool Provider Pattern
-
-The most common pattern is to expose Gateway targets as tools to the Strands agent. `GatewayClient.as_tool_provider()` returns the underlying Strands `MCPClient`:
+## Blueprint-Driven Pattern
 
 ```python
 from agent_core.gateway import GatewayClient
-from strands import Agent
 
+# Build from blueprint schema
 client = GatewayClient.from_config(blueprint.gateway)
+tool_provider = client.as_tool_provider()   # Returns the underlying MCPClient
 
-# Returns a Strands MCPClient pointed at the Gateway's MCP endpoint
-tool_provider = client.as_tool_provider()
-
-agent = Agent(
-    model=model,
-    tools=[tool_provider],
-)
+agent = Agent(model=model, tools=[tool_provider])
 ```
-
-All tools registered in the Gateway become available to the Strands agent without any additional wiring.
-
-## Context Manager
-
-`GatewayClient` supports the context manager protocol. Use it to ensure the underlying MCP transport is properly closed:
-
-```python
-with GatewayClient(gateway_url="https://gw.example.com/mcp") as client:
-    tools = client.list_tools_sync()
-    # ... use tools
-# Transport is closed automatically
-```
-
-## Semantic Tool Search
-
-`ToolDiscovery` indexes tool names and descriptions across all registered targets and supports natural-language queries:
-
-```python
-from agent_core.gateway import ToolDiscovery
-
-discovery = ToolDiscovery(client)
-
-# Find tools relevant to a user intent
-tools = await discovery.search("summarize documents and extract key points")
-# Returns ranked list of tool descriptors from any target
-```
-
-Use this to dynamically select the right tool when the agent has many targets registered.
 
 ## Blueprint Configuration
-
-Gateway resources (the Gateway itself, targets, and their auth configurations) are declared in blueprint YAML and provisioned by the platform's Terraform modules. Agents reference the Gateway at runtime:
 
 ```yaml
 gateway:
   url: "${AGENTCORE_GATEWAY_URL}"
-  auth_type: aws_iam
+  auth_type: aws_iam               # aws_iam | custom_jwt | none
   region: "${AWS_REGION}"
-  service_name: bedrock-agentcore
+  service_name: bedrock-agentcore  # Override only if using a non-standard signing name
 ```
 
-The `AGENTCORE_GATEWAY_URL` environment variable is injected by the platform into the agent's runtime container.
+`AGENTCORE_GATEWAY_URL` is injected automatically by the platform Terraform into the agent's runtime environment.
 
-## Error Handling
+## Error Types
 
-`GatewayClient` raises typed exceptions for common failure modes:
+| Exception | Raised When |
+|-----------|-------------|
+| `GatewayPolicyDeniedError` | Cedar policy denied the tool call |
+| `GatewayConfigError` | Missing URL, region, or JWT configuration |
+| `GatewayError` | General gateway failure (base class) |
 
 ```python
-from agent_core.gateway import GatewayError, GatewayPolicyDeniedError, GatewayConfigError
+from agent_core.gateway.client import GatewayError, GatewayPolicyDeniedError, GatewayConfigError
 
 try:
-    with client:
+    with GatewayClient.from_config(blueprint.gateway) as client:
         tools = client.list_tools_sync()
 except GatewayPolicyDeniedError as e:
-    # Cedar policy denied tool access
     print(f"Denied: {e.tool_name} for agent {e.agent_id}")
 except GatewayConfigError:
-    # Missing URL, region, or JWT configuration
-    pass
-except GatewayError:
-    # General gateway failure
+    # Missing URL or auth config
     pass
 ```
+
+## `TargetRegistry`
+
+`TargetRegistry` is used at deploy time (not in agent runtime code) to register Gateway targets from a YAML file:
+
+```python
+from agent_core.gateway.target_registry import TargetRegistry
+
+registry = TargetRegistry(
+    gateway_id="${AGENTCORE_GATEWAY_ID}",  # Falls back to AGENTCORE_GATEWAY_ID env var
+    region="eu-west-1",
+)
+targets = TargetRegistry.load_targets_from_file("gateway-targets.yaml")
+results = registry.synchronize_all(targets)
+print(f"Registered {results['registered_count']} / {len(targets)} targets")
+```
+
+Target YAML format (`gateway-targets.yaml`):
+
+```yaml
+gateway_id: "${AGENTCORE_GATEWAY_ID}"
+targets:
+  - name: order-tools           # "name" — not "id"
+    type: lambda                # lowercase: lambda | mcp_server | openapi | smithy | api_gateway
+    lambda_arn: "${ORDER_TOOLS_LAMBDA_ARN}"
+    outbound_auth: gateway_iam_role   # lowercase: gateway_iam_role | oauth2_credential | none
+
+  - name: analytics-mcp
+    type: mcp_server
+    endpoint_url: "${ANALYTICS_MCP_URL}"   # "endpoint_url" — not "endpoint"
+    outbound_auth: oauth2_credential
+    oauth2_credential_provider_id: "${ANALYTICS_OAUTH2_PROVIDER_ARN}"
+    tool_schema_path: schemas/analytics-tools.json   # Optional: inline schema file
+```
+
+## See Also
+
+- [Tools, MCP & Gateway](../tools.md) — Architecture, target registration patterns
+- [Built-in Tools](tools.md) — Code Interpreter and Browser tool providers
+- [MCP Base Classes](mcp.md) — Building domain MCP servers

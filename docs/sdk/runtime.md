@@ -8,13 +8,14 @@ parent: SDK Reference
 
 The Runtime subsystem wraps Amazon Bedrock AgentCore's container execution model. It turns your agent logic into a standards-compliant HTTP server that AgentCore can invoke, health-check, and stream from.
 
+> **Architecture guide:** [Runtime & Memory](../runtime.md)
+
 ## Key Classes
 
-| Class | Purpose |
-|-------|---------|
-| `AgentCoreApp` | Main application container — entrypoint registration, middleware stack, A2A mounting |
-| `GenericHandler` | Default invocation handler — marshals HTTP to agent context to HTTP |
-| `SessionManager` | Per-invocation session isolation using AgentCore session tokens |
+| Class | Module | Purpose |
+|-------|--------|---------|
+| `AgentCoreApp` | `agent_core.runtime.entrypoint` | Main application container — entrypoint registration, A2A mounting, OTel flush |
+| `GenericHandler` | `agent_core.runtime.handler` | Default invocation handler — payload normalization, idempotency, blueprint agent session |
 
 ## The `/invocations` + `/ping` Contract
 
@@ -23,9 +24,74 @@ AgentCore expects every runtime container to expose two HTTP endpoints:
 - `POST /invocations` — receives the agent payload and returns the response
 - `GET /ping` — returns `200 OK` when the container is healthy
 
-`AgentCoreApp` registers both automatically. You only write the agent logic.
+`AgentCoreApp` registers both automatically by wrapping `BedrockAgentCoreApp` from `bedrock_agentcore.runtime`. You only write the agent logic.
 
-## The `@app.entrypoint` Pattern
+## Standard Pattern — `loader.build_entrypoint()`
+
+The recommended entry point for blueprint-driven agents. One call wires all subsystems declared in the blueprint:
+
+```python
+from agent_core.blueprints import BlueprintLoader
+
+loader = BlueprintLoader("blueprints/")
+app = loader.build_entrypoint("my-agent")
+
+if __name__ == "__main__":
+    app.run()
+```
+
+`AgentCoreApp.from_blueprint(loader, agent_id)` is an equivalent alias:
+
+```python
+from agent_core.blueprints import BlueprintLoader
+from agent_core.runtime import AgentCoreApp
+
+loader = BlueprintLoader("blueprints/")
+app = AgentCoreApp.from_blueprint(loader, "my-agent")
+```
+
+## `AgentCoreApp`
+
+```python
+class AgentCoreApp:
+    def __init__(
+        self,
+        middleware: list | None = None,
+    ) -> None: ...
+
+    def entrypoint(self, fn: Callable) -> Callable:
+        """Register fn as the /invocations handler.
+        Supports four handler shapes:
+          async def handler(payload, context) -> Any          # coroutine
+          async def handler(payload, context) -> AsyncGen     # streaming (yield)
+          def handler(payload, context) -> Any                # sync
+          def handler(payload, context) -> Generator          # sync streaming
+        OTel telemetry is force-flushed in the finally block of every shape.
+        """
+        ...
+
+    @classmethod
+    def from_blueprint(
+        cls,
+        loader: BlueprintLoader,
+        agent_id: str,
+        *,
+        local_tools: list | None = None,
+        middleware: list | None = None,
+    ) -> AgentCoreApp: ...
+
+    def mount_a2a(self, a2a_app: Any, a2a_port: int) -> None:
+        """Mount an A2A ASGI app. Called automatically by build_entrypoint()
+        when blueprint.multi_agent.role == 'specialist'."""
+        ...
+
+    def run(self) -> None:
+        """Start the HTTP server on port 8080.
+        If an A2A app is mounted, starts it in a daemon thread on a2a_port first."""
+        ...
+```
+
+## The `@app.entrypoint` Decorator
 
 ```python
 from agent_core.runtime import AgentCoreApp
@@ -33,11 +99,9 @@ from agent_core.runtime import AgentCoreApp
 app = AgentCoreApp()
 
 @app.entrypoint
-def handler(payload, context):
+def handler(payload: dict, context) -> str:
     session_id = context.session_id
     prompt = payload.get("prompt")
-
-    # Use Strands agent
     result = agent(prompt)
     return result.message
 
@@ -45,73 +109,43 @@ if __name__ == "__main__":
     app.run()
 ```
 
-The `@app.entrypoint` decorator registers your function as the handler for `/invocations`. The decorated function receives two positional arguments:
+The decorated function receives:
 
-- `payload` — a `dict` containing the invocation data (prompt, parameters, etc.)
-- `context` — an SDK context object with session metadata
-
-The framework takes care of:
-
-- Deserializing the AgentCore invocation payload into the `payload` dict
-- Creating and injecting the `context` object
-- Serializing the return value back to AgentCore's expected format
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `payload` | `dict` | Deserialized invocation body |
+| `context` | `InvocationContext` | Session metadata — see below |
 
 ## Context Object
-
-The `context` object injected into every entrypoint call contains:
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
 | `context.session_id` | `str` | AgentCore session token |
 | `context.request_headers` | `dict` | HTTP request headers from the invocation |
 
-## Streaming Support
+## Streaming
 
-For streaming responses, use `async def` with `yield`. Each yielded value is sent as an SSE event to the caller:
+Yield from an `async def` handler to stream SSE events:
 
 ```python
-from agent_core.runtime import AgentCoreApp
-
-app = AgentCoreApp()
-
 @app.entrypoint
-async def handler(payload, context):
+async def handler(payload: dict, context):
     async for event in agent.stream_async(payload.get("prompt")):
         if "data" in event:
             yield event["data"]
-
-if __name__ == "__main__":
-    app.run()
 ```
 
-The framework handles SSE framing and connection lifecycle automatically. No manual stream management is required.
+Sync generator and async generator shapes are both supported. OTel flush runs in the `finally` block of each shape.
+
+> **Note on OTel flush:** AgentCore microVMs are suspended immediately after the response is returned. `AgentCoreApp` force-flushes the OTel logger, meter, and tracer providers after every invocation so telemetry is not dropped. This is handled transparently — no application code is needed.
 
 ## Middleware
 
-`AgentCoreApp` accepts a Starlette middleware stack via the `middleware` constructor parameter. Middleware runs around every invocation:
+Pass a Starlette middleware stack to `AgentCoreApp.__init__()`:
 
 ```python
-from agent_core.runtime import AgentCoreApp
 from starlette.middleware import Middleware
-
-class ErrorHandlingMiddleware:
-    def __init__(self, app):
-        self.app = app
-
-    async def __call__(self, scope, receive, send):
-        try:
-            await self.app(scope, receive, send)
-        except Exception:
-            # Handle error
-            raise
-
-class LoggingMiddleware:
-    def __init__(self, app):
-        self.app = app
-
-    async def __call__(self, scope, receive, send):
-        # Log request
-        await self.app(scope, receive, send)
+from agent_core.runtime import AgentCoreApp
 
 app = AgentCoreApp(
     middleware=[
@@ -121,11 +155,7 @@ app = AgentCoreApp(
 )
 ```
 
-Use middleware for cross-cutting concerns: error handling, request logging, auth header injection, or rate-limit checks.
-
 ## Dockerfile Pattern
-
-AgentCore runs agents as containers on microVMs. The standard Dockerfile:
 
 ```dockerfile
 FROM python:3.12-slim
@@ -133,61 +163,50 @@ FROM python:3.12-slim
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
-
 COPY . .
 
-CMD ["python", "main.py"]
+CMD ["python", "app.py"]
 ```
 
-The `AgentCoreApp.run()` call in your entrypoint script starts the HTTP server on port 8080, which is what AgentCore routes traffic to.
+`AgentCoreApp.run()` starts the HTTP server on port 8080. When `runtime.observability_enabled: true` is set in the blueprint, the generated Dockerfile wraps the entrypoint with `opentelemetry-instrument` instead.
 
-## MCP Server Hosting
+## A2A Auto-Mount
 
-AgentCore Runtime can also host MCP servers directly. Set `server_protocol: MCP` in your runtime configuration to expose your agent as an MCP endpoint instead of the default invocation protocol. This allows other agents to consume your agent's capabilities as MCP tools through the Gateway.
+`build_entrypoint()` automatically mounts an A2A server when `blueprint.multi_agent.role == 'specialist'` and `blueprint.runtime.a2a_port` is set. The A2A port is configured via `runtime.a2a_port` in the blueprint or the `A2A_PORT` env var. No manual `mount_a2a()` call is needed in the standard blueprint-driven pattern.
 
-## Loading from a Blueprint
-
-`AgentCoreApp.from_blueprint` reads the blueprint via a `BlueprintLoader` and wires all subsystems automatically:
+## `BlueprintLoader` Reference
 
 ```python
-from agent_core.blueprints import BlueprintLoader
-from agent_core.runtime import AgentCoreApp
+class BlueprintLoader:
+    def __init__(
+        self,
+        blueprints_dir: str | Path,
+        *,
+        hook_registry: dict | None = None,
+        schema_registry: dict | None = None,
+        gateway_client: GatewayClient | None = None,
+        prompt_client: PromptRegistryClient | None = None,
+    ) -> None: ...
 
-loader = BlueprintLoader("blueprints/")
-app = AgentCoreApp.from_blueprint(loader, "my-agent")
+    def load_agent(self, agent_id: str) -> AgentBlueprint: ...
+    def load_workflow(self, workflow_id: str) -> WorkflowBlueprint: ...
+    def load_strategy(self, strategy_id: str) -> StrategyBlueprint: ...
+    def load_agent_from_path(self, path: str | Path) -> AgentBlueprint: ...
+    def load_strategy_from_path(self, path: str | Path) -> StrategyBlueprint: ...
 
-if __name__ == "__main__":
-    app.run()
+    def build_entrypoint(self, agent_id: str, *, local_tools: list | None = None) -> AgentCoreApp:
+        """Preferred entry point. Wires all subsystems from the blueprint
+        and returns a fully configured AgentCoreApp."""
+        ...
+
+    def build_agent_session(self, agent_id: str) -> ContextManager:
+        """Context manager that builds and tears down a full agent session.
+        Used for on-demand invocations outside the runtime container."""
+        ...
+
+    def build_strands_agent(self, agent_id: str, **overrides) -> Agent:
+        """Build a bare Strands agent from the blueprint without the runtime wrapper."""
+        ...
 ```
 
-This single call initializes memory, observability hooks, gateway client, policy client, and identity providers — everything declared in the blueprint. See [Blueprints](../blueprints/) for the full configuration schema.
-
-## Complete Example
-
-```python
-from agent_core.runtime import AgentCoreApp
-from starlette.middleware import Middleware
-from strands import Agent
-
-agent = Agent(model=model)
-
-app = AgentCoreApp(
-    middleware=[Middleware(LoggingMiddleware)],
-)
-
-@app.entrypoint
-def handler(payload, context):
-    session_id = context.session_id
-    prompt = payload.get("prompt")
-    result = agent(prompt)
-    return result.message
-
-if __name__ == "__main__":
-    app.run()
-```
-
-## Session Lifecycle
-
-`SessionManager` creates an isolated session for each invocation. Sessions are keyed by the AgentCore session token (`context.session_id`), ensuring that concurrent invocations do not share state. The Strands agent instance, tool registry, and in-progress memory writes are all scoped to the session.
-
-When an invocation completes, the session manager flushes pending memory events and releases resources. Long-running streaming sessions maintain their session for the duration of the stream.
+Blueprint file discovery: `blueprints_dir/agents/{agent_id}.yaml` (falls back to `.yml`, then scans for a matching `id:` field).

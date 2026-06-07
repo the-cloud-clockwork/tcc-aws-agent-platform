@@ -8,6 +8,201 @@ parent: SDK Reference
 
 The A2A subsystem implements the [Agent-to-Agent protocol](https://google.github.io/A2A/), an open standard for inter-agent communication. It lets agents discover each other, negotiate capabilities, and delegate work — all over a standardized HTTP API secured with M2M auth.
 
+> **Architecture guide:** [Runtime & Memory](../runtime.md)
+
+## Key Classes
+
+| Class | Module | Purpose |
+|-------|--------|---------|
+| `A2AServerWrapper` | `agent_core.a2a.server` | Exposes your agent as an A2A server; serves agent card from blueprint |
+| `A2AClient` | `agent_core.a2a.client` | Client for calling remote A2A agents (A2A protocol and direct invoke) |
+| `A2AWiring` | `agent_core.a2a` | Wires remote agents as Strands `@tool` functions |
+
+## Agent Cards
+
+Every A2A agent publishes a machine-readable agent card at:
+
+```
+GET /.well-known/agent.json
+```
+
+`A2AServerWrapper` generates and serves this card automatically from the blueprint metadata (name, version, declared tools). `A2AClient.resolve_agent_card()` fetches this path.
+
+> **Path is `agent.json`, not `agent-card.json`.** Both the server and client use `/.well-known/agent.json`.
+
+## `A2AServerWrapper`
+
+```python
+class A2AServerWrapper:
+    def __init__(
+        self,
+        agent: Agent,
+        blueprint: AgentBlueprint,
+        *,
+        serve_at_root: bool = True,   # Required for AgentCore deployment
+    ) -> None: ...
+
+    @classmethod
+    def from_blueprint(
+        cls,
+        loader: BlueprintLoader,
+        agent_id: str,
+    ) -> A2AServerWrapper: ...
+
+    def to_starlette_app(self) -> Any:
+        """Return the ASGI app for composition with the AgentCoreApp runtime."""
+        ...
+
+    def serve(self, port: int | None = None) -> None:
+        """Serve standalone (blocking). Port from runtime.a2a_port or A2A_PORT env var."""
+        ...
+```
+
+The A2A port resolves from `blueprint.runtime.a2a_port`, then the `A2A_PORT` env var. Raises `ValueError` if port resolves to 0.
+
+In the standard blueprint-driven pattern, `loader.build_entrypoint()` calls `A2AServerWrapper.from_blueprint()` and mounts the app automatically when `blueprint.multi_agent.role == 'specialist'`. No manual setup is needed.
+
+## `A2AClient`
+
+```python
+class A2AClient:
+    def __init__(
+        self,
+        region: str | None = None,
+        auth_token: str | None = None,
+    ) -> None: ...
+
+    def resolve_agent_card(self, url: str) -> dict:
+        """Fetch /.well-known/agent.json from the remote agent."""
+        ...
+
+    def call_a2a(self, url: str, message: str, **kwargs) -> str:
+        """Non-streaming call via JSON-RPC method 'message/send'."""
+        ...
+
+    def stream_a2a(self, url: str, message: str, **kwargs) -> Iterator[str]:
+        """Streaming call via JSON-RPC method 'message/stream' (SSE)."""
+        ...
+
+    async def stream_a2a_async(self, url: str, message: str, **kwargs) -> AsyncIterator[str]:
+        """Async streaming call."""
+        ...
+
+    def call_direct(
+        self,
+        runtime_arn: str,
+        payload: dict,
+    ) -> dict:
+        """Bypass the A2A protocol — invoke directly via boto3 invoke_agent_runtime().
+        Useful for tightly coupled agents within the same AWS account."""
+        ...
+```
+
+## Coordinator / Specialist Pattern
+
+**Specialist side** — the specialist blueprint declares its role; `build_entrypoint()` auto-mounts the A2A server:
+
+```yaml
+# specialist.yaml
+id: summarization-agent
+multi_agent:
+  role: specialist
+runtime:
+  a2a_port: 9000
+```
+
+**Coordinator side** — use `A2AWiring` to register specialists as Strands tools:
+
+```python
+from agent_core.a2a import A2AWiring
+
+wiring = A2AWiring.from_blueprint("coordinator.yaml")
+
+# Discovers each specialist's agent card and wraps it as a Strands tool
+tools = await wiring.get_remote_agent_tools()
+
+coordinator = Agent(
+    model=model,
+    tools=[*local_tools, *tools],
+)
+```
+
+Or use `remote_agent_tool()` for manual wiring:
+
+```python
+from agent_core.a2a.tools import remote_agent_tool
+from agent_core.a2a.client import A2AClient
+
+tool = remote_agent_tool(
+    node_id="summarizer",
+    name="summarize",
+    description="Summarize a document",
+    a2a_client=A2AClient(),
+    a2a_url="https://summarizer.internal",
+)
+```
+
+## Direct Invoke vs. A2A Protocol
+
+| Method | When to Use |
+|--------|-------------|
+| `A2AClient.call_a2a()` / `stream_a2a()` | Standard A2A protocol — different accounts, external agents, any provider |
+| `A2AClient.call_direct()` | Same-account, same-region tightly coupled agents — lower overhead, no A2A negotiation |
+
+`call_direct()` uses the `boto3` `bedrock-agentcore` client with `invoke_agent_runtime()`. It bypasses the A2A protocol entirely.
+
+## M2M Auth Flow
+
+A2A communication uses M2M OAuth (client credentials grant). The [Identity subsystem](identity.md) handles token acquisition and injection. Configure the M2M credential provider in the blueprint and `A2AWiring` uses it automatically:
+
+```yaml
+identity:
+  credentials:
+    - name: m2m-internal
+      type: oauth2
+      auth_flow: M2M
+      provider: coordinator-m2m-provider
+      scopes: ["agent.invoke"]
+```
+
+## Blueprint Configuration
+
+```yaml
+# coordinator — orchestrates specialists
+id: coordinator-agent
+multi_agent:
+  role: coordinator
+  pattern: graph
+  nodes:
+    - node_id: summarizer
+      agent_ref: summarization-agent
+      a2a_url: "${SUMMARIZER_URL}"
+    - node_id: extractor
+      agent_ref: extraction-agent
+      a2a_url_env: EXTRACTOR_URL      # Resolved from env var at runtime
+
+# Remote nodes can also use direct AgentCore Runtime ARN invocation
+    - node_id: classifier
+      agent_ref: classifier-agent
+      runtime_arn: "${CLASSIFIER_RUNTIME_ARN}"
+```
+
+```yaml
+# specialist — callable by coordinator
+id: summarization-agent
+multi_agent:
+  role: specialist
+runtime:
+  a2a_port: 9000
+```
+
+## See Also
+
+- [Runtime & Memory guide](../runtime.md) — Multi-agent topologies, coordinator/specialist wiring
+- [Identity SDK reference](identity.md) — M2M credential providers
+
+The A2A subsystem implements the [Agent-to-Agent protocol](https://google.github.io/A2A/), an open standard for inter-agent communication. It lets agents discover each other, negotiate capabilities, and delegate work — all over a standardized HTTP API secured with M2M auth.
+
 ## Key Classes
 
 | Class | Purpose |
@@ -54,23 +249,24 @@ a2a.serve()
 
 The most common multi-agent topology: one coordinator agent delegates to specialist agents.
 
-**Coordinator side** — use `A2AWiring` to register specialists as tools:
+**Coordinator side** — use `A2AWiring` to build remote tools from the blueprint's `multi_agent.nodes`:
 
 ```python
-from agent_core.a2a import A2AWiring
+from agent_core.a2a.wiring import A2AWiring
 
-wiring = A2AWiring.from_blueprint("coordinator.yaml")
+# A2AWiring takes a loaded blueprint (not a file path)
+wiring = A2AWiring(blueprint=coordinator_blueprint)
 
-# Discovers each specialist's agent card and creates a Strands tool
-tools = await wiring.get_remote_agent_tools()
+# Builds a @tool function for each remote node declared in multi_agent.nodes
+remote_tools = wiring.build_remote_tools()
 
 coordinator = Agent(
     model=model,
-    tools=[*local_tools, *tools],  # Mix local and remote tools
+    tools=[*local_tools, *remote_tools],  # Mix local and remote tools
 )
 ```
 
-The coordinator can then call specialist agents as if they were local functions. The A2A client handles authentication, serialization, and error handling transparently.
+`A2AWiring.__init__` accepts a loaded `AgentBlueprint` and an optional `identity_wiring` for M2M auth. For coordinator roles it creates an `A2AClient`; `build_remote_tools()` iterates `multi_agent.nodes` and returns a Strands `@tool` function per node. Each tool resolves the remote agent's URL from the node's `a2a_url` / `a2a_url_env` field.
 
 **Specialist side** — just run `A2AServerWrapper` as shown above. No coordinator-specific code required.
 

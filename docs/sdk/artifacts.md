@@ -1,177 +1,170 @@
 ---
-title: Artifacts Server
+title: Artifacts
 nav_order: 12
 parent: SDK Reference
 ---
 
-# Artifacts Server
+# Artifacts
 
-The Artifacts Server is a standalone MCP server (`mcp-artifacts`) that implements the claim-check pattern for large agent outputs. Instead of passing large payloads through Step Functions or agent-to-agent calls, agents store outputs in S3 and pass lightweight artifact keys. Downstream consumers retrieve the full payload via pre-signed URL.
+The Artifacts subsystem implements the claim-check pattern for large agent outputs. Instead of passing large payloads through Step Functions state transitions or agent-to-agent messages, agents store outputs in S3 and pass lightweight artifact keys. Downstream consumers retrieve the full payload via a pre-signed URL.
 
-## The Claim-Check Pattern
+The artifact store runs as a **Lambda-backed Gateway target** (not a standalone MCP server process). The Lambda handler is registered as a `lambda` target in the Gateway, so agents access it as an MCP tool through the standard Gateway connection.
 
-Step Functions and A2A messages have payload size limits. Large outputs (reports, datasets, generated files) must not be inlined. The claim-check pattern solves this:
-
-1. Agent produces a large output
-2. Agent calls `create_artifact` → gets back an `artifact_id`
-3. Agent passes the `artifact_id` (small key) through Step Functions / A2A
-4. Downstream agent calls `get_artifact(artifact_id)` to retrieve the full payload
-5. Payload is served via a time-limited pre-signed S3 URL
-
-The artifacts server is the MCP server that implements steps 2 and 4.
+> **Architecture guide:** [Tools, MCP & Gateway](../tools.md)
 
 ## MCP Tools
 
-The server exposes four MCP tools:
+The artifact Lambda handler exposes exactly four MCP tools:
 
-### create_artifact
+| Tool | Description |
+|------|-------------|
+| `create_artifact` | Store content in S3, register metadata in DynamoDB, return `artifact_id` and `signed_url` |
+| `get_artifact` | Retrieve artifact metadata and a fresh signed URL by `artifact_id` |
+| `list_artifacts` | List artifacts by `type`, `agent_id`, or `execution_id` |
+| `poll_artifact` | **Deprecated** — use the `signed_url` from `create_artifact` or the SQS notification queue instead |
 
-Store a new artifact and get back its ID:
+## `create_artifact`
 
 ```python
-# Called by the Strands agent via MCP
 result = await mcp_client.call_tool("create_artifact", {
-    "artifact_type": "report",
-    "content": report_bytes,          # or "content_s3_uri" for pre-uploaded content
-    "content_type": "application/pdf",
+    "type": "report",                       # ArtifactType — see table below
+    "content": report_text,                 # String content to store
     "metadata": {
         "title": "Q3 Summary",
         "generated_by": "analysis-agent",
     },
-    "idempotency_key": "task-789-report",   # Optional: prevents duplicate creation
-    "ttl_hours": 48,                        # Optional: default from server config
+    "idempotency_key": "task-789-report",   # Optional — prevents duplicate creation
 })
 
 artifact_id = result["artifact_id"]
+signed_url  = result["signed_url"]          # Pre-signed S3 or CloudFront URL
 ```
 
-### get_artifact
+`create_artifact` is **synchronous**: it creates a DynamoDB entry, uploads to S3 with KMS encryption, publishes an SQS notification, and returns `artifact_id` + `signed_url` in a single call. No polling is required.
 
-Retrieve an artifact by ID:
+**Parameter name:** the artifact type field is `"type"`, not `"artifact_type"`.
+
+## `get_artifact`
 
 ```python
 result = await mcp_client.call_tool("get_artifact", {
     "artifact_id": "art-abc123",
 })
 
-print(result["artifact_type"])      # "report"
-print(result["content_type"])       # "application/pdf"
-print(result["download_url"])       # Pre-signed S3 URL (15-minute TTL)
+print(result["artifact_id"])
+print(result["type"])          # e.g. "report"
+print(result["signed_url"])    # Fresh pre-signed URL (see TTL below)
 print(result["metadata"])
-print(result["size_bytes"])
 ```
 
-The `download_url` is a pre-signed S3 URL valid for a short window. The recipient downloads the content directly from S3, not through the artifacts server.
+**Response field name:** the URL is `"signed_url"`, not `"download_url"`. The URL is generated via `get_best_url()` which selects CloudFront or S3 pre-signed automatically. `list_artifacts` results do not include `signed_url` — call `get_artifact` to obtain a URL for a specific artifact.
 
-### list_artifacts
-
-List artifacts matching a filter:
+## `list_artifacts`
 
 ```python
-result = await mcp_client.call_tool("list_artifacts", {
-    "artifact_type": "report",
-    "created_after": "2024-01-01T00:00:00Z",
-    "limit": 20,
-    "next_token": result.get("next_token"),   # Pagination
+artifacts = await mcp_client.call_tool("list_artifacts", {
+    "type": "report",          # Optional — filter by ArtifactType value
+    "agent_id": "my-agent",    # Optional — filter by agent
+    "execution_id": "exec-1",  # Optional — filter by execution (takes priority over other filters)
+    "date": "2024-01-15",      # Optional — filter by date prefix (YYYY-MM-DD)
+    "limit": 20,               # Optional — max results (default 50)
 })
 
-for item in result["artifacts"]:
-    print(item["artifact_id"], item["artifact_type"], item["created_at"])
+# Returns a list directly (not wrapped in {"artifacts": [...]})
+for item in artifacts:
+    print(item["artifact_id"], item["type"], item["created_at"])
 ```
 
-### poll_artifact
+`list_artifacts` returns a `list[dict]` directly — not a dict with an `"artifacts"` key. There is **no pagination** (`created_after` and `next_token` parameters do not exist). When `execution_id` is provided it takes priority over all other filters. Otherwise, `type`, `agent_id`, and `date` are applied via DynamoDB GSIs on `type+created_at` and `agent_id+created_at`.
 
-Poll for an artifact that may not yet exist (for async workflows):
+## `poll_artifact`
 
-```python
-result = await mcp_client.call_tool("poll_artifact", {
-    "artifact_id": "art-abc123",
-    "timeout_seconds": 30,
-    "poll_interval_seconds": 2,
-})
-
-if result["status"] == "ready":
-    print(result["download_url"])
-elif result["status"] == "timeout":
-    # Artifact not ready within the timeout window
-    pass
-```
-
-Use `poll_artifact` when a workflow produces an artifact asynchronously and the consumer needs to wait for it.
+`poll_artifact` is **deprecated**. Use the `signed_url` returned synchronously by `create_artifact`, or subscribe to the `artifact-notifications` SQS queue for event-driven patterns.
 
 ## Artifact Types
 
-| Type | Use Case | Typical Content-Type |
-|------|----------|---------------------|
-| `report` | Generated reports or analysis outputs | `application/pdf`, `text/html` |
-| `dataset` | Tabular or structured data outputs | `text/csv`, `application/json` |
-| `document` | Generated documents or drafts | `application/pdf`, `text/markdown` |
-| `image` | Generated or processed images | `image/png`, `image/jpeg` |
-| `audio` | Generated audio files | `audio/mpeg`, `audio/wav` |
-| `raw` | Arbitrary binary payloads | Any `content_type` |
+| `type` value | Typical Use | Extension |
+|-------------|-------------|-----------|
+| `chart` | Generated visualizations | `.jsx` |
+| `report` | Analysis reports | `.md` |
+| `simulation_result` | Simulation outputs | `.json` |
+| `recommendation` | Agent recommendations | `.json` |
+| `image` | Generated or processed images | `.png` |
+| `data_export` | Tabular data exports | `.csv` |
+| `pipeline_run` | Pipeline execution records | `.json` |
+
+Note: `dataset`, `document`, `audio`, and `raw` are **not** valid artifact types.
 
 ## Idempotency
 
-Pass an `idempotency_key` to `create_artifact` to make creation idempotent. If the same key is submitted twice within the key's TTL, the server returns the existing artifact ID rather than creating a duplicate:
+Pass an `idempotency_key` to make creation idempotent. If the same key is submitted again within the artifact's TTL, the existing artifact is returned rather than creating a duplicate:
 
 ```python
 # Safe to retry — returns the same artifact_id both times
 result = await mcp_client.call_tool("create_artifact", {
-    "artifact_type": "dataset",
-    "content": data,
+    "type": "data_export",
+    "content": csv_data,
     "idempotency_key": "workflow-run-456-output",
 })
 ```
 
-This is essential for Step Functions workflows with retry logic, where a task may execute more than once.
+Essential for Step Functions workflows with retry logic.
 
-## Pre-Signed URLs
+## Pre-Signed URL TTL
 
-`get_artifact` returns a pre-signed S3 URL rather than the content bytes. This design:
+`get_artifact` generates a fresh signed URL on every call:
 
-- Keeps the MCP server stateless and horizontally scalable
-- Allows large files without streaming through the server process
-- Lets the pre-sign TTL act as a lightweight expiry for sensitive content
-- Works naturally with browser-based consumers that can follow redirects
+| Delivery method | TTL |
+|----------------|-----|
+| S3 pre-signed URL (default) | 1 hour (`SIGNED_URL_EXPIRY=3600`) |
+| CloudFront signed URL (when `CLOUDFRONT_DOMAIN` is set) | 14 days |
 
-The pre-sign TTL defaults to 15 minutes and is configurable per-call via `url_expiry_seconds`.
+CloudFront delivery requires `CLOUDFRONT_DOMAIN`, `CLOUDFRONT_KEY_PAIR_ID`, and `CLOUDFRONT_PRIVATE_KEY_SECRET_ARN` environment variables on the Lambda. The platform injects these when `enable_cloudfront: true` is set in the infrastructure configuration.
 
-## Step Functions Integration
+## Blueprint Configuration
 
-The canonical Step Functions integration pattern:
+Declare the artifact Lambda as a Gateway target in the agent blueprint:
+
+```yaml
+gateway:
+  targets:
+    - name: artifacts
+      type: lambda
+      lambda_arn: "${ARTIFACTS_MCP_LAMBDA_ARN}"
+      outbound_auth: GATEWAY_IAM_ROLE
+```
+
+`ARTIFACTS_MCP_LAMBDA_ARN` is available as a platform Terraform output (`artifacts_mcp_lambda_arn`) and is injected into agent runtimes automatically when `enable_artifacts_gateway_target: true` is set on the platform module.
+
+## Claim-Check Pattern in Step Functions
 
 ```json
 {
-  "CreateArtifact": {
+  "CreateReport": {
     "Type": "Task",
     "Resource": "arn:aws:states:::bedrock-agentcore:invokeAgent",
     "Parameters": {
-      "AgentId": "${ARTIFACT_AGENT_ID}",
-      "InputText": "Store this report as an artifact",
-      "SessionAttributes": {
-        "report_content.$": "$.report"
-      }
+      "AgentId": "${REPORT_AGENT_ID}",
+      "InputText": "Generate the Q3 report and store it as an artifact."
     },
     "ResultPath": "$.artifact",
-    "Next": "ProcessArtifact"
+    "Next": "ProcessReport"
+  },
+  "ProcessReport": {
+    "Type": "Task",
+    "Resource": "arn:aws:states:::bedrock-agentcore:invokeAgent",
+    "Parameters": {
+      "AgentId": "${PROCESSOR_AGENT_ID}",
+      "InputText.$": "States.Format('Process artifact: {}', $.artifact.artifact_id)"
+    },
+    "End": true
   }
 }
 ```
 
-The agent stores the report via `create_artifact` and returns only the `artifact_id` in its response. Step Functions passes the small key to the next state.
+The producing agent stores the report and returns only the `artifact_id`. The consuming agent calls `get_artifact` to retrieve the full payload.
 
-## Blueprint Configuration
+## See Also
 
-```yaml
-# agent.yaml — declare the artifacts server as a Gateway target
-gateway:
-  targets:
-    - id: artifacts
-      type: MCP
-      endpoint: "${ARTIFACTS_MCP_ENDPOINT}"
-      auth:
-        type: api_key
-        secret_arn: "arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:artifacts-api-key"
-```
-
-The artifacts server itself is configured via its own server config (managed by platform infrastructure), not the agent blueprint.
+- [Tools, MCP & Gateway guide](../tools.md) — Claim-check architecture, Gateway Lambda targets
+- [Gateway SDK reference](gateway.md) — Target registration

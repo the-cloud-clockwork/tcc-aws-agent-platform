@@ -1,8 +1,7 @@
 ---
 title: Platform vs. Domain
-nav_order: 2
-parent: Architecture
-grand_parent: Documentation
+nav_order: 1
+parent: Concepts
 ---
 
 # Platform vs. Domain
@@ -272,6 +271,6 @@ agentcli deploy --env production             # Build -> ECR -> AgentCore Runtime
 
 ## Next Steps
 
-- [How It Works]({{ '/docs/architecture/how-it-works' | relative_url }}) — end-to-end flows showing the platform and domain repos interacting
-- [The 12 Building Blocks]({{ '/docs/architecture/building-blocks' | relative_url }}) — each concern in the responsibility matrix explained in depth
+- [How It Works]({{ '/docs/concepts/how-it-works' | relative_url }}) — end-to-end flows showing the platform and domain repos interacting
+- [The 12 Building Blocks]({{ '/docs/concepts/building-blocks' | relative_url }}) — each concern in the responsibility matrix explained in depth
 - [Blueprints]({{ '/docs/blueprints/' | relative_url }}) — the YAML specification that defines the domain/platform interface

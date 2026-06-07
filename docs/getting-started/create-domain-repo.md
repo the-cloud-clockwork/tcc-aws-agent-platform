@@ -1,6 +1,6 @@
 ---
 title: Create a Domain Repo
-nav_order: 0
+nav_order: 4
 parent: Getting Started
 ---
 
@@ -15,7 +15,7 @@ One command. Full project. Ready for `terraform init`.
 Open any terminal and paste:
 
 ```bash
-bash <(curl -sL https://raw.githubusercontent.com/The-Cloud-Clockwork/tcc-aws-agent-platform/main/scripts/create-domain.sh)
+bash <(curl -sL https://raw.githubusercontent.com/your-org/aws-agent-platform/main/scripts/create-domain.sh)
 ```
 
 It asks two questions:
@@ -25,7 +25,7 @@ Domain name (e.g., logistics, finops, healthcare): my-project
 Org prefix (e.g., myco, acme): acme
 ```
 
-That's it. You get a full repo at `acme-my-project/`.
+That's it. You get a full project at `acme-my-project/`.
 
 ---
 
@@ -33,62 +33,62 @@ That's it. You get a full repo at `acme-my-project/`.
 
 ```
 acme-my-project/
-├── agents/                        ← Your AI agents (shared Docker image)
+├── agents/                         ← Your AI agents (shared Docker image)
 │   ├── Dockerfile
 │   ├── pyproject.toml
 │   ├── src/my_project_agents/
-│   │   ├── app.py                 ← 6-line entrypoint (identical for all domains)
-│   │   └── agent_configs.py       ← Register your prompt builders here
+│   │   ├── app.py                  ← 5-line entrypoint (identical for all domains)
+│   │   └── agent_configs.py        ← Register your prompt builders here
 │   ├── blueprints/
 │   │   ├── agents/
-│   │   │   └── example-agent.yaml ← Your first agent — edit this
+│   │   │   └── example-agent.yaml  ← Your first agent — edit this
 │   │   ├── strategies/
 │   │   └── workflows/
 │   └── prompts/
 │       └── my_project/
-│           └── example-agent.txt  ← Your first system prompt — edit this
+│           └── example-agent.txt   ← Your first system prompt — edit this
 │
-├── mcps/                          ← Your MCP tool servers (one Dockerfile each)
+├── mcps/                           ← Your MCP tool servers (one Dockerfile each)
 │   ├── blueprints/
 │   └── example-service/
 │       ├── Dockerfile
 │       ├── pyproject.toml
-│       └── src/.../server.py      ← Example MCP with a hello() tool
+│       └── src/.../server.py       ← Example MCP with a hello() tool
 │
-├── lambdas/                       ← Lambda functions for workflow steps
+├── lambdas/                        ← Lambda functions for workflow steps
 │   └── stubs/handler.py
 │
-├── infra/                         ← Terraform (consumes platform modules)
-│   ├── main.tf                    ← 3 modules: platform → agents → workflows
-│   ├── variables.tf               ← All variables with sensible defaults
-│   ├── providers.tf               ← AWS + Bedrock provider aliases
-│   ├── backend.tf                 ← S3 backend (edit the bucket name)
+├── infra/                          ← Terraform (consumes platform modules)
+│   ├── main.tf                     ← 3 modules: platform → agents → workflows
+│   ├── variables.tf                ← All variables with sensible defaults
+│   ├── providers.tf                ← AWS provider configuration
+│   ├── backend.tf                  ← S3 backend (edit the bucket name)
 │   └── envs/
-│       ├── dev.tfvars             ← Development config
-│       ├── staging.tfvars         ← Staging config
-│       └── production.tfvars      ← Production config
+│       ├── dev.tfvars              ← Development config
+│       ├── staging.tfvars          ← Staging config
+│       └── production.tfvars       ← Production config
 │
 ├── .gitignore
 ├── pyproject.toml
 └── ruff.toml
 ```
 
-**30 files**, all wired together, git initialized with a first commit.
+**~30 files**, all wired together, git initialized with a first commit.
 
 ---
 
-## Next: Deploy
+## Deploy
 
 ### 1. Edit the state bucket
 
-Open `infra/backend.tf` and replace the placeholder bucket name with your actual S3 bucket:
+Open `infra/backend.tf` and replace the placeholder bucket name:
 
 ```hcl
 terraform {
   backend "s3" {
-    bucket = "acme-my-project-infra"   # ← your bucket here
+    bucket = "acme-my-project-infra"   # ← your actual S3 bucket
     key    = "terraform.tfstate"
-    region = "eu-west-1"
+    region = "us-east-1"               # ← your primary region
   }
 }
 ```
@@ -108,7 +108,7 @@ This downloads the platform modules from GitHub.
 terraform plan -var-file=envs/dev.tfvars
 ```
 
-Review the resources that will be created: VPC, KMS keys, DynamoDB tables, Gateway, Memory, ECR repo, CodeBuild project, Runtime, and more.
+Review the resources that will be created: KMS keys, DynamoDB tables, SQS queue, S3 buckets, Gateway, Memory, ECR repo, CodeBuild project, and Runtime registration.
 
 ### 4. Apply
 
@@ -116,7 +116,7 @@ Review the resources that will be created: VPC, KMS keys, DynamoDB tables, Gatew
 terraform apply -var-file=envs/dev.tfvars
 ```
 
-### 5. Build your agent image
+### 5. Build the agent image
 
 ```bash
 terraform apply -var-file=envs/dev.tfvars -var="build_enabled=true"
@@ -133,11 +133,14 @@ This builds the Docker image via CodeBuild and pushes to ECR.
 Open `agents/blueprints/agents/example-agent.yaml`:
 
 ```yaml
-id: example-agent                          # ← rename this
-name: Example Agent                        # ← rename this
+id: example-agent                          # ← rename to kebab-case
+name: Example Agent                        # ← rename
 version: "1.0.0"
 prompt_ref: "my_project/example-agent"     # ← matches prompts/ path
 
+# Switch provider by changing these two fields — no other changes needed.
+# provider defaults to "bedrock". Use "litellm", "anthropic", or "vertex"
+# for other inference backends.
 model:
   provider: bedrock
   model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
@@ -146,13 +149,13 @@ model:
 
 runtime:
   type: agentcore
-  network_mode: VPC
+  network_mode: PRIVATE              # PRIVATE = runs inside your VPC
   idle_timeout_minutes: 15
 
-tools: []                                  # ← add MCP tools here
+tools: []                            # ← add MCP tools here
 
 memory:
-  strategies: []                           # ← add memory strategies here
+  strategies: []                     # ← add memory strategies here
   event_expiry_days: 30
 ```
 
@@ -162,13 +165,12 @@ Open `agents/prompts/my_project/example-agent.txt` and write your agent's person
 
 ### Add tools
 
-Add MCP tool references to your blueprint:
-
 ```yaml
 tools:
   - mcp: my-data-service-mcp
     tools: [query_data, get_report]
   - builtin: code_interpreter
+    network_mode: PRIVATE
 ```
 
 ### Add memory
@@ -179,9 +181,28 @@ memory:
     - type: SEMANTIC
       name: FactExtractor
       namespace: "{actorId}/facts/"
+    - type: SUMMARY
+      name: Summarizer
+      namespace: "{actorId}/{sessionId}/summaries/"
   event_expiry_days: 30
   short_term_k: 5
 ```
+
+### Switch to a LiteLLM proxy
+
+To use an OpenAI-compatible proxy instead of Bedrock, change the `model` block:
+
+```yaml
+model:
+  provider: litellm
+  model_id: claude-sonnet-4-6        # name the proxy expects; passed through unchanged
+  temperature: 0.7
+  max_tokens: 4096
+  base_url: ${LITELLM_BASE_URL}
+  api_key_env: LITELLM_API_KEY
+```
+
+No other changes to the blueprint or handler are needed.
 
 ---
 
@@ -191,19 +212,19 @@ memory:
 2. Create a matching prompt in `agents/prompts/my_project/`
 3. Run `terraform apply` — the platform creates all resources automatically
 
-Each YAML file = one agent runtime. No code changes needed.
+Each YAML file equals one agent runtime. No handler code changes required.
 
 ---
 
 ## Add an MCP Server
 
 1. Create a blueprint in `mcps/blueprints/my-service-mcp.yaml`
-2. Create a directory `mcps/my-service/` with a `Dockerfile` and `src/`
+2. Create `mcps/my-service/` with a `Dockerfile` and `src/`
 3. Add the MCP module to `infra/main.tf`:
 
 ```hcl
 module "mcps" {
-  source     = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git//modules/agents?ref=main"
+  source     = "git::https://github.com/your-org/aws-agent-platform.git//modules/agents?ref=v1.0.0"
   depends_on = [module.platform]
 
   resource_prefix = "${var.resource_prefix}-mcp"
@@ -211,22 +232,25 @@ module "mcps" {
   source_dir      = "${path.root}/../mcps"
   source_layout   = "polyrepo"
   polyrepo_suffix = "-mcp"
-  # ... wire platform outputs (same as the agents module)
+  # Wire platform outputs (same pattern as the agents module)
+  gateway_id         = module.platform.gateway_id
+  vpc_id             = module.platform.vpc_id
+  private_subnet_ids = module.platform.private_subnet_ids
+  data_kms_key_arn   = module.platform.data_kms_key_arn
 }
 ```
 
 {: .important }
-> The blueprint ID minus the suffix must match the subdirectory name.
-> Blueprint `my-service-mcp` with suffix `-mcp` → looks for `mcps/my-service/Dockerfile`.
+> The blueprint ID minus the suffix must match the subdirectory name. Blueprint `my-service-mcp` with suffix `-mcp` looks for `mcps/my-service/Dockerfile`.
 
 ---
 
-## CLI Options
+## Scaffolder CLI Options
 
 Skip the interactive prompts with flags:
 
 ```bash
-bash <(curl -sL https://raw.githubusercontent.com/The-Cloud-Clockwork/tcc-aws-agent-platform/main/scripts/create-domain.sh) \
+bash <(curl -sL https://raw.githubusercontent.com/your-org/aws-agent-platform/main/scripts/create-domain.sh) \
   --name my-project \
   --prefix acme \
   --region us-east-1 \
@@ -237,9 +261,9 @@ bash <(curl -sL https://raw.githubusercontent.com/The-Cloud-Clockwork/tcc-aws-ag
 |------|---------|-------------|
 | `--name` | *(asks)* | Domain name |
 | `--prefix` | *(asks)* | Org prefix |
-| `--region` | `eu-west-1` | Primary AWS region |
-| `--bedrock-region` | `us-west-2` | Bedrock model region |
-| `--platform-ref` | `main` | Git ref for platform modules |
+| `--region` | *(asks)* | Primary AWS region |
+| `--bedrock-region` | *(asks)* | Bedrock model region (may differ from primary) |
+| `--platform-ref` | `main` | Git ref for platform module sources |
 
 ---
 
@@ -247,5 +271,6 @@ bash <(curl -sL https://raw.githubusercontent.com/The-Cloud-Clockwork/tcc-aws-ag
 
 - [Quickstart]({{ '/docs/getting-started/quickstart' | relative_url }}) — install the SDK and CLI
 - [First Agent]({{ '/docs/getting-started/first-agent' | relative_url }}) — detailed tutorial with memory, tools, and policy
+- [Inference Providers]({{ '/docs/inference/' | relative_url }}) — configure Bedrock, LiteLLM, Anthropic, or Vertex
 - [Agent Blueprint Spec]({{ '/docs/blueprints/agent-blueprint' | relative_url }}) — every YAML field documented
 - [Infrastructure]({{ '/docs/infrastructure' | relative_url }}) — Terraform module reference

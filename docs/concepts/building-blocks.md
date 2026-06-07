@@ -1,8 +1,7 @@
 ---
 title: The 12 Building Blocks
-nav_order: 1
-parent: Architecture
-grand_parent: Documentation
+nav_order: 3
+parent: Concepts
 ---
 
 # The 12 Building Blocks
@@ -202,7 +201,7 @@ Trace: session_abc / invocation_1
 
 ## Block 7: Evaluation {#evaluation}
 
-AgentCore Evaluation reads OTEL traces and scores agent behaviour with LLM-as-judge. 13 built-in evaluators cover response quality, task completion, tool usage accuracy, and safety.
+AgentCore Evaluation reads OTEL traces and scores agent behaviour with LLM-as-judge. 12 built-in evaluators cover response quality, task completion, tool usage accuracy, and safety.
 
 **What the platform does:** The blueprint declares which evaluators to run and at what sampling rate. The platform configures online evaluation (continuous production monitoring) against the agent's live OTEL traces.
 
@@ -220,12 +219,13 @@ evaluation:
       scale: [1.0, 0.5, 0.0]
 ```
 
-| Category | Built-in Evaluators |
-|----------|-------------------|
-| Response quality | Correctness, Completeness, Faithfulness, Helpfulness, Coherence, Relevance |
-| Task completion | GoalSuccessRate |
-| Tool usage | ToolSelectionAccuracy, ToolParameterAccuracy |
-| Safety | Harmlessness, Harmfulness, Stereotyping |
+| Category | Count | Built-in Evaluators |
+|----------|-------|-------------------|
+| Response quality | 6 | Correctness, Completeness, Faithfulness, Helpfulness, Coherence, Relevance |
+| Task completion | 1 | GoalSuccessRate |
+| Tool usage | 2 | ToolSelectionAccuracy, ToolParameterAccuracy |
+| Safety | 3 | Harmlessness, Harmfulness, Stereotyping |
+| **Total** | **12** | |
 
 ---
 
@@ -254,24 +254,24 @@ Policy operates at the Gateway level, not the Runtime level. The agent calls too
 
 ## Block 9: Strands Integration {#strands}
 
-Strands is the primary agent framework because it has the deepest AgentCore integration: native `BedrockModel`, `HookProvider` for Memory, `MCPClient` for Gateway, `A2AServer` for agent-to-agent communication, and `trace_attributes` for OTEL.
+Strands is the primary agent framework because it has the deepest AgentCore integration: native model providers for Bedrock, Anthropic, LiteLLM, and Vertex AI; `HookProvider` for Memory; `MCPClient` for Gateway; `A2AServer` for agent-to-agent communication; and `trace_attributes` for OTEL.
 
 **What the platform does:** `BlueprintLoader` produces a fully wired Strands `Agent` with:
 
-- `BedrockModel` configured from the `model:` block
+- The correct model class (`BedrockModel`, `AnthropicModel`, `LiteLLMModel`, or `GeminiModel`) configured from the `model:` block — provider selection is driven by `model.provider` in the blueprint
 - Gateway tools via `MCPClient` from the `tools:` block
 - Memory `HookProvider` from the `memory:` block
 - Identity decorators from the `identity:` block
 - OTEL `trace_attributes` from the `observability:` block
 - All wrapped in `@app.entrypoint` for AgentCore Runtime
 
-The developer declares all of this in YAML. The platform assembles it.
+The developer declares all of this in YAML. The platform assembles it. The inference provider is a one-line change in the blueprint — no code change required to switch from Bedrock to LiteLLM or Anthropic. See [Inference Providers](../inference/) for the full provider guide.
 
 ---
 
 ## Block 10: Agent-to-Agent (A2A) {#a2a}
 
-A2A lets agents discover and call each other via a standardised protocol on port 9000. Each agent publishes an agent card at `/.well-known/agent-card.json`.
+A2A lets agents discover and call each other via a standardised protocol. Each agent publishes an agent card at `/.well-known/agent.json`. The A2A port is configured via `runtime.a2a_port` in the blueprint or the `A2A_PORT` environment variable.
 
 **What the platform does:** When a blueprint declares `multi_agent:`, the platform generates an `A2AServer` for the agent, registers M2M credential providers for cross-agent auth, and wraps remote agent calls as Strands `@tool` functions. The coordinator agent sees specialist agents as regular tools.
 
@@ -290,8 +290,8 @@ multi_agent:
 
 ```mermaid
 graph TD
-    C[Coordinator Agent<br/>Runtime A] -->|A2A port 9000| S1[Search Specialist<br/>Runtime B]
-    C -->|A2A port 9000| S2[Analysis Specialist<br/>Runtime C]
+    C[Coordinator Agent<br/>Runtime A] -->|A2A| S1[Search Specialist<br/>Runtime B]
+    C -->|A2A| S2[Analysis Specialist<br/>Runtime C]
     S1 -->|MCP| GW[Gateway]
     S2 -->|MCP| GW
 ```
@@ -335,7 +335,7 @@ Three blueprint types:
 | Type | Declares | Produces |
 |------|----------|----------|
 | **Agent** | Model, tools, prompt, memory, identity, policy, observability | AgentCore Runtime container with full Strands agent |
-| **Strategy** | Trigger conditions, parameter logic, required inputs | Evaluated by a strategy-evaluator agent |
+| **Strategy** | Trigger conditions, parameter logic, required inputs | Evaluated by a strategy-evaluation agent |
 | **Workflow** | Multi-agent DAG with parallel branches, choice routing, retry/catch | Step Functions state machine |
 
 This is the platform's differentiator. Everything else (Gateway, Memory, Identity, Policy) is AWS-managed infrastructure. The blueprint layer turns "12 separate AWS services" into "one YAML file per agent."
@@ -360,6 +360,6 @@ This means you can run a full agent pipeline in `simulation` mode against synthe
 
 ## Next Steps
 
-- [Platform vs. Domain]({{ '/docs/architecture/platform-vs-domain' | relative_url }}) — responsibility matrix and directory structure
-- [How It Works]({{ '/docs/architecture/how-it-works' | relative_url }}) — end-to-end flows with Mermaid diagrams
+- [Platform vs. Domain]({{ '/docs/concepts/platform-vs-domain' | relative_url }}) — responsibility matrix and directory structure
+- [How It Works]({{ '/docs/concepts/how-it-works' | relative_url }}) — end-to-end flows with Mermaid diagrams
 - [First Agent]({{ '/docs/getting-started/first-agent' | relative_url }}) — build all 12 blocks into a running agent
