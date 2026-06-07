@@ -166,7 +166,7 @@ The platform handles everything else.
 
 <details>
 <summary>How do domain repos consume this platform?</summary>
-<p>Two ways: <strong>Terraform modules</strong> for infrastructure (<code>module "platform" { source = "git::https://github.com/your-org/aws-agent-platform.git//modules/platform?ref=v1.0.0" }</code>) and <strong>pip packages</strong> for the SDK (<code>pip install agent-core</code>). Deploy platform infrastructure first, then deploy domain agents on top.</p>
+<p>Two ways: <strong>Terraform modules</strong> for infrastructure (<code>module "platform" { source = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git//modules/platform?ref=v1.0.0" }</code>) and <strong>pip packages</strong> for the SDK (<code>pip install agent-core</code>). Deploy platform infrastructure first, then deploy domain agents on top.</p>
 </details>
 
 <details>

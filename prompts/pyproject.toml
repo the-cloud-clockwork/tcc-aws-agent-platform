@@ -7,6 +7,15 @@ name = "prompt-registry"
 version = "0.1.0"
 description = "Prompt Registry — versioned prompt management service"
 requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [
+    {name = "The Cloud Clockwork"},
+]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.12",
+    "Development Status :: 4 - Beta",
+]
 dependencies = [
     "boto3>=1.34",
     "pydantic>=2.0",
@@ -19,6 +28,12 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.4,<1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform"
+Documentation = "https://the-cloud-clockwork.github.io/tcc-aws-agent-platform"
+Source = "https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform"
+Issues = "https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/prompt_registry"]

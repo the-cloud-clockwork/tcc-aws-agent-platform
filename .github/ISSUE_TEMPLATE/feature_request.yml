@@ -1,0 +1,115 @@
+name: Feature Request
+description: Propose a new capability or improvement to the AWS Agent Platform.
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting an improvement. Concrete problem statements and
+        well-scoped proposals move fastest. Please fill in the sections below.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: >
+        Describe the problem or limitation you are running into today.
+        Focus on the *why* — what workflow is painful, blocked, or impossible?
+      placeholder: |
+        When using the `litellm` provider with a blueprint that declares
+        `output_schema`, the runtime raises a `RuntimeError` because Strands'
+        forced-tool path is not supported for OpenAI-compatible endpoints.
+        There is no built-in fallback, so structured output requires a
+        custom post-processor hook on every blueprint.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: >
+        Describe your preferred solution. Include interface sketches, blueprint
+        knob names, or pseudocode where helpful.
+      placeholder: |
+        Add a `structured_output_mode` blueprint key (values: `native` |
+        `instructor` | `prompt`) that the loader uses to select the enforcement
+        strategy automatically, so blueprints with `output_schema` work out of
+        the box across all providers without a custom hook.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: >
+        What other approaches did you consider, and why do you prefer the
+        proposed solution over them?
+      placeholder: |
+        - **Custom hook per blueprint**: works today but requires boilerplate
+          duplication across every agent that needs structured output.
+        - **Provider-specific post-processing in the agent code**: leaks
+          provider concerns into domain logic, which the platform is designed
+          to prevent.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Relevant Inference Provider(s)
+      description: Which provider(s) does this feature primarily affect?
+      multiple: true
+      options:
+        - bedrock
+        - anthropic
+        - litellm
+        - vertex
+        - all providers
+        - "not provider-specific"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Platform Area
+      description: Which part of the platform does this feature touch?
+      options:
+        - Blueprint schema / loader
+        - Runtime hooks
+        - Observability (Langfuse / cost tracking / audit)
+        - Artifacts / claim-check
+        - Prompt registry
+        - CLI
+        - Terraform modules
+        - Step Functions / workflow orchestration
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: >
+        Links to related issues, prior art in other frameworks, design
+        constraints, or anything else that would help reviewers evaluate
+        the proposal.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I have searched existing issues and discussions — this is not a duplicate.
+          required: true
+        - label: This proposal is scoped to the platform layer and does not assume a specific domain or business logic.
+          required: false

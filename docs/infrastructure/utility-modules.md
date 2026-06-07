@@ -65,7 +65,7 @@ Provisions a complete, production-ready Lambda function with consistent defaults
 
 ```hcl
 module "ingest_lambda" {
-  source = "git::https://github.com/your-org/aws-agent-platform.git//modules/lambda?ref=v1.0.0"
+  source = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git//modules/lambda?ref=v1.0.0"
 
   resource_prefix = "myplatform-dev"
   function_name   = "data-ingest"
@@ -119,7 +119,7 @@ Both alarms send to the supplied `alarm_actions` ARN list (e.g. an SNS topic).
 
 ```hcl
 module "lambda_alarms" {
-  source = "git::https://github.com/your-org/aws-agent-platform.git//modules/lambda_alarms?ref=v1.0.0"
+  source = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git//modules/lambda_alarms?ref=v1.0.0"
 
   resource_prefix = "myplatform-dev"
   alarm_actions   = [module.platform.alert_topic_arn]
@@ -166,7 +166,7 @@ Encapsulates the three resources required to invoke a Lambda on a schedule:
 ```hcl
 # Run the ingest Lambda every hour
 module "ingest_schedule" {
-  source = "git::https://github.com/your-org/aws-agent-platform.git//modules/scheduled_lambda?ref=v1.0.0"
+  source = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git//modules/scheduled_lambda?ref=v1.0.0"
 
   resource_prefix     = "myplatform-dev"
   name                = "hourly-ingest"
@@ -180,7 +180,7 @@ module "ingest_schedule" {
 
 # Run a nightly report Lambda at 06:00 UTC
 module "nightly_report" {
-  source = "git::https://github.com/your-org/aws-agent-platform.git//modules/scheduled_lambda?ref=v1.0.0"
+  source = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git//modules/scheduled_lambda?ref=v1.0.0"
 
   resource_prefix     = "myplatform-dev"
   name                = "nightly-report"
@@ -226,7 +226,7 @@ Provisions a production-ready S3 bucket with:
 
 ```hcl
 module "domain_data_bucket" {
-  source = "git::https://github.com/your-org/aws-agent-platform.git//modules/s3_encrypted_bucket?ref=v1.0.0"
+  source = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git//modules/s3_encrypted_bucket?ref=v1.0.0"
 
   bucket_name   = "myplatform-dev-domain-data-${data.aws_caller_identity.current.account_id}"
   kms_key_arn   = module.platform.storage_kms_key_arn
@@ -254,7 +254,7 @@ A typical domain repo pattern — a scheduled Lambda that reads from a domain S3
 
 ```hcl
 module "analysis_bucket" {
-  source      = "git::https://github.com/your-org/aws-agent-platform.git//modules/s3_encrypted_bucket?ref=v1.0.0"
+  source      = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git//modules/s3_encrypted_bucket?ref=v1.0.0"
   bucket_name = "myplatform-dev-analysis-${local.account_id}"
   kms_key_arn = module.platform.storage_kms_key_arn
   ssm_path    = "/myplatform/dev/buckets/analysis/name"
@@ -262,7 +262,7 @@ module "analysis_bucket" {
 }
 
 module "analysis_lambda" {
-  source          = "git::https://github.com/your-org/aws-agent-platform.git//modules/lambda?ref=v1.0.0"
+  source          = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git//modules/lambda?ref=v1.0.0"
   resource_prefix = local.prefix
   function_name   = "analysis"
   source_dir      = "${path.module}/src/analysis"
@@ -296,7 +296,7 @@ module "analysis_lambda" {
 }
 
 module "analysis_schedule" {
-  source              = "git::https://github.com/your-org/aws-agent-platform.git//modules/scheduled_lambda?ref=v1.0.0"
+  source              = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git//modules/scheduled_lambda?ref=v1.0.0"
   resource_prefix     = local.prefix
   name                = "daily-analysis"
   schedule_expression = "cron(0 2 * * ? *)"
@@ -306,7 +306,7 @@ module "analysis_schedule" {
 }
 
 module "analysis_alarms" {
-  source          = "git::https://github.com/your-org/aws-agent-platform.git//modules/lambda_alarms?ref=v1.0.0"
+  source          = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git//modules/lambda_alarms?ref=v1.0.0"
   resource_prefix = local.prefix
   alarm_actions   = [module.platform.alert_topic_arn]
 

@@ -552,13 +552,13 @@ variable "waf_enabled" {
 variable "codeartifact_domain" {
   type        = string
   description = "CodeArtifact domain for agent-core resolution"
-  default     = "platform"
+  default     = ""
 }
 
 variable "codeartifact_repo" {
   type        = string
   description = "CodeArtifact repository for Python packages"
-  default     = "platform-python"
+  default     = ""
 }
 
 # --- Build ---
