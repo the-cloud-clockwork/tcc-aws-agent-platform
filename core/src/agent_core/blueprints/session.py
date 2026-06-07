@@ -20,6 +20,35 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_NODE_TEXT_CAP = 8000
+
+
+def _build_synthesis_prompt(original_prompt: str, graph_result: Any) -> str:
+    """Format graph results into a coordinator synthesis prompt."""
+    parts: list[str] = []
+    results = getattr(graph_result, "results", None) or {}
+    for node_id, node_result in results.items():
+        node_texts: list[str] = []
+        for ar in node_result.get_agent_results():
+            text = str(ar)
+            if len(text) > _NODE_TEXT_CAP:
+                text = text[:_NODE_TEXT_CAP] + "\n... (truncated)"
+            node_texts.append(text)
+        parts.append(f"[{node_id}]\n" + "\n".join(node_texts))
+
+    node_section = "\n\n".join(parts) if parts else "(no node outputs)"
+
+    return (
+        "The specialist analysis nodes have completed. Below are their outputs.\n\n"
+        f"Original request:\n{original_prompt}\n\n"
+        f"--- Node Results ---\n\n{node_section}\n\n---\n\n"
+        "Based on the above analysis, proceed with strategy evaluation: "
+        "match trading strategies to the confirmed signals, run run_backtest "
+        "for the highest-conviction match, then call create_artifact with "
+        "the complete output JSON. "
+        "Your final turn MUST be exactly one create_artifact tool call."
+    )
+
 
 class AgentSession:
     """Context manager wrapping an Agent + its MCP clients.
@@ -51,6 +80,7 @@ class AgentSession:
         *,
         multi_agent: Any = None,
         pattern: str = "single",
+        role: str = "standalone",
         identity_wiring: IdentityWiring | None = None,
         memory_wiring: MemoryWiring | None = None,
         builtin_wiring: BuiltinToolWiring | None = None,
@@ -63,6 +93,7 @@ class AgentSession:
         self._mcp_clients = mcp_clients
         self.multi_agent = multi_agent
         self.pattern = pattern
+        self.role = role
         self._identity_wiring = identity_wiring
         self._memory_wiring = memory_wiring
         self._builtin_wiring = builtin_wiring
@@ -112,8 +143,35 @@ class AgentSession:
     def run(self, prompt: str) -> Any:
         """Execute via the appropriate pattern (single, swarm, or graph)."""
         if self.multi_agent is not None:
-            return self.multi_agent(prompt)
+            graph_result = self.multi_agent(prompt)
+            if self.role == "coordinator" and self.pattern == "graph":
+                return self._run_synthesis_turn(prompt, graph_result)
+            return graph_result
         return self.agent(prompt)
+
+    def _run_synthesis_turn(self, original_prompt: str, graph_result: Any) -> Any:
+        """Run the coordinator agent after graph nodes complete."""
+        from strands.multiagent.base import Status
+
+        if graph_result.status in (Status.FAILED, Status.INTERRUPTED):
+            logger.warning(
+                "Graph ended with status=%s — skipping coordinator synthesis turn",
+                graph_result.status.value,
+            )
+            return graph_result
+
+        synthesis_prompt = _build_synthesis_prompt(original_prompt, graph_result)
+        logger.info(
+            "Running coordinator synthesis turn (%d chars prompt)",
+            len(synthesis_prompt),
+        )
+        try:
+            return self.agent(synthesis_prompt)
+        except Exception:
+            logger.exception(
+                "Coordinator synthesis turn failed — returning graph result as fallback"
+            )
+            return graph_result
 
     def run_turn(self, prompt: str) -> Any:
         """Execute a single turn in a multi-turn conversation.
@@ -135,6 +193,10 @@ class AgentSession:
         supports streaming, otherwise falls back to non-streaming.
         """
         if self.multi_agent is not None and hasattr(self.multi_agent, "stream_async"):
+            if self.role == "coordinator" and self.pattern == "graph":
+                async for event in self._stream_synthesis_async(prompt):
+                    yield event
+                return
             async for event in self.multi_agent.stream_async(prompt):
                 yield event
         elif hasattr(self.agent, "stream_async"):
@@ -143,6 +205,42 @@ class AgentSession:
         else:
             result = self.run(prompt)
             yield result
+
+    async def _stream_synthesis_async(self, prompt: str) -> AsyncIterator[Any]:
+        """Stream graph events then coordinator synthesis events."""
+        from strands.multiagent.base import Status
+
+        graph_result = None
+        async for event in self.multi_agent.stream_async(prompt):
+            yield event
+            if isinstance(event, dict) and "result" in event:
+                graph_result = event["result"]
+
+        if graph_result is None:
+            logger.warning("Graph stream produced no result event — running sync fallback")
+            try:
+                graph_result = self.multi_agent(prompt)
+            except Exception:
+                logger.exception("Graph sync fallback failed")
+                return
+
+        if graph_result.status in (Status.FAILED, Status.INTERRUPTED):
+            logger.warning(
+                "Graph stream ended with status=%s — skipping synthesis",
+                graph_result.status.value,
+            )
+            return
+
+        synthesis_prompt = _build_synthesis_prompt(prompt, graph_result)
+        logger.info("Streaming coordinator synthesis turn")
+        try:
+            if hasattr(self.agent, "stream_async"):
+                async for event in self.agent.stream_async(synthesis_prompt):
+                    yield event
+            else:
+                yield self.agent(synthesis_prompt)
+        except Exception:
+            logger.exception("Coordinator synthesis stream failed")
 
     async def stream_turn_async(self, prompt: str) -> AsyncIterator[Any]:
         """Stream a single turn, preserving conversation history."""

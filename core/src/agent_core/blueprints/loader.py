@@ -621,33 +621,12 @@ class BlueprintLoader:
         }
         kwargs.update(self._build_model_config(blueprint.model, blueprint.thinking))
 
-        # Structured output routing:
-        # - bedrock: Strands' native structured_output_model (forced tool pattern)
-        #   works reliably via the Converse API
-        # - litellm/anthropic/vertex: Strands' forced tool pattern is broken
-        #   (upstream issues #743, #1005, #891). Use StructuredOutputEnforcer
-        #   hook instead, which runs instructor as a post-processor.
-        #   See: core/src/agent_core/hooks/structured_output_enforcer.py
+        # Structured output: Strands native forced-tool pattern for all providers.
+        # The StructuredOutputEnforcer workaround (instructor post-processor) was
+        # removed — the upstream bugs it worked around (#743, #1005, #891) are all
+        # closed. The enforcer's silent-swallow at enforcer.py:268-273 was Bug B.
         if structured_output_model is not None:
-            if blueprint.model.provider == "bedrock":
-                kwargs["structured_output_model"] = structured_output_model
-            else:
-                from agent_core.hooks.structured_output_enforcer import (
-                    StructuredOutputEnforcer,
-                )
-
-                enforcer = StructuredOutputEnforcer(
-                    # model_id MUST be expanded — the enforcer's instructor
-                    # client hits the LiteLLM proxy directly; a raw
-                    # ${AGENT_MODEL_ID:-...} template 400s on every call and
-                    # silently disables structured-output enforcement.
-                    schema=structured_output_model,
-                    model_id=_expand_env_template(blueprint.model.model_id),
-                    base_url=blueprint.model.base_url,
-                    api_key_env=blueprint.model.api_key_env,
-                    extra_headers_env=blueprint.model.extra_headers_env,
-                )
-                hooks.append(enforcer)
+            kwargs["structured_output_model"] = structured_output_model
 
         if hooks:
             kwargs["hooks"] = hooks
@@ -823,6 +802,7 @@ class BlueprintLoader:
                     current_mode,
                     evaluation_wiring=evaluation_wiring,
                     policy_wiring=policy_wiring,
+                    role=ma.role,
                 )
 
             # Single-node path (Phase 4 backward compat)
@@ -841,6 +821,7 @@ class BlueprintLoader:
                     mcp_clients=mcp_clients,
                     multi_agent=swarm,
                     pattern="swarm",
+                    role=ma.role,
                     identity_wiring=identity_wiring,
                     memory_wiring=memory_wiring,
                     builtin_wiring=builtin_wiring,
@@ -865,6 +846,7 @@ class BlueprintLoader:
                     mcp_clients=mcp_clients,
                     multi_agent=graph,
                     pattern="graph",
+                    role=ma.role,
                     identity_wiring=identity_wiring,
                     memory_wiring=memory_wiring,
                     builtin_wiring=builtin_wiring,
@@ -989,6 +971,7 @@ class BlueprintLoader:
         current_mode: ExecutionMode,
         evaluation_wiring: Any = None,
         policy_wiring: Any = None,
+        role: str = "standalone",
     ) -> AgentSession:
         """Build a multi-node Swarm or Graph session from node configs.
 
@@ -1068,6 +1051,7 @@ class BlueprintLoader:
                 mcp_clients=all_mcp_clients,
                 multi_agent=swarm,
                 pattern="swarm",
+                role=role,
                 evaluation_wiring=evaluation_wiring,
                 policy_wiring=policy_wiring,
             )
@@ -1126,6 +1110,7 @@ class BlueprintLoader:
                 mcp_clients=all_mcp_clients,
                 multi_agent=graph,
                 pattern="graph",
+                role=role,
                 evaluation_wiring=evaluation_wiring,
                 policy_wiring=policy_wiring,
             )

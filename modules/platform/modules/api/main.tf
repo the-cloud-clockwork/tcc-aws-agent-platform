@@ -789,18 +789,40 @@ resource "aws_iam_role_policy" "mcp_tools_permissions" {
 
 # -- Shared Lambda Layer (pydantic + mcp_artifacts for arm64/python3.12) ------
 #
-# Built by: modules/platform/scripts/build-lambda-layer.sh
-# Must run before terraform apply. Output: modules/platform/.build/lambda-layer.zip
+# Built hermetically by Terraform: terraform_data.build_platform_deps_layer runs
+# scripts/build-lambda-layer.sh during `apply`. source_code_hash derives from the
+# build INPUTS, not the output zip, so plan/validate never read a file on disk and
+# consumers can git-source this module with no pre-build step.
 # --------------------------------------------------------------------------
 
 locals {
-  layer_zip = "${path.module}/../../.build/lambda-layer.zip"
+  layer_build_script      = "${path.module}/../../scripts/build-lambda-layer.sh"
+  layer_mcp_artifacts_dir = "${path.module}/../../../../artifacts/src/mcp_artifacts"
+  layer_zip               = "${path.module}/../../.build/lambda-layer.zip"
+
+  # Hash the build INPUTS (the script carries the pydantic pin; mcp_artifacts is
+  # the first-party payload) — drives both the rebuild trigger and the layer's
+  # source_code_hash so they move together. No plan-time read of the output zip.
+  layer_src_hash = sha1(join("", concat(
+    [filesha1(local.layer_build_script)],
+    [for f in sort(fileset(local.layer_mcp_artifacts_dir, "**/*.py")) :
+    filesha1("${local.layer_mcp_artifacts_dir}/${f}")],
+  )))
+}
+
+resource "terraform_data" "build_platform_deps_layer" {
+  triggers_replace = local.layer_src_hash
+
+  provisioner "local-exec" {
+    command = "bash ${local.layer_build_script}"
+  }
 }
 
 resource "aws_lambda_layer_version" "platform_deps" {
+  depends_on               = [terraform_data.build_platform_deps_layer]
   layer_name               = "${var.resource_prefix}-${var.environment}-platform-deps"
   filename                 = local.layer_zip
-  source_code_hash         = filebase64sha256(local.layer_zip)
+  source_code_hash         = local.layer_src_hash
   compatible_runtimes      = ["python3.12"]
   compatible_architectures = ["arm64"]
   description              = "Platform shared deps: pydantic, mcp_artifacts"

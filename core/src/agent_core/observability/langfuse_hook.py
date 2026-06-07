@@ -129,7 +129,7 @@ class LangfuseHook:
 
     # ---- Strands callback protocol ----
 
-    def on_agent_start(self, **kwargs: Any) -> None:
+    def on_agent_start(self, input_text: str = "", **kwargs: Any) -> None:
         """Create a Langfuse trace for this agent invocation."""
         _log(f"on_agent_start called for {self.agent_id}")
         self._start_time = time.monotonic()
@@ -144,13 +144,20 @@ class LangfuseHook:
             _log("on_agent_start: client is None — no trace created")
             return
 
+        if input_text and self.pii_filter is not None:
+            input_text = self.pii_filter(input_text)
+
+        trace_kwargs: dict[str, Any] = {
+            "id": self._trace_id,
+            "name": f"agent:{self.agent_id}",
+            "metadata": self._tags(),
+            "tags": list(self._tags().values()),
+        }
+        if input_text:
+            trace_kwargs["input"] = input_text
+
         try:
-            self._trace = client.trace(
-                id=self._trace_id,
-                name=f"agent:{self.agent_id}",
-                metadata=self._tags(),
-                tags=list(self._tags().values()),
-            )
+            self._trace = client.trace(**trace_kwargs)
             _log(f"Trace created: {self._trace_id}")
         except Exception as e:
             _log(f"TRACE CREATE FAILED: {e}")
@@ -213,7 +220,7 @@ class LangfuseHook:
         except Exception as e:
             _log(f"GENERATION LOG FAILED: {e}")
 
-    def on_agent_end(self, **kwargs: Any) -> None:
+    def on_agent_end(self, input_text: str = "", output_text: str = "", **kwargs: Any) -> None:
         """Finalize the Langfuse trace with summary metadata."""
         elapsed = time.monotonic() - self._start_time if self._start_time else 0.0
 
@@ -227,17 +234,29 @@ class LangfuseHook:
             _log("on_agent_end: trace is None — skipping update + flush")
             return
 
+        if self.pii_filter is not None:
+            if input_text:
+                input_text = self.pii_filter(input_text)
+            if output_text:
+                output_text = self.pii_filter(output_text)
+
+        update_kwargs: dict[str, Any] = {
+            "metadata": {
+                **self._tags(),
+                "total_generations": self._generation_count,
+                "total_input_tokens": self._total_input_tokens,
+                "total_output_tokens": self._total_output_tokens,
+                "total_cost_usd": self._total_cost_usd,
+                "elapsed_seconds": round(elapsed, 3),
+            },
+        }
+        if input_text:
+            update_kwargs["input"] = input_text
+        if output_text:
+            update_kwargs["output"] = output_text
+
         try:
-            self._trace.update(
-                metadata={
-                    **self._tags(),
-                    "total_generations": self._generation_count,
-                    "total_input_tokens": self._total_input_tokens,
-                    "total_output_tokens": self._total_output_tokens,
-                    "total_cost_usd": self._total_cost_usd,
-                    "elapsed_seconds": round(elapsed, 3),
-                },
-            )
+            self._trace.update(**update_kwargs)
             _log("Trace updated")
         except Exception as e:
             _log(f"TRACE UPDATE FAILED: {e}")
