@@ -1,3 +1,4 @@
+
 # AWS Agent Platform
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
@@ -6,6 +7,11 @@
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](core/pyproject.toml)
 
 > A configuration-driven, domain-agnostic runtime that lets you declare AI agents in YAML and deploy them on AWS with zero boilerplate — built as an abstraction layer over [Strands Agents SDK](https://github.com/strands-agents/sdk-python) and [Amazon Bedrock AgentCore](https://aws.amazon.com/bedrock/agentcore/).
+
+<p align="center">
+  <img src="docs/media/images/hero.png" alt="One YAML. Any Domain. Secure Agent Fleet on AWS." width="100%">
+</p>
+
 
 **Phase 1** (provider-agnostic inference across `bedrock | anthropic | litellm | vertex`) and **Phase 2** (observability decoupling — Langfuse, Presidio, and provider-agnostic evaluation) are production-validated. Stage 3 (standalone runtime / ECS Fargate / memory optionality) is deferred.
 
