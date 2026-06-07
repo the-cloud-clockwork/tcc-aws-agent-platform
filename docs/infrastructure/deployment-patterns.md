@@ -1,27 +1,28 @@
 ---
 title: Deployment Patterns
-nav_order: 4
-parent: Infrastructure
+nav_order: 6
+parent: "Infrastructure (Terraform)"
 ---
 
 # Deployment Patterns
 
-This page covers how to deploy the three platform modules in sequence, manage multiple environments, and handle cross-region Bedrock access.
+This page covers how to deploy the three core modules in sequence, manage multiple environments, and handle cross-region Bedrock access.
 
 ---
 
-## The Two-Phase Deployment Model
-
-The platform follows a strict two-phase deployment sequence:
+## The Three-Phase Deployment Model
 
 ```mermaid
 flowchart LR
     subgraph Phase1["Phase 1 — Platform first"]
-        P["modules/platform\nVPC, KMS, DynamoDB, S3\nAgentCore Gateway + Memory"]
+        P["modules/platform\nKMS, DynamoDB, S3\nAgentCore Gateway + Memory"]
     end
 
-    subgraph Phase2["Phase 2 — Domain second (parallel)"]
+    subgraph Phase2a["Phase 2a — Agents"]
         A["modules/agents\nRuntime, ECR, IAM\nGateway targets, Memory strategies"]
+    end
+
+    subgraph Phase2b["Phase 2b — Workflows"]
         W["modules/workflows\nStep Functions state machines\nEventBridge triggers"]
     end
 
@@ -40,6 +41,8 @@ Within Phase 2, the agents module must complete before the workflows module, bec
 
 The platform defines three standard environments: `dev`, `staging`, and `production`. Each environment has a corresponding `tfvars` file.
 
+> **Networking inputs.** All three tfvars examples below pass VPC and subnet IDs as external inputs. These values come from your separate networking project. There are no `nat_gateway_count`, `vpc_cidr`, or `availability_zones` variables in the platform module.
+
 ### `envs/dev.tfvars`
 
 ```hcl
@@ -48,7 +51,12 @@ aws_region     = "${AWS_REGION}"
 bedrock_region = "${AWS_BEDROCK_REGION}"
 ssm_root_path  = "/platform/dev"
 
-nat_gateway_count      = 1
+# Externally-managed networking
+vpc_id              = "${VPC_ID}"
+private_subnet_ids  = ["${PRIVATE_SUBNET_A}", "${PRIVATE_SUBNET_B}"]
+public_subnet_ids   = ["${PUBLIC_SUBNET_A}", "${PUBLIC_SUBNET_B}"]
+isolated_subnet_ids = []
+
 waf_enabled            = false
 cloudfront_enabled     = false
 removal_policy_destroy = true
@@ -63,7 +71,11 @@ aws_region     = "${AWS_REGION}"
 bedrock_region = "${AWS_BEDROCK_REGION}"
 ssm_root_path  = "/platform/staging"
 
-nat_gateway_count      = 1
+vpc_id              = "${VPC_ID}"
+private_subnet_ids  = ["${PRIVATE_SUBNET_A}", "${PRIVATE_SUBNET_B}"]
+public_subnet_ids   = ["${PUBLIC_SUBNET_A}", "${PUBLIC_SUBNET_B}"]
+isolated_subnet_ids = []
+
 waf_enabled            = true
 cloudfront_enabled     = true
 removal_policy_destroy = false
@@ -78,7 +90,11 @@ aws_region     = "${AWS_REGION}"
 bedrock_region = "${AWS_BEDROCK_REGION}"
 ssm_root_path  = "/platform/production"
 
-nat_gateway_count      = 3    # One per AZ for HA
+vpc_id              = "${VPC_ID}"
+private_subnet_ids  = ["${PRIVATE_SUBNET_A}", "${PRIVATE_SUBNET_B}", "${PRIVATE_SUBNET_C}"]
+public_subnet_ids   = ["${PUBLIC_SUBNET_A}", "${PUBLIC_SUBNET_B}", "${PUBLIC_SUBNET_C}"]
+isolated_subnet_ids = []
+
 waf_enabled            = true
 cloudfront_enabled     = true
 removal_policy_destroy = false
@@ -90,7 +106,6 @@ Key differences across environments:
 
 | Setting | dev | staging | production |
 |---------|-----|---------|------------|
-| NAT gateways | 1 | 1 | 3 (HA) |
 | WAF | disabled | enabled | enabled |
 | CloudFront | disabled | enabled | enabled |
 | Removal policy | destroy | retain | retain |
@@ -100,46 +115,29 @@ Key differences across environments:
 
 ## Complete Deployment Sequence
 
-### Initial Deploy (all environments)
+### Initial Deploy
 
 ```bash
-cd modules/platform
-
-# 1. Initialise and deploy platform infrastructure
+# 1. Deploy platform infrastructure
+cd infra
 terraform init
-terraform plan -var-file=envs/dev.tfvars
+terraform plan  -var-file=envs/dev.tfvars
 terraform apply -var-file=envs/dev.tfvars
 
-# 2. Capture outputs for downstream modules
+# 2. (Optional) read key outputs — or rely on the SSM parameters written automatically
 GATEWAY_ID=$(terraform output -raw gateway_id)
-GATEWAY_URL=$(terraform output -raw gateway_url)
-GATEWAY_ROLE=$(terraform output -raw gateway_role_arn)
 MEMORY_ID=$(terraform output -raw memory_id)
 VPC_ID=$(terraform output -raw vpc_id)
-
-cd ../agents
-
-# 3. Deploy agents (requires platform outputs)
-terraform init
-terraform plan -var-file=envs/dev.tfvars
-terraform apply -var-file=envs/dev.tfvars
-
-# 4. Capture runtime ARNs for workflows
-RUNTIME_ARNS=$(terraform output -json runtime_arns)
-
-cd ../workflows
-
-# 5. Deploy workflows (requires agents outputs)
-terraform init
-terraform plan -var-file=envs/dev.tfvars
-terraform apply -var-file=envs/dev.tfvars
 ```
 
-In practice, these three modules are typically wired together in a root module:
+In practice, the three modules are wired together in a root module so Terraform resolves outputs automatically:
 
 ```hcl
 module "platform" {
   source = "git::https://github.com/your-org/aws-agent-platform.git//modules/platform?ref=v1.0.0"
+
+  vpc_id             = var.vpc_id
+  private_subnet_ids = var.private_subnet_ids
   # ...
 }
 
@@ -147,9 +145,10 @@ module "agents" {
   source     = "git::https://github.com/your-org/aws-agent-platform.git//modules/agents?ref=v1.0.0"
   depends_on = [module.platform]
 
-  gateway_id   = module.platform.gateway_id
-  gateway_url  = module.platform.gateway_url
-  memory_id    = module.platform.memory_id
+  gateway_id              = module.platform.gateway_id
+  gateway_url             = module.platform.gateway_url
+  memory_id               = module.platform.memory_id
+  codebuild_source_bucket = module.platform.codebuild_source_bucket
   # ...
 }
 
@@ -166,7 +165,7 @@ module "workflows" {
 
 ## ECR Push and Runtime Update Workflow
 
-After the infrastructure is deployed, push agent container images:
+After infrastructure is deployed, push agent container images:
 
 ```bash
 # Authenticate to ECR
@@ -177,25 +176,21 @@ aws ecr get-login-password --region ${AWS_REGION} | \
 # Build for ARM64 (required for AgentCore — Graviton)
 docker buildx build \
   --platform linux/arm64 \
-  -t myplatform-dev-researcher:latest \
+  -t myplatform-dev-my-agent:latest \
   --push \
-  -f agents/researcher/Dockerfile \
-  agents/researcher/
+  -f agents/my-agent/Dockerfile \
+  agents/my-agent/
 
 # Or use the CodeBuild project provisioned by the agents module
-aws s3 cp agents/researcher/ s3://${SOURCE_BUCKET}/agents/researcher/ --recursive
-aws codebuild start-build --project-name myplatform-dev-researcher
+aws s3 cp agents/my-agent/ s3://${SOURCE_BUCKET}/agents/my-agent/ --recursive
+aws codebuild start-build --project-name myplatform-dev-my-agent
 ```
-
-After the image is pushed, the AgentCore Runtime automatically picks it up on the next invocation (or can be refreshed via the console).
 
 ---
 
 ## Cross-Region Bedrock Access
 
 Bedrock models are typically accessed from a dedicated region (set via `bedrock_region`) that may differ from the primary deployment region. The platform module accepts a separate `bedrock_region` variable and wires it as `BEDROCK_REGION` into every Runtime's environment.
-
-A cross-region Bedrock provider alias is declared in `providers.tf`:
 
 ```hcl
 provider "aws" {
@@ -217,11 +212,7 @@ Agents support two network modes controlled by the `runtime.network_mode` field 
 | `PUBLIC` | Runtime has outbound internet access | Agent needs to reach external APIs |
 | `VPC` | Runtime is VPC-only (private subnets, no public IP) | Sensitive workloads, internal-only tool access |
 
-For `VPC` mode, the Terraform module automatically wires `private_subnet_ids` and `agent_security_group_id` from the platform module into the Runtime's `network_configuration` block. No additional configuration is needed in the blueprint.
-
-VPC endpoints for `ecr.dkr`, `ecr.api`, `s3`, and `ssm` are provisioned by the network sub-module to ensure VPC-mode agents can reach required services without traversing the internet.
-
-> **Note:** A VPC endpoint for the `bedrock-agentcore` service is aspirational. As of March 2026, verify that the `com.amazonaws.<region>.bedrock-agentcore` endpoint service is available in your region before enabling it. The network sub-module includes a placeholder that can be activated once the endpoint is GA.
+For `VPC` mode, the Terraform module automatically wires `private_subnet_ids` and `agent_security_group_id` from the platform module into the Runtime's `network_configuration` block. No extra blueprint configuration is needed.
 
 ---
 
@@ -233,12 +224,12 @@ The recommended promotion flow is:
 dev → staging → production
 ```
 
-Each promotion step involves:
+Each promotion step:
 
-1. Updating `execution_modes:` in blueprint YAML to enable the target environment
-2. Deploying the agents/workflows modules with the target `tfvars`
-3. Running integration tests against the new environment
-4. Updating `execution_modes.production: true` when ready for production promotion
+1. Update `execution_modes:` in blueprint YAML to enable the target environment.
+2. Deploy the agents/workflows modules with the target `tfvars`.
+3. Run integration tests against the new environment.
+4. Set `execution_modes.production: true` when ready for production.
 
 Strategy blueprints follow the same model — `execution_modes.production` defaults to `false` and must be explicitly enabled.
 
@@ -246,7 +237,7 @@ Strategy blueprints follow the same model — `execution_modes.production` defau
 
 ## State Management
 
-Each environment maintains its own Terraform state. The recommended backend configuration:
+Each environment maintains its own Terraform state. Recommended backend configuration:
 
 ```hcl
 terraform {
@@ -260,4 +251,4 @@ terraform {
 }
 ```
 
-Platform outputs shared with downstream modules should be read from Terraform state using `data "terraform_remote_state"` or from SSM parameters (which the platform module writes automatically under `${ssm_root_path}/`). SSM parameters are the preferred cross-module interface because they do not require shared state access.
+Platform outputs shared with downstream modules can be read from Terraform state using `data "terraform_remote_state"` or from SSM parameters (written automatically under `${ssm_root_path}/`). SSM parameters are the preferred cross-module interface — they do not require shared state bucket access.

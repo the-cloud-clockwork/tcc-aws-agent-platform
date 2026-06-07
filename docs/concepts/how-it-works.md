@@ -1,8 +1,7 @@
 ---
 title: How It Works
-nav_order: 3
-parent: Architecture
-grand_parent: Documentation
+nav_order: 2
+parent: Concepts
 ---
 
 # How It Works
@@ -220,7 +219,7 @@ graph TD
 
 **A2A protocol details:**
 
-1. Each agent publishes `/.well-known/agent-card.json` describing its capabilities.
+1. Each agent publishes `/.well-known/agent.json` describing its capabilities.
 2. The coordinator discovers specialists at startup by resolving their agent cards.
 3. Cross-agent calls use M2M OAuth tokens issued by AgentCore Identity — no hardcoded credentials.
 4. Specialists are wired as regular Strands `@tool` functions on the coordinator. The LLM sees them as tools; A2A handles the transport.
@@ -260,8 +259,8 @@ Every prompt resolution, Gateway target call, and Memory namespace is mode-aware
 
 ## Next Steps
 
-- [The 12 Building Blocks]({{ '/docs/architecture/building-blocks' | relative_url }}) — deep dive into each component
-- [Platform vs. Domain]({{ '/docs/architecture/platform-vs-domain' | relative_url }}) — responsibility matrix
+- [The 12 Building Blocks]({{ '/docs/concepts/building-blocks' | relative_url }}) — deep dive into each component
+- [Platform vs. Domain]({{ '/docs/concepts/platform-vs-domain' | relative_url }}) — responsibility matrix
 - [SDK Reference — Runtime]({{ '/docs/sdk/runtime' | relative_url }}) — `AgentCoreApp`, `GenericHandler`, `BlueprintLoader`
 - [SDK Reference — Memory]({{ '/docs/sdk/memory' | relative_url }}) — `MemoryManager`, `MemoryHookProvider`, branching
 - [SDK Reference — A2A]({{ '/docs/sdk/a2a' | relative_url }}) — `A2AServerWrapper`, `A2AClient`, `A2AWiring`

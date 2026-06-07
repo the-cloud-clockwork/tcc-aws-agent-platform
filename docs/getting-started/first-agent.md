@@ -2,14 +2,13 @@
 title: First Agent
 nav_order: 3
 parent: Getting Started
-grand_parent: Documentation
 ---
 
 # First Agent
 
-A complete, step-by-step tutorial that takes you from an empty directory to a running agent on AgentCore Runtime.
+A complete step-by-step tutorial from an empty directory to a running agent on AgentCore Runtime.
 
-You will write: one YAML blueprint, one prompt builder, and one 5-line handler. The platform generates everything else.
+You write: one YAML blueprint, one prompt builder, and one 5-line handler. The platform generates everything else.
 
 ---
 
@@ -18,8 +17,8 @@ You will write: one YAML blueprint, one prompt builder, and one 5-line handler. 
 A general-purpose assistant agent that:
 
 - Runs in an isolated microVM per session on AgentCore Runtime
-- Routes tool calls through AgentCore Gateway to a domain Lambda
-- Persists conversation history with Memory
+- Routes tool calls through AgentCore Gateway to your domain MCP server
+- Persists conversation history with short-term and long-term Memory
 - Validates inbound requests with Cognito JWT
 - Streams OTEL traces to CloudWatch automatically
 
@@ -27,7 +26,7 @@ A general-purpose assistant agent that:
 
 ## Step 1: Write the Blueprint
 
-The blueprint is the single source of truth for your agent. Every runtime behavior -- model selection, tool routing, memory persistence, auth, observability -- is declared here.
+The blueprint is the single source of truth for your agent. Every runtime behavior — model selection, tool routing, memory persistence, auth, observability — is declared here.
 
 Create `blueprints/agents/assistant.yaml`:
 
@@ -37,13 +36,13 @@ name: General Purpose Assistant
 version: "1.0.0"
 description: "General-purpose assistant with tool access and memory"
 
-# --- Prompt Reference ---
-# Required. References a versioned prompt in the Prompt Registry.
+# Required: references a versioned prompt in the Prompt Registry.
+# The loader resolves this at startup — direct Lambda invoke first,
+# then HTTP fallback, then local file (useful in dev).
 prompt_ref: assistant-system-v1
 
-# --- Block 1: Runtime ---
-# Hosts this agent in an isolated microVM per session.
-# network_mode: PRIVATE means the container runs in your VPC.
+# Runtime: hosts this agent in an isolated microVM per session.
+# network_mode: PRIVATE means the container runs inside your VPC.
 runtime:
   type: agentcore
   max_iterations: 15
@@ -51,32 +50,30 @@ runtime:
   network_mode: PRIVATE
   protocol: HTTP
 
-# --- Block 9: Model (Strands/Bedrock) ---
-# Model is resolved at load time from the blueprint.
-# Never hardcode a model ID -- use an environment variable.
-# temperature and max_tokens are required fields.
+# Model: provider-agnostic. Switch provider by changing these two fields.
+# model_id, temperature, and max_tokens are required — no platform defaults.
+# provider defaults to "bedrock". Use ${VAR:-fallback} for env-template expansion.
 model:
   provider: bedrock
   model_id: ${MODEL_ID}
   temperature: 0.3
   max_tokens: 4096
 
-# --- Block 2: Gateway Tools ---
-# The agent sees these as MCP tools.
-# The platform wires them to Gateway targets; domain provides the Lambda.
+# Tools: MCP targets routed through Gateway.
+# The platform wires the MCPClient; domain provides the Lambda or container.
 tools:
   - mcp: assistant-tools-mcp
     tools: [search_knowledge_base, create_note, list_notes]
 
-# --- Gateway ---
+# Gateway inbound auth.
 gateway:
   auth_type: aws_iam
 
-# --- Block 4: Memory ---
-# Short-term: last 5 turns injected into the system prompt each session.
-# Long-term: semantic facts extracted asynchronously and retrieved by similarity.
-# Note: There is no `mode` field. Strategies enable memory automatically.
-# The canonical type is SUMMARY (SUMMARIZATION is accepted as an alias).
+# Memory: two tiers wired automatically when strategies are declared.
+# Short-term: last short_term_k turns injected into system prompt each session.
+# Long-term: facts extracted asynchronously, retrieved by semantic similarity.
+# There is no `mode` field — strategies activate memory automatically.
+# SUMMARIZATION is accepted as an alias for SUMMARY.
 memory:
   strategies:
     - type: USER_PREFERENCE
@@ -91,10 +88,8 @@ memory:
   event_expiry_days: 30
   short_term_k: 5
 
-# --- Block 3: Identity ---
-# Inbound: Cognito JWT validates every request before your code runs.
-# Outbound: the agent can acquire credentials for external APIs.
-# Credential types: api_key and oauth2 only.
+# Identity: Cognito JWT validates every inbound request before your code runs.
+# Outbound credential types are api_key and oauth2 only.
 identity:
   authorizer:
     type: cognito_jwt
@@ -105,32 +100,31 @@ identity:
       type: api_key
       provider: notes-apikey-provider
 
-# --- Block 6: Observability ---
-# OTEL auto-instrumentation is enabled by including aws-opentelemetry-distro
-# in the generated Dockerfile. trace_attributes appear on every span.
-# Note: audit_log uses ttl_days (not ttl_years).
+# Observability: all application-level hooks (Langfuse, audit, cost tracking)
+# are gated by enabled: true. OTEL auto-instrumentation is separate — it is
+# controlled by the Dockerfile generated at deploy time.
+# audit_log writes to DynamoDB (not CloudWatch).
 observability:
   enabled: true
   trace_attributes:
-    environment: production
+    environment: development
     agent.version: "1.0.0"
   audit_log:
     enabled: true
-    ttl_days: 1825
+    ttl_days: 1825      # 5 years
 
-# --- Block 7: Evaluation ---
-# Online evaluation scores a percentage of live sessions continuously.
-# Results appear in the GenAI Observability dashboard.
+# Evaluation: online evaluation scores a percentage of live sessions.
+# provider defaults to "agentcore"; set to "langfuse" for provider-agnostic eval.
 evaluation:
+  provider: agentcore   # agentcore | langfuse
   online:
-    sampling_rate: 100
+    sampling_rate: 10
     evaluators:
       - Builtin.GoalSuccessRate
       - Builtin.Correctness
       - Builtin.ToolSelectionAccuracy
 
-# --- Block 8: Policy ---
-# Cedar policies attached to the Gateway enforce access control per tool call.
+# Policy: Cedar access control attached to the Gateway.
 # mode: LOG_ONLY during development; switch to ENFORCE in production.
 policy:
   engine: AssistantPolicies
@@ -143,23 +137,48 @@ policy:
 
 ### What Each Block Does
 
-| Block | YAML Key | What the Platform Does |
-|-------|---------|------------------------|
-| Runtime | `runtime:` | Generates `@app.entrypoint`, Dockerfile, ECR push, Runtime registration |
-| Gateway | `tools:` + `gateway:` | Registers MCP targets, injects `MCPClient` wired to `${GATEWAY_URL}` |
-| Memory | `memory:` | Generates `MemoryHookProvider`, injects into Strands `Agent` |
-| Identity | `identity:` | Configures Runtime JWT validation, registers credential providers |
-| Observability | `observability:` | Adds OTEL Dockerfile layer, wraps entrypoint with `opentelemetry-instrument` |
-| Evaluation | `evaluation:` | Creates online evaluation config against the agent's OTEL traces |
-| Policy | `policy:` | Generates Cedar policies, attaches policy engine to Gateway |
+| YAML Key | What the Platform Wires Automatically |
+|----------|--------------------------------------|
+| `runtime:` | `@app.entrypoint` decorator, Dockerfile with OTEL layer, ECR push, Runtime registration |
+| `model:` | Strands `BedrockModel` / `LiteLLMModel` / `AnthropicModel` / `GeminiModel` — dispatched by `provider` |
+| `tools:` + `gateway:` | `MCPClient` connected to `${GATEWAY_URL}`, MCP target registrations |
+| `memory:` | `MemoryHookProvider` — loads history on agent init, saves turns on each message |
+| `identity:` | Runtime JWT validation, credential provider registrations |
+| `observability:` | `CompositeObservabilityHook` (Langfuse, audit log, structured logger, cost tracker) |
+| `evaluation:` | Online evaluation config against the agent's OTEL traces |
+| `policy:` | Cedar policies translated and attached to the Gateway |
 
 ---
 
-## Step 2: Create the Prompt Builder
+## Step 2: Write the System Prompt
 
-The prompt builder is the only domain-specific code you write per agent. It constructs the system prompt and per-invocation prompt from your business parameters.
+Create `prompts/assistant-system-v1.txt`:
 
-Create `src/my_domain/agent_configs.py`:
+```
+You are a helpful assistant with access to a knowledge base and note-taking tools.
+
+Use search_knowledge_base to look up information before answering factual questions.
+Use create_note and list_notes to help users manage their notes.
+
+Be concise and accurate. When you are unsure, say so.
+```
+
+Push this to the Prompt Registry before deploying:
+
+```bash
+agentcli prompt push \
+  --id assistant-system-v1 \
+  --file prompts/assistant-system-v1.txt \
+  --env dev
+```
+
+---
+
+## Step 3: Write the Prompt Builder
+
+The prompt builder is the only domain-specific code you write per agent. It constructs the per-invocation prompt from your input parameters.
+
+Create `src/myapp/agent_configs.py`:
 
 ```python
 from agent_core import AgentConfig, AgentConfigRegistry
@@ -178,18 +197,19 @@ REGISTRY.register(AgentConfig(
 ))
 ```
 
-The `AgentConfigRegistry` is the complete interface between domain logic and the platform. Everything else -- wiring the prompt to the agent, injecting memory context, attaching tools -- is handled by `BlueprintLoader`.
+`AgentConfigRegistry` is the complete interface between your domain logic and the platform. Everything else — wiring the prompt to the agent, injecting memory context, attaching tools — is handled by `BlueprintLoader`.
 
 ---
 
-## Step 3: Create the Handler
+## Step 4: Write the Handler
 
-Every domain agent uses an identical 5-line handler. The blueprint, not the handler, determines all runtime behaviour.
+Every agent uses an identical 5-line handler. The blueprint, not the handler, determines all runtime behavior.
 
-Create `src/my_domain/app.py`:
+Create `src/myapp/app.py`:
 
 ```python
 from agent_core import AgentCoreApp, BlueprintLoader, GenericHandler
+from myapp.agent_configs import REGISTRY
 
 HANDLER = GenericHandler(
     loader=BlueprintLoader(blueprints_dir="blueprints", config_registry=REGISTRY)
@@ -197,13 +217,13 @@ HANDLER = GenericHandler(
 app = AgentCoreApp(handler=HANDLER)
 ```
 
-That is the complete handler. `BlueprintLoader` reads `blueprints/agents/assistant.yaml`, resolves all 12 blocks, builds a Strands `Agent` with the correct model, Gateway tools, memory hooks, identity decorators, and OTEL attributes, then hands it to `GenericHandler`. `AgentCoreApp` exposes `POST /invocations` and `GET /ping` on port 8080.
+`BlueprintLoader` reads `blueprints/agents/assistant.yaml`, resolves all declared blocks, and builds a Strands `Agent` with the correct model, Gateway tools, memory hooks, identity decorators, and OTEL attributes. `AgentCoreApp` exposes `POST /invocations` and `GET /ping` on port 8080.
+
+For specialist agents in a multi-agent graph, `BlueprintLoader.build_entrypoint()` auto-mounts an A2A sidecar server when `multi_agent.role: specialist` is declared in the blueprint — no additional code needed.
 
 ---
 
-## Step 4: Validate the Blueprint
-
-Before deploying, confirm the YAML is structurally valid. The `agentcli blueprint lint` command takes a single file path:
+## Step 5: Validate the Blueprint
 
 ```bash
 agentcli blueprint lint blueprints/agents/assistant.yaml
@@ -219,7 +239,7 @@ Validating blueprints/agents/assistant.yaml ... OK
   memory: 3 strategies, 5 short-term turns
   identity: cognito_jwt, 1 credential provider(s)
   observability: enabled, audit_log: enabled
-  evaluation: online @ 100%, 3 evaluator(s)
+  evaluation: online @ 10%, 3 evaluator(s)
   policy: LOG_ONLY, 1 rule(s)
 
 All blueprints valid.
@@ -229,47 +249,28 @@ If validation fails, the CLI reports the field path and the expected format. Fix
 
 ---
 
-## Step 5: Build and Deploy
+## Step 6: Deploy
 
-With infrastructure already deployed (see [Infrastructure]({{ '/docs/infrastructure/' | relative_url }})), deploy the agent:
+With infrastructure in place (see [Infrastructure]({{ '/docs/infrastructure/' | relative_url }})):
 
 ```bash
-# Validate the blueprint
-agentcli blueprint lint blueprints/agents/assistant.yaml
-
-# Deploy to the target environment
-agentcli deploy agent blueprints/agents/assistant.yaml --env production
+# Deploy to dev environment
+agentcli deploy agent blueprints/agents/assistant.yaml --env dev
 ```
 
 Under the hood, `agentcli deploy agent`:
 
-1. Reads the blueprint and generates a production `Dockerfile` with the OTEL layer
-2. Builds the Docker image locally
+1. Reads the blueprint and generates a `Dockerfile` with the OTEL instrumentation layer
+2. Builds the Docker image
 3. Authenticates to ECR and pushes the image
 4. Calls the AgentCore API to register or update the Runtime
 5. Reports the Runtime ARN and endpoint URL
 
 ---
 
-## What You Did NOT Write
+## Step 7: Invoke Your Agent
 
-The platform generated all of this from the blueprint:
-
-- The `@app.entrypoint` decorator and AgentCore wiring
-- The `BedrockModel` instantiation with the correct model ID
-- The `MCPClient` connecting to Gateway at `${GATEWAY_URL}`
-- The `MemoryHookProvider` that loads history on agent init and saves turns on message add
-- The `@requires_access_token` / `@requires_api_key` decorators for outbound credentials
-- The Dockerfile with OTEL instrumentation
-- The `trace_attributes` dict on the Strands `Agent`
-- The evaluation online config
-- The Cedar policy attachment to the Gateway
-
----
-
-## Invoking Your Agent
-
-Once deployed, invoke via the Runtime API:
+Once deployed, invoke via the AgentCore Runtime API:
 
 ```bash
 aws bedrock-agentcore invoke-agent-runtime \
@@ -280,9 +281,44 @@ aws bedrock-agentcore invoke-agent-runtime \
 
 ---
 
+## What You Did NOT Write
+
+The platform generated all of this from the blueprint:
+
+- The `@app.entrypoint` decorator and AgentCore wiring
+- The `BedrockModel` (or `LiteLLMModel` / `AnthropicModel` / `GeminiModel`) instantiation
+- The `MCPClient` connecting to Gateway at `${GATEWAY_URL}`
+- The `MemoryHookProvider` that loads history on agent init and saves turns on each message
+- The `@requires_access_token` / `@requires_api_key` decorators for outbound credentials
+- The Dockerfile with OTEL instrumentation
+- The `trace_attributes` dict on the Strands `Agent`
+- The evaluation online config against the agent's OTEL traces
+- The Cedar policy attachment to the Gateway
+
+---
+
+## Switching Providers
+
+To switch from Bedrock to LiteLLM, change two lines in the blueprint:
+
+```yaml
+model:
+  provider: litellm                        # was: bedrock
+  model_id: claude-sonnet-4-6             # name the proxy expects
+  temperature: 0.3
+  max_tokens: 4096
+  base_url: ${LITELLM_BASE_URL}
+  api_key_env: LITELLM_API_KEY
+```
+
+No handler or infrastructure changes required. Redeploy and the new provider is live.
+
+---
+
 ## Next Steps
 
-- [The 12 Building Blocks]({{ '/docs/architecture/building-blocks' | relative_url }}) -- deep dive into every blueprint block
-- [Agent Blueprint Spec]({{ '/docs/blueprints/agent-blueprint' | relative_url }}) -- complete YAML field reference
-- [SDK Reference -- Runtime]({{ '/docs/sdk/runtime' | relative_url }}) -- `AgentCoreApp`, `GenericHandler`, `BlueprintLoader` API
-- [Infrastructure]({{ '/docs/infrastructure/' | relative_url }}) -- Terraform modules and deployment patterns
+- [Agent Blueprint Spec]({{ '/docs/blueprints/agent-blueprint' | relative_url }}) — complete YAML field reference
+- [Inference Providers]({{ '/docs/inference/' | relative_url }}) — Bedrock, LiteLLM, Anthropic, and Vertex in depth
+- [Concepts: How It Works]({{ '/docs/concepts/how-it-works' | relative_url }}) — deep dive into the BlueprintLoader pipeline
+- [Infrastructure]({{ '/docs/infrastructure/' | relative_url }}) — Terraform modules and deployment patterns
+- [SDK Reference — Runtime]({{ '/docs/sdk/runtime' | relative_url }}) — `AgentCoreApp`, `GenericHandler`, `BlueprintLoader` API

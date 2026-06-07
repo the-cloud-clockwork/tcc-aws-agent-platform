@@ -81,7 +81,7 @@
 **Phase 1 — Stage 1 Inference Decoupling (2026-04-09 AM)**
 - [x] `_build_model_config()` match/case dispatch for bedrock/anthropic/litellm/vertex
 - [x] `ModelConfig` + `base_url` / `api_key_env` / `extra_headers_env` optional fields
-- [x] `StructuredOutputEnforcer` hook (instructor-based post-processor) for non-Bedrock `output_schema`
+- [x] `StructuredOutputEnforcer` hook (instructor-based post-processor) for non-Bedrock `output_schema` — **superseded:** enforcer deleted in `8c784df`, Strands native `structured_output_model` used for all providers as of strands-agents 1.41.0
 - [x] All 9 QITP agents swapped to `provider: litellm` in blueprints
 - [x] `litellm>=1.83.0,<2` safety pin (CVE-2026-33634)
 - [x] `custom_llm_provider="openai"` flag in loader (litellm quirk fix — don't let it route claude-* to native Anthropic endpoint)
@@ -107,7 +107,22 @@
 - Downstream agent empty-symbols fallback (5 agents: sentiment-analyzer, technical-analyzer, ml-predictor, strategy-evaluator, portfolio-recommender) — input validators reject empty `symbols` / `symbol` / `strategy_evaluations` fields when upstream gap-detector returns zero gaps. Application-level, not infra.
 
 **Completed:** 2026-04-09
-**DoD:** ✅ `terraform apply` in `tcc-qitp` — zero errors. `pilot-t4-1775755670` — 16/16 states, SUCCEEDED in 44.08 s with real inference and claim-check artifact persisted. Two fixes shipped in domain repo, two fixes shipped in platform repo, all E2E validated in a single pipeline run.
+**DoD:** ✅ `terraform apply` in domain consumer — zero errors. Pipeline — 16/16 states, SUCCEEDED in 44.08 s with real inference and claim-check artifact persisted. Two fixes shipped in domain repo, two fixes shipped in platform repo, all E2E validated in a single pipeline run.
+
+---
+
+---
+
+## Post-Block-5 Bug Fixes ▸ `done`
+
+> Targeted fixes landed on `dev` after Block 5 validation. Not a named block — individual commits.
+
+| Commit | Fix | Impact |
+|--------|-----|--------|
+| `8c784df` | Delete `StructuredOutputEnforcer` from loader wiring — use Strands native `structured_output_model` for all providers | Removes instructor dependency; aligns with strands-agents ≥ 1.41.0 (upstream bugs #743/#1005/#891 resolved) |
+| `4c57d6c` | Graph coordinator synthesis turn fires after graph nodes complete (Bug F + Bug A) | Coordinator agents in graph mode now produce a final synthesis response correctly |
+| `8f8b367` | Capture agent reasoning in Langfuse trace input/output (Bug H) | Full conversation JSON (prompt, tool calls, results) now in Langfuse traces; was null before |
+| `319ba11` | Build platform-deps Lambda layer hermetically in Terraform | CI no longer requires local pip install; layer is reproducible across environments |
 
 ---
 

@@ -1,8 +1,8 @@
 # tcc-aws-agent-platform — MVP Status & Backlog
 
-> **Last updated:** 2026-04-08 (evening)
+> **Last updated:** 2026-06-07
 > **Owner:** Nestor Colt
-> **Phase:** Stage 1 inference decoupling done. Pipeline E2E validated. LiteLLM test next.
+> **Phase:** Phases 1+2 production-validated. Stage 3 postponed. Post-Block-5 bug fixes landed (`8c784df`, `4c57d6c`, `8f8b367`, `319ba11`).
 
 ---
 
@@ -30,6 +30,8 @@
 | Block 2 | Security & Production Hardening (ENH-008, 017, 019 partial) | 2026-04-08 |
 | Block 3 | Runtime & Observability (ENH-001, 002, 003, 007) | 2026-04-08 |
 | Block 4 | Infrastructure Modules & Cleanup (ENH-011-014, 018) | 2026-04-08 |
+| Block 5 | Inference Migration + Production Pilot Validation | 2026-04-09 |
+| Bug fixes | StructuredOutputEnforcer removed, coordinator synthesis, Langfuse reasoning, hermetic layer | 2026-06-07 |
 
 ---
 
@@ -72,7 +74,7 @@
 - [ ] Guardrail enabled in production (P1 — operator decision)
 - [ ] Online evaluation configured (P1 — domain blueprint update)
 - [ ] Test coverage: Runtime, Memory, Gateway above 50% (P2)
-- [ ] LiteLLM test: Deploy one agent with `provider: litellm` (next session)
+- [x] LiteLLM test: Provider-agnostic inference production-validated (Block 5, Phase 3)
 
 ---
 

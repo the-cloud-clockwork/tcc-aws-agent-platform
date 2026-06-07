@@ -25,6 +25,7 @@ All 5 blocks executed and validated:
 - Platform LiteLLM key via Secrets Manager data source (not env var)
 - `rebuild-deploy.sh` parallel orchestrator + semver kill via `publish-wheel.sh`
 - `core` pinned to floating `1.0.0`, republished on every push
+- Post-Block-5: `StructuredOutputEnforcer` removed (`8c784df`), graph coordinator fix (`4c57d6c`), Langfuse reasoning capture (`8f8b367`), hermetic Lambda layer (`319ba11`)
 
 ---
 

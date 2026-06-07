@@ -1,7 +1,7 @@
 ---
 title: Prompt Registry Module
-nav_order: 4
-parent: Infrastructure
+nav_order: 5
+parent: "Infrastructure (Terraform)"
 ---
 
 # Prompt Registry Module
@@ -107,18 +107,26 @@ resource "aws_dynamodb_table_item" "prompt_metadata" {
 
 ## Resolution Flow
 
+`PromptRegistryClient` uses a three-tier resolution order:
+
 ```
 Agent starts → BlueprintLoader reads prompt_ref from YAML
     ↓
 PromptRegistryClient.get(prompt_ref)
     ↓
-1. HTTP GET → PROMPT_REGISTRY_URL/prompts/{ref}
-   (mode-gated: simulation sees drafts, production only stable)
-    ↓ (if fails)
-2. Local file → {local_dir}/{ref}.txt
-    ↓ (if fails)
-3. PromptResolutionError raised
+1. Direct Lambda invoke via boto3
+   (when PROMPT_REGISTRY_FUNCTION env var is set — production path)
+   Mode-gated: simulation/dev sees draft prompts; staging/production only stable.
+    ↓ (if PROMPT_REGISTRY_FUNCTION is not set)
+2. HTTP GET → PROMPT_REGISTRY_URL/prompts/{ref}
+   (fallback for non-Lambda or local dev registries)
+    ↓ (if both fail or are not configured)
+3. Local file → {local_dir}/{ref}.txt
+    ↓ (if not found)
+4. PromptResolutionError raised
 ```
+
+The direct Lambda invoke path (`PROMPT_REGISTRY_FUNCTION`) is the standard production path. It avoids HTTP overhead and IAM presigning. The HTTP path is useful for local development servers or registries not deployed as Lambda.
 
 ## API Routes
 

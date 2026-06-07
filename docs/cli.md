@@ -1,6 +1,6 @@
 ---
 title: CLI Reference
-nav_order: 7
+nav_order: 12
 has_children: true
 ---
 
@@ -10,11 +10,13 @@ has_children: true
 
 ## Installation
 
+The CLI is published as the `agent-cli` package alongside `agent-core`. Install it from your configured package registry:
+
 ```bash
 pip install agent-cli
 ```
 
-For development (editable install from source):
+For development (editable install from the repository source):
 
 ```bash
 pip install -e "cli/[dev]"
@@ -24,9 +26,9 @@ pip install -e "cli/[dev]"
 
 | Variable | Purpose |
 |----------|---------|
-| `AGENT_REGISTRY_URL` | Prompt Registry API base URL (default: `http://localhost:8000`) |
-| `AWS_DEFAULT_REGION` | AWS region for deployment operations |
-| `AWS_REGION` | AWS region for evaluation operations |
+| `AGENT_REGISTRY_URL` | Prompt Registry HTTP API base URL (default: `http://localhost:8000`). Used when the registry is accessed over HTTP. |
+| `AWS_DEFAULT_REGION` | AWS region for deployment operations (`agentcli deploy`) |
+| `AWS_REGION` | AWS region for evaluation operations (`agentcli eval`) |
 
 ## Command Groups
 
@@ -53,11 +55,15 @@ agentcli prompt push prompts/system.jinja2 --id my-agent-system --version 1.2.0
 agentcli deploy agent agents/my-agent.yaml --env production
 
 # Generate Cedar policies from blueprint rules
-agentcli policy generate agents/my-agent.yaml --gateway-arn arn:aws:...
+agentcli policy generate agents/my-agent.yaml \
+  --gateway-arn "arn:aws:bedrock-agentcore:${AWS_REGION}:${AWS_ACCOUNT_ID}:gateway/my-gateway"
 
 # Run evaluation on a session
 agentcli eval run --agent-id my-agent --session-id sess-123 \
   --evaluators Builtin.Correctness,Builtin.GoalSuccessRate
+
+# Dry-run a deploy to generate artifacts without deploying
+agentcli deploy agent agents/my-agent.yaml --dry-run
 ```
 
 ## Getting Help
@@ -68,4 +74,6 @@ Every command supports `--help`:
 agentcli --help
 agentcli blueprint --help
 agentcli blueprint lint --help
+agentcli prompt --help
+agentcli eval run --help
 ```

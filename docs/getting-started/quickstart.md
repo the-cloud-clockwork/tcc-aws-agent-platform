@@ -2,12 +2,11 @@
 title: Quickstart
 nav_order: 1
 parent: Getting Started
-grand_parent: Documentation
 ---
 
 # Quickstart
 
-Get a validated agent blueprint running in under 10 minutes.
+Install the SDK and CLI, write a minimal agent blueprint, and validate it — in under 10 minutes. No AWS infrastructure required for this step.
 
 ---
 
@@ -15,21 +14,56 @@ Get a validated agent blueprint running in under 10 minutes.
 
 | Requirement | Version | Notes |
 |-------------|---------|-------|
-| Python | 3.12+ | Required for all SDK packages |
-| AWS CLI | 2.x | Must be configured with credentials (`aws configure`) |
-| Terraform | 1.9+ | Required for infrastructure deployment |
-| Docker | 24+ | Required for building Runtime container images |
-| AWS account | -- | Bedrock must be enabled in `${AWS_REGION}` |
+| Python | 3.11+ | 3.12 recommended |
+| AWS CLI | 2.x | Must be configured (`aws configure`) |
+| Terraform | 1.9+ | Required for infrastructure deployment (not this step) |
+| Docker | 24+ | Required for building Runtime images (not this step) |
+| AWS account | — | Bedrock must be enabled if you use the `bedrock` provider |
 
 ---
 
-## Step 1: Install the SDK
+## Step 1: Configure Your Package Index
+
+> **Package availability:** `agent-core`, `agent-cli`, `prompt-registry`, and `mcp-artifacts` are currently published to a **private** package registry (AWS CodeArtifact). A public distribution channel (PyPI or GitHub Packages) is planned but not yet available. Until then, access requires an authorized CodeArtifact token from your organization.
+
+Configure pip to point at your organization's registry before installing:
+
+```bash
+# Example: AWS CodeArtifact
+export CODEARTIFACT_DOMAIN=<your-domain>
+export CODEARTIFACT_REPO=<your-repo>
+export CODEARTIFACT_ACCOUNT=<your-account-id>
+export CODEARTIFACT_REGION=<your-region>
+
+export CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token \
+  --domain "$CODEARTIFACT_DOMAIN" \
+  --domain-owner "$CODEARTIFACT_ACCOUNT" \
+  --query authorizationToken \
+  --output text)
+
+pip config set global.index-url \
+  "https://aws:${CODEARTIFACT_AUTH_TOKEN}@${CODEARTIFACT_DOMAIN}-${CODEARTIFACT_ACCOUNT}.d.codeartifact.${CODEARTIFACT_REGION}.amazonaws.com/pypi/${CODEARTIFACT_REPO}/simple/"
+```
+
+Replace the placeholder values above with your organization's CodeArtifact domain, repository, account ID, and region.
+
+---
+
+## Step 2: Install the SDK
 
 ```bash
 pip install agent-core
 ```
 
-This installs the core runtime engine, blueprint loader, gateway client, memory manager, identity client, and all supporting subsystems.
+This installs the core runtime engine: BlueprintLoader, GenericHandler, Gateway client, Memory manager, Identity client, Policy engine, Observability hooks, Evaluation wiring, A2A server/client, and MCP base classes.
+
+To install provider-specific extras:
+
+```bash
+pip install "agent-core[litellm]"     # LiteLLM proxy support
+pip install "agent-core[anthropic]"   # Direct Anthropic API
+pip install "agent-core[presidio]"    # Local PII filtering (Microsoft Presidio)
+```
 
 ---
 
@@ -50,15 +84,17 @@ agentcli --version
 
 ---
 
-## Step 4: Create a Minimal Agent Blueprint
+## Step 4: Create a Minimal Blueprint
 
-Create the directory structure your domain repo needs:
+Create the directory structure:
 
 ```bash
 mkdir -p blueprints/agents
 ```
 
-Create `blueprints/agents/my-agent.yaml`:
+Create `blueprints/agents/my-agent.yaml`. Choose the provider that matches your setup:
+
+### Option A — Amazon Bedrock (default)
 
 ```yaml
 id: my-agent
@@ -69,8 +105,8 @@ description: "A general-purpose assistant agent"
 prompt_ref: my-agent-system-v1
 
 model:
-  provider: bedrock
-  model_id: ${MODEL_ID}
+  provider: bedrock                         # default; requires BEDROCK_REGION env var
+  model_id: ${MODEL_ID}                     # supports ${VAR:-default} expansion
   temperature: 0.3
   max_tokens: 4096
 
@@ -81,46 +117,59 @@ runtime:
   network_mode: PRIVATE
   protocol: HTTP
 
-tools:
-  - mcp: my-tools-mcp
-    tools: [get_data, create_item]
-
 gateway:
   auth_type: aws_iam
-
-memory:
-  strategies:
-    - type: SEMANTIC
-      name: FactExtractor
-      namespace: "user/{actorId}/facts/"
-  event_expiry_days: 30
-  short_term_k: 5
-
-identity:
-  authorizer:
-    type: cognito_jwt
-    user_pool_id: ${COGNITO_POOL_ID}
-    client_id: ${COGNITO_CLIENT_ID}
 
 observability:
   enabled: true
   trace_attributes:
-    environment: production
-    agent.version: "1.0.0"
-
-evaluation:
-  online:
-    sampling_rate: 100
-    evaluators:
-      - Builtin.GoalSuccessRate
-      - Builtin.Correctness
+    environment: development
 ```
+
+### Option B — LiteLLM Proxy (OpenAI-compatible endpoint)
+
+```yaml
+id: my-agent
+name: My Agent
+version: "1.0.0"
+description: "A general-purpose assistant agent"
+
+prompt_ref: my-agent-system-v1
+
+model:
+  provider: litellm
+  model_id: claude-sonnet-4-6              # model name the proxy expects
+  temperature: 0.3
+  max_tokens: 4096
+  base_url: ${LITELLM_BASE_URL}            # e.g. https://llm.example.com
+  api_key_env: LITELLM_API_KEY             # env var name holding the key
+  # optional: pass extra headers (e.g. for Cloudflare Access)
+  # extra_headers_env:
+  #   CF-Access-Client-Id: CF_ACCESS_CLIENT_ID
+  #   CF-Access-Client-Secret: CF_ACCESS_CLIENT_SECRET
+
+runtime:
+  type: agentcore
+  max_iterations: 10
+  idle_timeout_minutes: 15
+  network_mode: PRIVATE
+  protocol: HTTP
+
+gateway:
+  auth_type: aws_iam
+
+observability:
+  enabled: true
+  trace_attributes:
+    environment: development
+```
+
+{: .note }
+> `model_id`, `temperature`, and `max_tokens` are required with no defaults — the platform never assumes a model or sampling parameters. `provider` defaults to `bedrock`.
 
 ---
 
 ## Step 5: Validate the Blueprint
-
-The `agentcli blueprint lint` command takes a single file path:
 
 ```bash
 agentcli blueprint lint blueprints/agents/my-agent.yaml
@@ -131,31 +180,33 @@ A valid blueprint produces output like:
 ```
 Validating blueprints/agents/my-agent.yaml ... OK
   runtime: agentcore
-  model: ${MODEL_ID}
-  tools: 1 MCP target(s)
-  memory: 1 strategy
-  identity: cognito_jwt
-  evaluation: online @ 100%
+  model: ${MODEL_ID} via bedrock
+  tools: 0 MCP target(s)
+  memory: none
+  identity: none
+  observability: enabled
 
 All blueprints valid.
 ```
 
+If validation fails, the CLI reports the field path and the expected type or value. Fix each issue before proceeding.
+
 ---
 
-## Step 6: What Comes Next
+## What Comes Next
 
-Blueprint validation confirms your YAML is structurally correct. To run the agent, you need:
+Blueprint validation confirms the YAML is structurally correct. To run the agent end-to-end:
 
-1. **Infrastructure** -- Deploy the platform Terraform modules to provision Gateway, Memory, Runtime, Identity, and Observability. See [Infrastructure]({{ '/docs/infrastructure/' | relative_url }}).
-2. **Domain logic** -- Write a prompt builder and a 5-line handler. See [First Agent]({{ '/docs/getting-started/first-agent' | relative_url }}).
-3. **Deployment** -- `agentcli deploy agent blueprints/agents/my-agent.yaml --env production` builds the container, pushes to ECR, and registers the Runtime.
-
-The platform handles steps 1 and 3 end-to-end from the blueprint. You own step 2.
+1. **Domain repo** — Scaffold a full project with `create-domain.sh`. See [Create a Domain Repo]({{ '/docs/getting-started/create-domain-repo' | relative_url }}).
+2. **Infrastructure** — Deploy the platform Terraform modules (Gateway, Memory, Runtime, Identity, Observability). See [Infrastructure]({{ '/docs/infrastructure/' | relative_url }}).
+3. **Handler** — Write a prompt builder and a 5-line handler. See [First Agent]({{ '/docs/getting-started/first-agent' | relative_url }}).
+4. **Deploy** — `agentcli deploy agent blueprints/agents/my-agent.yaml --env dev` builds the container, pushes to ECR, and registers the Runtime.
 
 ---
 
 ## Next Steps
 
-- [Installation]({{ '/docs/getting-started/installation' | relative_url }}) -- full package reference and environment variable setup
-- [First Agent]({{ '/docs/getting-started/first-agent' | relative_url }}) -- complete step-by-step tutorial
-- [Agent Blueprint Spec]({{ '/docs/blueprints/agent-blueprint' | relative_url }}) -- every field documented
+- [Installation]({{ '/docs/getting-started/installation' | relative_url }}) — full package reference, optional extras, and all environment variables
+- [First Agent]({{ '/docs/getting-started/first-agent' | relative_url }}) — complete step-by-step tutorial with memory, tools, and policy
+- [Inference Providers]({{ '/docs/inference/' | relative_url }}) — Bedrock, LiteLLM, Anthropic, and Vertex configuration
+- [Agent Blueprint Spec]({{ '/docs/blueprints/agent-blueprint' | relative_url }}) — every field documented

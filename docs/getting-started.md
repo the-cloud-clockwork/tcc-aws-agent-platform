@@ -6,7 +6,7 @@ has_children: true
 
 # Getting Started
 
-This section covers everything you need to go from zero to a running AI agent on AWS. By the end, you will have the SDK and CLI installed, a valid agent blueprint, and a clear picture of how to deploy the full stack.
+This section is the on-ramp for new users. By the end you will have the SDK installed, a running agent blueprint validated locally, and a clear picture of how to wire the full AWS infrastructure.
 
 ---
 
@@ -14,28 +14,47 @@ This section covers everything you need to go from zero to a running AI agent on
 
 | Page | What It Covers |
 |------|----------------|
-| [**Create a Domain Repo**]({{ '/docs/getting-started/create-domain-repo' | relative_url }}) | One command scaffolds a full project — agents, MCPs, lambdas, Terraform. Start here. |
-| [Quickstart]({{ '/docs/getting-started/quickstart' | relative_url }}) | Prerequisites, install the SDK and CLI, write a minimal blueprint, validate with `agentcli` |
-| [Installation]({{ '/docs/getting-started/installation' | relative_url }}) | All four SDK packages, development installs, Terraform module setup, environment variables |
-| [First Agent]({{ '/docs/getting-started/first-agent' | relative_url }}) | Step-by-step tutorial: blueprint YAML, prompt builder, handler, validate, build, deploy |
+| [**Create a Domain Repo**]({{ '/docs/getting-started/create-domain-repo' | relative_url }}) | One command scaffolds a complete project — agents, MCP servers, Lambdas, Terraform. **Start here if you want a full project fast.** |
+| [Quickstart]({{ '/docs/getting-started/quickstart' | relative_url }}) | Install the SDK and CLI, write a minimal blueprint, validate with `agentcli`. Working in under 10 minutes. |
+| [Installation]({{ '/docs/getting-started/installation' | relative_url }}) | All packages, optional extras, development install, Terraform module wiring, and every environment variable the platform reads. |
+| [First Agent]({{ '/docs/getting-started/first-agent' | relative_url }}) | Step-by-step tutorial: blueprint YAML, prompt builder, 5-line handler, validate, deploy, invoke. |
 
 ---
 
 ## How the Platform Works in One Paragraph
 
-You define agents as YAML blueprints in your domain repo. The platform reads those declarations and turns them into fully operational AWS infrastructure: AgentCore Runtime containers, Gateway tool routing, Memory persistence, Identity flows, Cedar policies, observability, and multi-agent orchestration -- without runtime glue code. One handler file serves every agent you declare; the blueprint determines which model, tools, prompts, memory strategies, identity providers, and policies are wired.
+You declare agents as YAML blueprints in your domain repo. The platform reads those declarations and produces fully operational AWS infrastructure — AgentCore Runtime containers, Gateway tool routing, Memory persistence, Identity flows, Cedar policies, observability hooks, and multi-agent orchestration — with no runtime glue code. One handler file serves every agent you declare. The blueprint determines which model provider, tools, prompts, memory strategies, identity providers, and policies are wired at startup.
 
 ---
 
 ## Before You Start
 
-- You need an AWS account with Bedrock enabled in your target region.
-- Python 3.12 or higher is required.
-- Terraform 1.9+ is required for infrastructure deployment.
-- The `agent-core` and `agent-cli` packages are distributed via a private package repository. Configure your pip index URL before installing.
+- **AWS account** with Bedrock enabled in your target region (required for the Bedrock provider; other providers work without Bedrock model access).
+- **Python 3.11 or higher** — 3.12 recommended.
+- **Terraform 1.9+** for infrastructure deployment.
+- **Docker 24+** for building Runtime container images.
+- **AWS CLI 2.x** configured with credentials (`aws configure` or environment variables).
+
+{: .note }
+> The `agent-core` and `agent-cli` packages are distributed via a private Python package repository. Configure your pip index URL according to your organization's package distribution setup before running `pip install`.
+
+---
+
+## Choosing an Inference Provider
+
+The platform is provider-agnostic. Pick the provider that matches your setup:
+
+| Provider | When to use | Key requirement |
+|----------|-------------|-----------------|
+| `bedrock` (default) | AWS-native deployments | `BEDROCK_REGION` env var |
+| `litellm` | Self-hosted proxy, OpenAI-compatible APIs, multi-model | `base_url` + `api_key_env` in blueprint |
+| `anthropic` | Direct Anthropic API | `api_key_env` in blueprint |
+| `vertex` | Google Cloud / Gemini models | `GOOGLE_APPLICATION_CREDENTIALS` |
+
+The [Inference Providers]({{ '/docs/inference/' | relative_url }}) section covers every provider in detail, including how to switch providers by changing two lines in your blueprint YAML.
 
 ---
 
 ## Next Steps
 
-Start with [Create a Domain Repo]({{ '/docs/getting-started/create-domain-repo' | relative_url }}) — one command gives you a full project ready for `terraform init`. Then follow [First Agent]({{ '/docs/getting-started/first-agent' | relative_url }}) to customize your first agent.
+Start with [Create a Domain Repo]({{ '/docs/getting-started/create-domain-repo' | relative_url }}) for the fastest path to a deployable project, or go to [Quickstart]({{ '/docs/getting-started/quickstart' | relative_url }}) to install the SDK and validate a blueprint in under 10 minutes.

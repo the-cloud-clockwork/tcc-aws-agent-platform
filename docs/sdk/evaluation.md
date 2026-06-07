@@ -6,56 +6,58 @@ parent: SDK Reference
 
 # Evaluation
 
-The Evaluation subsystem measures agent output quality. It ships 12 built-in evaluators covering correctness, safety, tool usage, and task completion, and supports custom LLM-as-judge evaluators. Evaluation can run on-demand (for testing) or online (sampling live traffic in production).
+The Evaluation subsystem measures agent output quality. It ships 12 built-in evaluators covering correctness, safety, tool usage, and task completion, and supports custom LLM-as-judge evaluators. Two evaluation backends are supported: AWS Bedrock AgentCore (`agentcore`) and Langfuse (`langfuse`).
+
+> **Architecture guide:** [Observability & Evaluation](../observability.md)
 
 ## Key Classes
 
-| Class | Purpose |
-|-------|---------|
-| `EvaluationClient` | Wraps `bedrock_agentcore_starter_toolkit.Evaluation` — runs evaluators, manages online configs |
-| `BUILTIN_EVALUATORS` | Dict of 12 built-in evaluator metadata (name, category, level) |
+| Class | Module | Purpose |
+|-------|--------|---------|
+| `EvaluationClient` | `agent_core.evaluation.client` | AgentCore backend — wraps `bedrock_agentcore_starter_toolkit.Evaluation` |
+| `LangfuseEvaluationClient` | `agent_core.evaluation.langfuse_client` | Langfuse backend — LLM-as-judge via Langfuse API |
+| `BUILTIN_EVALUATORS` | `agent_core.evaluation.evaluators` | Dict of 12 built-in evaluator metadata |
+| `EvaluationWiring` | `agent_core.evaluation.wiring` | Instantiates the correct backend from blueprint config |
 
-The upstream `Evaluation` class from `bedrock_agentcore_starter_toolkit` handles the actual API calls. `EvaluationClient` adds error handling, logging, and evaluator ID resolution.
+The backend is selected by `evaluation.provider` in the blueprint (`agentcore` is the default). `EvaluationWiring` is called automatically by `BlueprintLoader`; you rarely need to instantiate it directly.
 
-## Built-in Evaluators
-
-12 built-in evaluators across four categories:
+## 12 Built-in Evaluators
 
 **Response Quality (TRACE level):**
 
-| Evaluator | What It Measures |
-|-----------|-----------------|
-| `Builtin.Correctness` | Factual accuracy of agent responses |
-| `Builtin.Completeness` | Whether the response fully addresses the request |
-| `Builtin.Faithfulness` | Whether the response is grounded in retrieved context |
-| `Builtin.Helpfulness` | How useful the response is to the user |
-| `Builtin.Harmlessness` | Whether the response avoids harmful content |
-| `Builtin.Coherence` | Logical consistency and flow of the response |
-| `Builtin.Relevance` | How relevant the response is to the query |
+| `BuiltinEvaluator` | What It Measures |
+|-------------------|-----------------|
+| `Correctness` | Factual accuracy of agent responses |
+| `Completeness` | Whether the response fully addresses the request |
+| `Faithfulness` | Whether the response is grounded in retrieved context |
+| `Helpfulness` | How useful the response is to the user |
+| `Harmlessness` | Whether the response avoids harmful content |
+| `Coherence` | Logical consistency and flow |
+| `Relevance` | How relevant the response is to the query |
 
 **Task Completion (SESSION level):**
 
-| Evaluator | What It Measures |
-|-----------|-----------------|
-| `Builtin.GoalSuccessRate` | Whether the agent achieved the stated goal |
+| `BuiltinEvaluator` | What It Measures |
+|-------------------|-----------------|
+| `GoalSuccessRate` | Whether the agent achieved the stated goal |
 
 **Tool Usage (SPAN level):**
 
-| Evaluator | What It Measures |
-|-----------|-----------------|
-| `Builtin.ToolSelectionAccuracy` | Whether the agent chose the right tools |
-| `Builtin.ToolParameterAccuracy` | Whether the agent passed correct parameters to tools |
+| `BuiltinEvaluator` | What It Measures |
+|-------------------|-----------------|
+| `ToolSelectionAccuracy` | Whether the agent chose the right tools |
+| `ToolParameterAccuracy` | Whether the agent passed correct parameters |
 
 **Safety (TRACE level):**
 
-| Evaluator | What It Measures |
-|-----------|-----------------|
-| `Builtin.Harmfulness` | Detection of harmful or dangerous content |
-| `Builtin.Stereotyping` | Detection of stereotyping or biased content |
+| `BuiltinEvaluator` | What It Measures |
+|-------------------|-----------------|
+| `Harmfulness` | Detection of harmful or dangerous content |
+| `Stereotyping` | Detection of stereotyping or biased content |
 
-## On-Demand Evaluation
+## `EvaluationClient` (AgentCore Backend)
 
-Run evaluators against a specific agent session's OTEL traces:
+Requires `LANGFUSE_HOST` / `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` for score export, and `AWS_REGION` for the AgentCore Evaluation API.
 
 ```python
 from agent_core.evaluation.client import EvaluationClient
@@ -76,9 +78,7 @@ for score in result.scores:
     print(f"{score.evaluator_name}: {score.label} = {score.value}  ({score.explanation})")
 ```
 
-## Online Evaluation (Continuous Monitoring)
-
-Enable online evaluation to automatically sample and evaluate a percentage of live production sessions. Use `create_online_config()` on `EvaluationClient`:
+### Online Evaluation
 
 ```python
 from agent_core.evaluation.client import EvaluationClient
@@ -86,35 +86,52 @@ from agent_core.schemas.evaluation_config import OnlineEvaluationConfig
 
 client = EvaluationClient(region="us-west-2")
 
-config = OnlineEvaluationConfig(
-    sampling_rate=10,  # 10% of sessions
-    evaluators=["Builtin.Faithfulness", "Builtin.Harmfulness"],
-)
-
 config_id = client.create_online_config(
     agent_id="my-agent",
     config_name="production-monitoring",
-    config=config,
+    config=OnlineEvaluationConfig(
+        sampling_rate=10,   # 10% of sessions
+        evaluators=["Builtin.Faithfulness", "Builtin.Harmfulness"],
+    ),
 )
 
-# Later, retrieve results
 results = client.get_online_results(
     agent_id="my-agent",
     config_name="production-monitoring",
 )
 ```
 
-Evaluation results are written to CloudWatch and, if Langfuse is enabled, attached to the corresponding Langfuse trace.
+## `LangfuseEvaluationClient` (Langfuse Backend)
+
+Use when `evaluation.provider: langfuse` is set. Requires `LANGFUSE_HOST`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`.
+
+```python
+from agent_core.evaluation.langfuse_client import LangfuseEvaluationClient
+from agent_core.schemas.evaluation_config import CustomEvaluatorConfig, EvaluatorLevel
+
+client = LangfuseEvaluationClient(
+    agent_id="my-agent",
+    host=os.environ["LANGFUSE_HOST"],
+    public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
+    secret_key=os.environ["LANGFUSE_SECRET_KEY"],
+)
+
+# Run evaluators against a trace
+result = client.run(
+    agent_id="my-agent",
+    session_id="sess-001",
+    evaluators=["Builtin.Faithfulness"],
+)
+```
+
+> **Online config:** `LangfuseEvaluationClient.create_online_config()` is a no-op stub that logs a reminder. Online evaluation for the Langfuse backend is configured in the Langfuse dashboard, not via the SDK.
 
 ## Custom LLM-as-Judge
 
-Define a custom evaluator using the `CustomEvaluatorConfig` schema. The judge model receives the agent trace and scores it according to your instructions:
+Use `CustomEvaluatorConfig` for both backends:
 
 ```python
-from agent_core.evaluation.client import EvaluationClient
 from agent_core.schemas.evaluation_config import CustomEvaluatorConfig, EvaluatorLevel
-
-client = EvaluationClient(region="us-west-2")
 
 config = CustomEvaluatorConfig(
     name="domain_accuracy",
@@ -122,13 +139,12 @@ config = CustomEvaluatorConfig(
     model_id="anthropic.claude-3-haiku-20240307-v1:0",
     max_tokens=1024,
     temperature=0.0,
-    instructions="Evaluate whether the agent's response is factually accurate for the given context. {context} {assistant_turn}",
+    instructions="Evaluate factual accuracy for the given context. {context} {assistant_turn}",
     scale=[1, 5],
 )
 
 evaluator_id = client.create_evaluator(config)
 
-# Use the custom evaluator in on-demand or online evaluation
 result = client.run(
     agent_id="my-agent",
     session_id="sess-001",
@@ -136,18 +152,21 @@ result = client.run(
 )
 ```
 
-The model ID for LLM-as-judge evaluators must always come from the blueprint or explicit parameter — never hardcoded.
+The `model_id` must come from the blueprint or an explicit parameter — never hardcoded.
 
 ## Blueprint Configuration
 
 ```yaml
 evaluation:
+  provider: agentcore      # agentcore | langfuse
+
   online:
-    sampling_rate: 10              # Percentage of sessions to evaluate (1-100)
+    sampling_rate: 10      # Percentage of sessions to evaluate (1–100)
     evaluators:
       - Builtin.Faithfulness
       - Builtin.Correctness
       - Builtin.Harmfulness
+
   custom_evaluators:
     - name: domain_accuracy
       level: TRACE
@@ -156,10 +175,16 @@ evaluation:
       temperature: 0.0
       instructions: "Evaluate domain accuracy. {context} {assistant_turn}"
       scale: [1, 5]
+
   persistence:
     enabled: true
-    table_env: EVAL_TABLE_NAME
+    table_env: EVAL_TABLE_NAME   # Env var name for the DynamoDB table
     retention_days: 90
 ```
 
-Evaluation scores are published to CloudWatch under the `/Agents/{agent_name}/Evaluation` namespace.
+Evaluation scores are published to CloudWatch under the `/Agents/{agent_name}/Evaluation` namespace and, when Langfuse is enabled, attached to the corresponding Langfuse trace.
+
+## See Also
+
+- [Observability & Evaluation guide](../observability.md) — Evaluation provider comparison, online evaluation setup
+- [Observability SDK reference](observability.md) — Hook wiring, LangfuseHook

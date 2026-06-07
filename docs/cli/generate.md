@@ -149,5 +149,5 @@ Use `generate` for inspection, customization, or custom CI pipelines. Use `deplo
 ## See Also
 
 - [agentcli deploy](deploy) — full deployment workflow
-- [Runtime Concepts](../concepts/runtime) — the `/invocations` + `/ping` container contract
+- [Runtime & Memory](../runtime/runtime) — the `/invocations` + `/ping` container contract
 - [agentcli blueprint lint](blueprint) — validate the blueprint before generating artifacts
