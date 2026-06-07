@@ -1,5 +1,4 @@
-
-# AWS Agent Platform
+# AWS Cloud-Native Agent Runtime Platform (Bedrock & Strands SDK)
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![CI — core](https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform/actions/workflows/ci-core.yml/badge.svg)](https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform/actions/workflows/ci-core.yml)
