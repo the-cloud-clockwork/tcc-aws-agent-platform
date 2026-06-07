@@ -1,8 +1,12 @@
 name: Deploy GitHub Pages
 
+# Docs site deploys from main (the released/stable branch). The github-pages
+# environment's deployment-branch policy allows only main, so triggering on
+# main keeps the public site = released state and avoids the dev-deploy
+# rejection that the old sample workflow hit on every push.
 on:
   push:
-    branches: [dev]
+    branches: [main]
     paths:
       - "docs/**"
       - "index.md"
