@@ -1,0 +1,98 @@
+version: 2
+
+updates:
+  # Python dependencies — core
+  - package-ecosystem: pip
+    directory: /core
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - python
+
+  # Python dependencies — prompts
+  - package-ecosystem: pip
+    directory: /prompts
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - python
+
+  # Python dependencies — artifacts
+  - package-ecosystem: pip
+    directory: /artifacts
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - python
+
+  # Python dependencies — cli
+  - package-ecosystem: pip
+    directory: /cli
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - python
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+
+  # Terraform providers and modules
+  - package-ecosystem: terraform
+    directory: /modules
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - terraform

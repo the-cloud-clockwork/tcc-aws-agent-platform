@@ -1,0 +1,133 @@
+name: Bug Report
+description: Report a reproducible defect in the AWS Agent Platform.
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to report a bug. Please fill in as much detail as possible so we can reproduce and fix the issue quickly.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: A clear, concise description of what the bug is.
+      placeholder: "e.g. Blueprint loader crashes when `output_schema` is set with the `litellm` provider"
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to Reproduce
+      description: Exact steps that reliably trigger the issue.
+      placeholder: |
+        1. Define a blueprint with `provider: litellm` and `output_schema: ...`
+        2. Run `aws stepfunctions start-execution ...`
+        3. Agent Lambda exits with status 1
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What should happen?
+      placeholder: "The agent should return a JSON object matching the declared output schema."
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happens? Include any error messages or stack traces.
+      placeholder: |
+        RuntimeError: Strands forced-tool path not supported for OpenAI-compatible endpoints.
+        Traceback (most recent call last): ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Platform Version / Git SHA
+      description: >
+        Run `git rev-parse --short HEAD` in the repo root, or provide the
+        PyPI version of `tcc-aws-agent-platform` if installing from the package index.
+      placeholder: "e.g. a1b2c3d or 0.4.2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Inference Provider
+      description: Which inference provider is configured in the blueprint?
+      options:
+        - bedrock
+        - anthropic
+        - litellm
+        - vertex
+        - "not applicable / unknown"
+    validations:
+      required: true
+
+  - type: textarea
+    id: blueprint
+    attributes:
+      label: Relevant Blueprint Snippet
+      description: >
+        Paste the relevant portion of your blueprint YAML (redact any secrets,
+        API keys, or internal hostnames before posting).
+      render: yaml
+      placeholder: |
+        agent_id: my-agent
+        model:
+          provider: litellm
+          model_id: gpt-4o
+          base_url: https://...
+        output_schema: MyOutput
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Tracebacks
+      description: >
+        Paste relevant CloudWatch logs, Lambda output, or Step Functions
+        execution history. Redact account IDs, tokens, and internal hostnames.
+      render: text
+      placeholder: |
+        [ERROR] 2026-01-01T00:00:00Z ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: AWS region, Python version, relevant dependency versions.
+      placeholder: |
+        - AWS Region: eu-west-1
+        - Python: 3.12.3
+        - strands-agents: 0.1.6
+        - litellm: 1.83.5
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I have searched existing issues and this is not a duplicate.
+          required: true
+        - label: I have redacted all secrets, API keys, and AWS account IDs from the report.
+          required: true
+        - label: I can reliably reproduce this issue with the steps above.
+          required: true

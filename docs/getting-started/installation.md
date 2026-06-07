@@ -12,7 +12,16 @@ Full reference for all SDK packages, optional extras, the CLI, Terraform module 
 
 ## Package Index
 
-> **Package availability:** `agent-core`, `agent-cli`, `prompt-registry`, and `mcp-artifacts` are currently published to a **private** package registry (AWS CodeArtifact). A public distribution channel (PyPI or GitHub Packages) is planned but not yet available. Until then, access requires an authorized CodeArtifact token from your organization.
+> **Package availability — not on PyPI.** `agent-core`, `agent-cli`, `prompt-registry`, and `mcp-artifacts` are published to a **private AWS CodeArtifact registry** and are **not yet available on PyPI**. External users without CodeArtifact access should install directly from source:
+> ```bash
+> git clone https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git
+> cd tcc-aws-agent-platform
+> pip install -e "core/"        # agent-core
+> pip install -e "cli/"         # agent-cli
+> pip install -e "prompts/"     # prompt-registry
+> pip install -e "artifacts/"   # mcp-artifacts
+> ```
+> A public distribution channel (PyPI or GitHub Packages) is planned but not yet available. Organizations with CodeArtifact access: configure your index URL below.
 
 Configure pip to point at your organization's registry before installing:
 
@@ -78,7 +87,7 @@ pip install "agent-core[cache]"
 For platform contributors or domain teams that need to run tests against the SDK source:
 
 ```bash
-git clone https://github.com/your-org/aws-agent-platform.git
+git clone https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git
 cd aws-agent-platform
 
 pip install -e "core/[dev]"       # agent-core with test dependencies
@@ -121,7 +130,7 @@ The VPC and subnets are externally managed — pass them in as inputs:
 ```hcl
 # infra/main.tf
 module "platform" {
-  source = "git::https://github.com/your-org/aws-agent-platform//modules/platform?ref=v1.0.0"
+  source = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform//modules/platform?ref=v1.0.0"
 
   environment         = var.environment
   vpc_id              = var.vpc_id
@@ -143,7 +152,7 @@ Deploys per-agent resources driven by your YAML blueprints (ECR repositories, IA
 
 ```hcl
 module "agents" {
-  source     = "git::https://github.com/your-org/aws-agent-platform//modules/agents?ref=v1.0.0"
+  source     = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform//modules/agents?ref=v1.0.0"
   depends_on = [module.platform]
 
   resource_prefix   = "${var.environment}-myapp"
@@ -170,7 +179,7 @@ Deploys Step Functions state machines generated from workflow blueprint YAML fil
 
 ```hcl
 module "workflows" {
-  source     = "git::https://github.com/your-org/aws-agent-platform//modules/workflows?ref=v1.0.0"
+  source     = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform//modules/workflows?ref=v1.0.0"
   depends_on = [module.agents]
 
   resource_prefix = "${var.environment}-myapp"

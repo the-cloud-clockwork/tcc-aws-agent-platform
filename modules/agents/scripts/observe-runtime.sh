@@ -165,15 +165,15 @@ show_runtime_detail() {
   echo -e "  Version: $version"
   echo -e "  Updated: $updated"
 
-  # Detect type and derive short name (strip prefix like qitp_dev_ or qitp_mcp_dev_)
+  # Detect type and derive short name (strip prefix like myapp_dev_ or myapp_mcp_dev_)
   local runtime_type="agent"
   local short_name
   if [[ "$full_name" == *"_mcp_"* ]] || [[ "$full_name" == *"_mcp" ]]; then
     runtime_type="mcp"
-    # qitp_mcp_dev_market_data_mcp → market-data-mcp
+    # e.g. myapp_mcp_dev_market_data_mcp → market-data-mcp
     short_name=$(echo "$full_name" | sed 's/^.*_mcp_dev_//' | tr '_' '-')
   else
-    # qitp_dev_watchlist_screener → watchlist-screener
+    # e.g. myapp_dev_watchlist_screener → watchlist-screener
     short_name=$(echo "$full_name" | sed 's/^.*_dev_//' | tr '_' '-')
   fi
   echo -e "  Type:    $runtime_type"
@@ -336,9 +336,9 @@ for m in metrics:
 
   # Also check the domain namespace
   echo
-  echo -e "${CYAN}Custom namespace: QITP${NC}"
+  echo -e "${CYAN}Custom namespace: ${OTEL_DOMAIN_METRIC_NS:-domain}${NC}"
   aws cloudwatch list-metrics \
-    --namespace "QITP" \
+    --namespace "${OTEL_DOMAIN_METRIC_NS:-domain}" \
     --dimensions "Name=service.name,Value=$name" \
     --region "$REGION" --output json 2>/dev/null | \
   python3 -c "

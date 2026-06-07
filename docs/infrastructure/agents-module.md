@@ -241,7 +241,7 @@ CloudWatch Logs permissions are scoped to the agent's own log group ARN prefixes
 
 ```hcl
 module "agents" {
-  source = "git::https://github.com/your-org/aws-agent-platform.git//modules/agents?ref=v1.0.0"
+  source = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git//modules/agents?ref=v1.0.0"
 
   environment     = var.environment
   resource_prefix = "myplatform"

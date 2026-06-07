@@ -134,7 +134,7 @@ In practice, the three modules are wired together in a root module so Terraform 
 
 ```hcl
 module "platform" {
-  source = "git::https://github.com/your-org/aws-agent-platform.git//modules/platform?ref=v1.0.0"
+  source = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git//modules/platform?ref=v1.0.0"
 
   vpc_id             = var.vpc_id
   private_subnet_ids = var.private_subnet_ids
@@ -142,7 +142,7 @@ module "platform" {
 }
 
 module "agents" {
-  source     = "git::https://github.com/your-org/aws-agent-platform.git//modules/agents?ref=v1.0.0"
+  source     = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git//modules/agents?ref=v1.0.0"
   depends_on = [module.platform]
 
   gateway_id              = module.platform.gateway_id
@@ -153,7 +153,7 @@ module "agents" {
 }
 
 module "workflows" {
-  source     = "git::https://github.com/your-org/aws-agent-platform.git//modules/workflows?ref=v1.0.0"
+  source     = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git//modules/workflows?ref=v1.0.0"
   depends_on = [module.agents]
 
   agent_runtime_arns = module.agents.runtime_arns

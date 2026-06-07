@@ -1,0 +1,30 @@
+# CODEOWNERS — tcc-aws-agent-platform
+#
+# Each line is a file pattern followed by one or more owners.
+# Order matters: the last matching pattern takes precedence.
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default: all files require review from the core maintainers team.
+*                               @The-Cloud-Clockwork/maintainers
+
+# Core platform runtime and blueprint engine
+core/                           @The-Cloud-Clockwork/maintainers
+
+# Prompt management module
+prompts/                        @The-Cloud-Clockwork/maintainers
+
+# Artifact / claim-check module
+artifacts/                      @The-Cloud-Clockwork/maintainers
+
+# CLI
+cli/                            @The-Cloud-Clockwork/maintainers
+
+# Terraform modules — infrastructure changes require explicit review
+modules/                        @The-Cloud-Clockwork/maintainers
+
+# CI workflows — changes here affect every contributor
+.github/workflows/              @The-Cloud-Clockwork/maintainers
+
+# Security-sensitive files — always require maintainer sign-off
+NOTICE                          @The-Cloud-Clockwork/maintainers
+LICENSE                         @The-Cloud-Clockwork/maintainers

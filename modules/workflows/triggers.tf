@@ -42,7 +42,7 @@ resource "aws_cloudwatch_event_target" "sfn_scheduled" {
 resource "aws_cloudwatch_log_group" "trigger_audit" {
   for_each = local.workflows_with_schedule_triggers
 
-  name              = "/qitp/eventbridge/${local.name_prefix}-${each.key}"
+  name              = "/platform/eventbridge/${local.name_prefix}-${each.key}"
   retention_in_days = 30
 
   tags = merge(local.tags, { Workflow = each.key })
@@ -65,7 +65,7 @@ resource "aws_cloudwatch_log_resource_policy" "eventbridge_to_cw" {
       Effect    = "Allow"
       Principal = { Service = "events.amazonaws.com" }
       Action    = ["logs:CreateLogStream", "logs:PutLogEvents"]
-      Resource  = "arn:aws:logs:${local.region}:${local.account_id}:log-group:/qitp/eventbridge/*"
+      Resource  = "arn:aws:logs:${local.region}:${local.account_id}:log-group:/platform/eventbridge/*"
     }]
   })
 }

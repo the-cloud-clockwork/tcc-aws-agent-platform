@@ -1,5 +1,10 @@
 # AWS Agent Platform
 
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![CI — core](https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform/actions/workflows/ci-core.yml/badge.svg)](https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform/actions/workflows/ci-core.yml)
+[![Docs](https://img.shields.io/badge/docs-the--cloud--clockwork.github.io-informational)](https://the-cloud-clockwork.github.io/tcc-aws-agent-platform/)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue)](core/pyproject.toml)
+
 > A configuration-driven, domain-agnostic runtime that lets you declare AI agents in YAML and deploy them on AWS with zero boilerplate — built as an abstraction layer over [Strands Agents SDK](https://github.com/strands-agents/sdk-python) and [Amazon Bedrock AgentCore](https://aws.amazon.com/bedrock/agentcore/).
 
 **Phase 1** (provider-agnostic inference across `bedrock | anthropic | litellm | vertex`) and **Phase 2** (observability decoupling — Langfuse, Presidio, and provider-agnostic evaluation) are production-validated. Stage 3 (standalone runtime / ECS Fargate / memory optionality) is deferred.
@@ -135,8 +140,21 @@ The platform module consumes your VPC and subnets as inputs — set `vpc_id`, `p
 
 ### 2. Install the SDK
 
+> **Private registry — not on PyPI.** `agent-core`, `agent-cli`, `prompt-registry`, and `mcp-artifacts` are published to a **private AWS CodeArtifact registry** and are not yet available on PyPI. External users should install directly from source until public distribution is available:
+>
+> ```bash
+> git clone https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git
+> cd tcc-aws-agent-platform
+> pip install -e "core/"        # agent-core
+> pip install -e "cli/"         # agent-cli
+> pip install -e "prompts/"     # prompt-registry
+> pip install -e "artifacts/"   # mcp-artifacts
+> ```
+>
+> If your organization has CodeArtifact access, authenticate first — see [Installation](docs/getting-started/installation.md).
+
 ```bash
-# Authenticate to CodeArtifact first — see docs/getting-started/installation.md
+# CodeArtifact users: authenticate first — see docs/getting-started/installation.md
 pip install agent-core agent-cli
 ```
 
@@ -536,7 +554,11 @@ Full documentation at **[the-cloud-clockwork.github.io/tcc-aws-agent-platform](h
 
 ## Contributing
 
-Contributions are welcome. Please open an issue to discuss significant changes before submitting a pull request. See `CONTRIBUTING.md` for coding conventions, branch policy, and the CI/test requirements.
+Contributions are welcome. Please open an issue to discuss significant changes before submitting a pull request.
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) — coding conventions, branch policy, and CI/test requirements
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — community standards
+- [SECURITY.md](SECURITY.md) — how to report vulnerabilities responsibly
 
 ---
 
