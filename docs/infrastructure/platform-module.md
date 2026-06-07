@@ -202,7 +202,7 @@ Default `guardrail_pii_entities`: `EMAIL→ANONYMIZE`, `PHONE→ANONYMIZE`, `NAM
 
 ```hcl
 module "platform" {
-  source = "git::https://github.com/your-org/aws-agent-platform.git//modules/platform?ref=v1.0.0"
+  source = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git//modules/platform?ref=v1.0.0"
 
   # Identity
   environment     = var.environment
@@ -240,7 +240,7 @@ Pass platform outputs to downstream modules:
 
 ```hcl
 module "agents" {
-  source     = "git::https://github.com/your-org/aws-agent-platform.git//modules/agents?ref=v1.0.0"
+  source     = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git//modules/agents?ref=v1.0.0"
   depends_on = [module.platform]
 
   # Core wiring

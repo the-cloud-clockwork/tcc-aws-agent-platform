@@ -1,0 +1,21 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: Documentation
+    url: https://the-cloud-clockwork.github.io/tcc-aws-agent-platform
+    about: >
+      Browse the full platform documentation — blueprints, inference providers,
+      observability, Terraform modules, CLI reference, and getting-started guides.
+
+  - name: GitHub Discussions
+    url: https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform/discussions
+    about: >
+      Ask questions, share ideas, or discuss usage patterns with the community.
+      Discussions are the right place for open-ended questions that are not
+      a reproducible bug or a concrete feature proposal.
+
+  - name: Security Vulnerabilities
+    url: https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform/security/advisories/new
+    about: >
+      Report a security vulnerability privately via GitHub's coordinated
+      disclosure flow. Do not open a public issue for security concerns.

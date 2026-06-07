@@ -5,7 +5,7 @@ set -euo pipefail
 # Packages: mcp_artifacts library + handler stub + pydantic (aarch64).
 #
 # Usage:
-#   ./scripts/build-artifacts-lambda.sh --function-name qitp-dev-artifacts-mcp-tools --region eu-west-1
+#   ./scripts/build-artifacts-lambda.sh --function-name my-artifacts-mcp-tools --region eu-west-1
 #   ./scripts/build-artifacts-lambda.sh  # uses defaults
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

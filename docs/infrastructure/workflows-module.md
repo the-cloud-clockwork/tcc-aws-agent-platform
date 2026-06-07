@@ -132,7 +132,7 @@ The `bedrock-agentcore:InvokeAgentRuntime` permission is scoped to the specific 
 
 ```hcl
 module "workflows" {
-  source = "git::https://github.com/your-org/aws-agent-platform.git//modules/workflows?ref=v1.0.0"
+  source = "git::https://github.com/The-Cloud-Clockwork/tcc-aws-agent-platform.git//modules/workflows?ref=v1.0.0"
 
   environment     = var.environment
   resource_prefix = "myplatform"

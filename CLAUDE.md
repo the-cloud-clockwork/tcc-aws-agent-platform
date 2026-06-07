@@ -12,6 +12,8 @@
 ## Operator Documents
 `operator/` contains: VISION.md, SPECS.md, BLOCKS.md, TODO.md, STATE.md, BUGS.md, KNOWN-ISSUES.md (KI-001 Gateway, KI-002 Cedar), ENHANCEMENTS.md, MVP.md, inference-migration.md
 
+> **Note:** `operator/` is local/internal only and is NOT tracked in the public repo.
+
 ## What This Repo Is
 Monorepo: 4 Python modules + 7 Terraform modules (3 core + 4 utility).
 
@@ -36,7 +38,7 @@ Monorepo: 4 Python modules + 7 Terraform modules (3 core + 4 utility).
 
 ### Level 1: Infrastructure — terraform plan/apply in domain consumer
 ```bash
-cd /home/iamroot/dev/tcc-ecosystem/tcc-qitp/infra
+cd <your-domain-consumer-repo>/infra
 bash scripts/generate-gateway-targets.sh envs/dev.tfvars
 terraform init -upgrade && terraform plan -var-file=envs/dev.tfvars
 terraform apply -var-file=envs/dev.tfvars -auto-approve
@@ -54,7 +56,7 @@ gh run list --repo The-Cloud-Clockwork/tcc-aws-agent-platform --limit 5
 gh run view <run-id> --log-failed   # read failures
 gh workflow run sonar-scan.yml      # manual SonarQube scan (only this repo)
 ```
-**tcc-qitp has no workflow_dispatch** — push a change to trigger CI.
+**A domain consumer repo may have no workflow_dispatch** — push a change to trigger CI.
 
 ### After changes: infra clean + CI clean = done.
 
@@ -91,7 +93,7 @@ All agent-level observability hooks are provider-agnostic. Key blueprint knobs:
 - **Built-in evaluators**: exactly **12** (7 response quality + 1 task completion + 2 tool usage + 2 safety). The `BuiltinEvaluator` enum docstring incorrectly states "13 total" — the enum has 12 members and `BUILTIN_EVALUATORS` dict has 12 entries.
 
 ## Pipeline Validation (E2E — Production) ✅ PRODUCTION-VALIDATED 2026-04-09
-Phase 1 + Phase 2 were validated via a 16-state Step Functions execution (all states SUCCEEDED): single-agent path with real `claude-sonnet-4-6` via LiteLLM, structured output enforced, claim-check artifact persisted to S3. A subsequent parallel fan-out run (empty-gaps path, ml-predictor structured output via fallback) also succeeded end-to-end.
+Phase 1 + Phase 2 were validated via a 16-state Step Functions execution (all states SUCCEEDED): single-agent path with real `claude-sonnet-4-6` via LiteLLM, structured output enforced, claim-check artifact persisted to S3 (`s3://<domain-artifacts-bucket>/domain/<date>/<uuid>/artifact.json`). A subsequent parallel fan-out run (empty-gaps path, ml-predictor structured output via fallback) also succeeded end-to-end.
 
 **Known data-contract issue (not infra):** downstream agents reject input with `Missing required field` when upstream agent returns empty results. Fix is per-agent input-validator fallbacks to the default watchlist.
 
@@ -133,7 +135,7 @@ Runtime: python3.12, 30 s timeout. Role has VPC + secrets access.
 ## AWS Configuration
 | Setting | Value |
 |---------|-------|
-| Account | `835618032093` |
+| Account | `123456789012` |
 | Primary Region | `eu-west-1` |
 | Bedrock Region | `us-west-2` |
 | CodeArtifact | `platform` / `platform-python` |
