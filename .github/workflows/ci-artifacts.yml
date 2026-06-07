@@ -7,9 +7,14 @@ on:
   pull_request:
     paths: ['artifacts/**', '.github/workflows/ci-artifacts.yml']
 
+permissions:
+  contents: read
+
 jobs:
   test:
-    runs-on: anton
+    # Fork PRs run on GitHub-hosted runners (no access to self-hosted infra);
+    # internal pushes use the self-hosted runner.
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || 'anton' }}
     defaults:
       run:
         working-directory: artifacts
