@@ -261,7 +261,32 @@ class GenericHandler:
             import traceback as _tb
             # Surface FULL traceback + cause chain (MCPClient swallows real errors)
             tb_str = "".join(_tb.format_exception(type(exc), exc, exc.__traceback__))
-            logger.error("Agent '%s' failed:\n%s", agent_id, tb_str)
+
+            # Unwrap ExceptionGroup / __cause__ / __context__ to the leaf cause(s),
+            # so a real error buried inside an anyio TaskGroup — e.g. an httpx 403
+            # from an MCP runtime that lost its JWT authorizer — is named up front
+            # instead of the opaque "unhandled errors in a TaskGroup (N sub-exceptions)".
+            def _leaf_causes(e, _seen=None):
+                _seen = _seen if _seen is not None else set()
+                if e is None or id(e) in _seen:
+                    return []
+                _seen.add(id(e))
+                subs = getattr(e, "exceptions", None)  # BaseExceptionGroup
+                if subs:
+                    leaves: list = []
+                    for s in subs:
+                        leaves.extend(_leaf_causes(s, _seen))
+                    return leaves
+                nested = e.__cause__ or e.__context__
+                deeper = _leaf_causes(nested, _seen) if nested is not None else []
+                return deeper or [e]
+
+            _leaves = _leaf_causes(exc)
+            _root = "; ".join(f"{type(le).__name__}: {le}" for le in _leaves[:5])
+            if _root:
+                # Append (not prepend) so it survives the error=tb_str[-8000:] tail slice.
+                tb_str = f"{tb_str}\n\nROOT CAUSE: {_root}"
+            logger.error("Agent '%s' failed (root cause: %s):\n%s", agent_id, _root, tb_str)
 
             # Classify upstream LLM failures so SFN can distinguish them from
             # pipeline/domain errors and route to a FAIL state instead of the

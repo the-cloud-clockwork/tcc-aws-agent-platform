@@ -98,11 +98,17 @@ class DirectMCPClient:
                 self._mcp_name, time.time() - t0, bool(token),
             )
         except Exception as exc:
+            # Fail loud. _get_token() returns "" only when auth is NOT configured
+            # (no token_url/client_id) — that path does not raise. Reaching here
+            # means auth IS configured but the fetch failed; proceeding with no
+            # Authorization header guarantees a 401/403 that gets swallowed inside
+            # the MCP client's anyio TaskGroup as an opaque "client init failed".
+            # Raise so the real cause (the token fetch error) surfaces directly.
             logger.error(
                 "DIAG[%s] Token FAILED after %.1fs: %s",
                 self._mcp_name, time.time() - t0, exc,
             )
-            token = ""
+            raise
 
         headers: dict[str, str] = {}
         if token:
