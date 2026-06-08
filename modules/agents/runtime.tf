@@ -13,6 +13,21 @@ data "aws_ecr_image" "agent" {
   image_tag       = "latest"
 }
 
+# Authorizer-drop guard (AWS provider bug): aws_bedrockagentcore_agent_runtime
+# writes authorizer_configuration only on Create — UpdateAgentRuntime silently
+# drops it (the provider reads the live value back as empty, sees no drift, and
+# omits it). An MCP runtime that gets updated therefore loses its JWT authorizer
+# and 403s every direct-MCP (gateway_direct_mcp) call. This sentinel makes MCP
+# runtimes RECREATE (Create → authorizer re-applied) whenever their image digest
+# changes; non-MCP runtimes carry a constant input so they are never recreated.
+resource "terraform_data" "mcp_authorizer_replace" {
+  for_each = local.blueprints
+  input = (
+    upper(try(each.value.runtime.protocol, "HTTP")) == "MCP" &&
+    var.mcp_oauth2_discovery_url != ""
+  ) ? data.aws_ecr_image.agent[each.key].image_digest : "non-mcp"
+}
+
 resource "aws_bedrockagentcore_agent_runtime" "agent" {
   for_each = local.blueprints
 
@@ -27,12 +42,17 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
     }
   }
 
-  # Environment variables -- merge platform wiring with optional artifact config
-  # DEPLOY_TIMESTAMP forces a new Runtime version on every apply,
-  # ensuring :latest image is always re-pulled (dev phase — no image tags).
+  # Environment variables -- merge platform wiring with optional artifact config.
+  # NOTE: container_uri is pinned to the ECR image *digest* (see agent_runtime_artifact
+  # above), so Terraform already detects a new image without any timestamp nonce. The
+  # old `DEPLOY_TIMESTAMP = timestamp()` forced an in-place UpdateAgentRuntime on EVERY
+  # apply — and an in-place update is exactly when the AWS provider silently drops
+  # authorizer_configuration from MCP runtimes (the JWT authorizer the direct-MCP path
+  # depends on). Removed: the digest-pinned container_uri is the change signal, and MCP
+  # runtimes are force-recreated on image change via replace_triggered_by below so the
+  # authorizer is always re-applied on Create.
   environment_variables = merge(
     {
-      DEPLOY_TIMESTAMP      = timestamp()
       AGENTCORE_GATEWAY_URL = var.gateway_url
       AGENTCORE_GATEWAY_ARN = "arn:aws:bedrock-agentcore:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:gateway/${var.gateway_id}"
       AGENTCORE_MEMORY_ID   = var.memory_id
@@ -152,6 +172,11 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
   # are not marked as Computed, causing drift on subsequent applies.
   lifecycle {
     ignore_changes = [lifecycle_configuration]
+
+    # Force REPLACE (not in-place update) when an MCP runtime's image changes, so
+    # the JWT authorizer is re-applied via Create. The provider drops it on update.
+    # For non-MCP runtimes the sentinel input is constant → no forced replacement.
+    replace_triggered_by = [terraform_data.mcp_authorizer_replace[each.key]]
 
     # Fail loud if an MCP Runtime would ship without an inbound JWT authorizer
     # while the consumer expects direct Runtime-to-Runtime MCP calls. Without
