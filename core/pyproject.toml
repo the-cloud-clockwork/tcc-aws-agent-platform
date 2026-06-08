@@ -35,7 +35,7 @@ runtime = [
     "boto3>=1.35",
 ]
 cache = [
-    "redis>=5.0,<6",
+    "redis>=5.0,<9",
 ]
 observability = [
     "aws-xray-sdk>=2.12,<3",
