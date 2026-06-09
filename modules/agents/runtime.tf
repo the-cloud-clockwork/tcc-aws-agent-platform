@@ -13,13 +13,13 @@ data "aws_ecr_image" "agent" {
   image_tag       = "latest"
 }
 
-# Authorizer-drop guard (AWS provider bug): aws_bedrockagentcore_agent_runtime
-# writes authorizer_configuration only on Create — UpdateAgentRuntime silently
-# drops it (the provider reads the live value back as empty, sees no drift, and
-# omits it). An MCP runtime that gets updated therefore loses its JWT authorizer
-# and 403s every direct-MCP (gateway_direct_mcp) call. This sentinel makes MCP
-# runtimes RECREATE (Create → authorizer re-applied) whenever their image digest
-# changes; non-MCP runtimes carry a constant input so they are never recreated.
+# DORMANT (2026-06-09): kept for revert, no longer referenced. This sentinel
+# drove the recreate-on-image-change workaround for the AWS provider <6.46.0 bug
+# where aws_bedrockagentcore_agent_runtime dropped authorizer_configuration on
+# UpdateAgentRuntime (only set it on Create). Fixed in provider 6.46.0; we run
+# >=6.49.0, so in-place updates preserve the authorizer and the runtime no longer
+# references this (see the commented replace_triggered_by in the runtime lifecycle
+# below). Left defined so re-arming the workaround is a one-line uncomment.
 resource "terraform_data" "mcp_authorizer_replace" {
   for_each = local.blueprints
   input = (
@@ -173,10 +173,18 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
   lifecycle {
     ignore_changes = [lifecycle_configuration]
 
-    # Force REPLACE (not in-place update) when an MCP runtime's image changes, so
-    # the JWT authorizer is re-applied via Create. The provider drops it on update.
-    # For non-MCP runtimes the sentinel input is constant → no forced replacement.
-    replace_triggered_by = [terraform_data.mcp_authorizer_replace[each.key]]
+    # DEPRECATED (2026-06-09) — recreate-on-image-change workaround DISABLED.
+    # Root cause was AWS provider <6.46.0 silently dropping authorizer_configuration
+    # on UpdateAgentRuntime (a generic fwflex.Expander could not distinguish the
+    # Create vs Update SDK type, so it omitted the authorizer on update). Fixed
+    # upstream in 6.46.0 (commit 50fa8ef — TypedExpander with separate Create/Update
+    # expansion). We now pin aws >= 6.49.0, so plain IN-PLACE updates PRESERVE the
+    # authorizer and the forced REPLACE is no longer needed — it only caused runtime
+    # ARN churn and a CloudWatch log-delivery teardown wedge. terraform_data.
+    # mcp_authorizer_replace is left defined-but-dormant for a one-line revert.
+    # TO REVERT (if 6.49.0 misbehaves): pin the provider back to 6.39.0 and
+    # uncomment the line below.
+    # replace_triggered_by = [terraform_data.mcp_authorizer_replace[each.key]]
 
     # Fail loud if an MCP Runtime would ship without an inbound JWT authorizer
     # while the consumer expects direct Runtime-to-Runtime MCP calls. Without
@@ -263,4 +271,17 @@ resource "aws_cloudwatch_log_delivery" "agent_logs" {
     aws_cloudwatch_log_delivery_source.agent,
     aws_cloudwatch_log_delivery_destination.agent,
   ]
+
+  # When a runtime is replaced its ARN changes, forcing the delivery SOURCE
+  # (resource_arn = runtime ARN) to be replaced too. The CloudWatch Logs API
+  # DeleteDeliverySource returns ConflictException while a delivery still binds
+  # the source; the AWS-prescribed teardown order is: delete the Delivery first,
+  # THEN the DeliverySource. Coupling this delivery's replacement to its source
+  # (plus the depends_on above) makes Terraform destroy the delivery before the
+  # source in the destroy phase (reverse dependency order), clearing the binding
+  # so the source delete succeeds. Without this, a runtime recreate wedges every
+  # subsequent apply on ConflictException.
+  lifecycle {
+    replace_triggered_by = [aws_cloudwatch_log_delivery_source.agent[each.key]]
+  }
 }
