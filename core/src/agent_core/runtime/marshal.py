@@ -1,4 +1,5 @@
 """Output marshalling with mandatory S3 artifact storage + DynamoDB catalog."""
+
 from __future__ import annotations
 
 import json
@@ -202,7 +203,9 @@ def _extract_typed_payload(
                 tool_use = block.get("toolUse")
                 if not isinstance(tool_use, dict):
                     continue
-                if not _tool_name_matches(tool_use.get("name"), _KNOWN_TOOL_PASSTHROUGH):
+                if not _tool_name_matches(
+                    tool_use.get("name"), _KNOWN_TOOL_PASSTHROUGH
+                ):
                     continue
                 input_ = tool_use.get("input")
                 if not isinstance(input_, dict):
@@ -282,7 +285,9 @@ def _find_create_artifact_result(
                 tool_use = block.get("toolUse")
                 if not isinstance(tool_use, dict):
                     continue
-                if not _tool_name_matches(tool_use.get("name"), _KNOWN_TOOL_PASSTHROUGH):
+                if not _tool_name_matches(
+                    tool_use.get("name"), _KNOWN_TOOL_PASSTHROUGH
+                ):
                     continue
                 tool_use_id = tool_use.get("toolUseId")
                 if isinstance(tool_use_id, str):
@@ -405,25 +410,29 @@ def _register_catalog(
         ddb = boto3.resource("dynamodb")
         table = ddb.Table(table_name)
         now = datetime.now(timezone.utc).isoformat()
-        table.put_item(Item={
-            "artifact_id": artifact_id,
-            "agent_id": agent_id,
-            "execution_id": execution_id,
-            "artifact_type": "agent_output",
-            "s3_key": s3_key,
-            "s3_bucket": bucket,
-            "tier": tier,
-            "status": "ready",
-            "content_type": "application/json",
-            "created_at": now,
-            "updated_at": now,
-            "pipeline_date": date,
-            "kms_key_alias": kms_key_alias or "",
-            "claim_check": True,
-        })
+        table.put_item(
+            Item={
+                "artifact_id": artifact_id,
+                "agent_id": agent_id,
+                "execution_id": execution_id,
+                "artifact_type": "agent_output",
+                "s3_key": s3_key,
+                "s3_bucket": bucket,
+                "tier": tier,
+                "status": "ready",
+                "content_type": "application/json",
+                "created_at": now,
+                "updated_at": now,
+                "pipeline_date": date,
+                "kms_key_alias": kms_key_alias or "",
+                "claim_check": True,
+            }
+        )
         logger.info("Artifact %s registered in catalog (%s)", artifact_id, table_name)
     except Exception as err:
-        logger.warning("Failed to register artifact %s in catalog: %s", artifact_id, err)
+        logger.warning(
+            "Failed to register artifact %s in catalog: %s", artifact_id, err
+        )
 
 
 def _alias_platform_artifact(
@@ -435,7 +444,7 @@ def _alias_platform_artifact(
     kms_key_alias: str | None,
     date: str,
     s3_bucket: str | None = None,
-) -> dict[str, Any]:
+) -> dict[str, Any] | None:
     """Register a domain-tier catalog row pointing at an existing platform artifact.
 
     Skips the duplicate S3 write that ``marshal_output`` would otherwise do.
@@ -444,25 +453,20 @@ def _alias_platform_artifact(
     downstream states).
 
     Returns the same shape as ``marshal_output``: artifact_id, s3_key, bucket,
-    tier, agent_id, success, claim_check, output.
+    tier, agent_id, success, claim_check, output. Returns ``None`` when the
+    platform artifact body cannot be fetched or is not parseable JSON — the
+    caller then falls back to its own validated S3 write instead of handing
+    downstream states an s3_key that points at a corrupt document.
     """
     platform_s3_key = platform_ref["s3_key"]
     bucket = s3_bucket or os.environ.get("ARTIFACTS_BUCKET")
     if not bucket:
-        logger.warning("No ARTIFACTS_BUCKET configured — cannot alias platform artifact")
-        return {
-            "artifact_id": "",
-            "s3_key": platform_s3_key,
-            "bucket": "",
-            "tier": tier,
-            "agent_id": agent_id,
-            "success": False,
-            "error": "no_bucket",
-            "output": {},
-        }
+        logger.warning(
+            "No ARTIFACTS_BUCKET configured — cannot alias platform artifact"
+        )
+        return None
 
     domain_artifact_id = str(uuid.uuid4())
-    output: dict[str, Any] = {}
 
     try:
         import boto3
@@ -483,12 +487,16 @@ def _alias_platform_artifact(
             if not isinstance(output, dict):
                 output = {"raw_output": output}
         except Exception as load_err:
-            # Body fetch is best-effort — the catalog row still aliases the
-            # platform artifact even if we can't inline the typed payload here.
+            # Aliasing a body we can't read or parse would canonicalize a
+            # corrupt artifact (the truncated-recommendation soft failure).
+            # Bail out — marshal_output writes its own validated copy.
             logger.warning(
-                "Could not load platform artifact body %s for inlining: %s",
-                platform_s3_key, load_err,
+                "Platform artifact %s unreadable/corrupt (%s) — falling back "
+                "to validated marshal write instead of aliasing",
+                platform_s3_key,
+                load_err,
             )
+            return None
 
         _register_catalog(
             artifact_id=domain_artifact_id,
@@ -503,7 +511,10 @@ def _alias_platform_artifact(
 
         logger.info(
             "Aliased platform artifact %s -> domain catalog row %s (s3://%s/%s)",
-            platform_ref["artifact_id"], domain_artifact_id, bucket, platform_s3_key,
+            platform_ref["artifact_id"],
+            domain_artifact_id,
+            bucket,
+            platform_s3_key,
         )
 
         return {
@@ -516,18 +527,11 @@ def _alias_platform_artifact(
             "claim_check": True,
             "output": output,
         }
-    except Exception as exc:
-        logger.exception("Failed to alias platform artifact")
-        return {
-            "artifact_id": "",
-            "s3_key": platform_s3_key,
-            "bucket": bucket,
-            "tier": tier,
-            "agent_id": agent_id,
-            "success": False,
-            "error": str(exc),
-            "output": output,
-        }
+    except Exception:
+        logger.exception(
+            "Failed to alias platform artifact — falling back to marshal write"
+        )
+        return None
 
 
 def marshal_output(
@@ -573,7 +577,7 @@ def marshal_output(
 
     platform_ref = _find_create_artifact_result(conversation_history)
     if platform_ref is not None:
-        return _alias_platform_artifact(
+        aliased = _alias_platform_artifact(
             platform_ref,
             agent_id,
             execution_id,
@@ -582,6 +586,8 @@ def marshal_output(
             date=date,
             s3_bucket=s3_bucket,
         )
+        if aliased is not None:
+            return aliased
 
     output = _serialize_result(result, conversation_history=conversation_history)
     serialized = json.dumps(output, default=str)
@@ -624,7 +630,10 @@ def marshal_output(
         s3.put_object(**put_kwargs)
         logger.info(
             "Artifact stored: s3://%s/%s (%d bytes, tier=%s)",
-            bucket, s3_key, len(serialized), tier,
+            bucket,
+            s3_key,
+            len(serialized),
+            tier,
         )
 
         # Mandatory: register in DynamoDB catalog

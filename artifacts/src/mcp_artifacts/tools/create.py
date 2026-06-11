@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import uuid
 from typing import Any
@@ -75,6 +76,24 @@ def create_artifact(
             return result.model_dump()
 
     artifact_type = ArtifactType(type)
+
+    # JSON artifact types must carry parseable JSON. Agents transcribe the
+    # document into this string argument, and a truncated/brace-short copy
+    # would otherwise be stored as "ready" and silently corrupt every
+    # downstream claim-check reader. Reject here so the calling agent gets a
+    # tool error and re-emits the complete document.
+    if content_type_for_type(artifact_type) == "application/json":
+        try:
+            json.loads(content)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"create_artifact rejected: content for type "
+                f"'{artifact_type.value}' is not valid JSON ({exc.msg} at "
+                f"char {exc.pos} of {len(content)}). Re-emit the COMPLETE "
+                "JSON document (balanced braces/brackets, no truncation) "
+                "and call create_artifact again."
+            ) from exc
+
     artifact_id = str(uuid.uuid4())
     filename = filename_for_type(artifact_type)
     s3_key = f"{tier}/{artifact_id}/{filename}"

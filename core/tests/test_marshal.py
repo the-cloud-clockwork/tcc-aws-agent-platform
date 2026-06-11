@@ -12,7 +12,9 @@ def _make_boto3_mock(account_id: str = "123456789012") -> MagicMock:
     mock_s3 = MagicMock()
     mock_sts = MagicMock()
     mock_sts.get_caller_identity.return_value = {"Account": account_id}
-    mock_boto3.client.side_effect = lambda svc, **kw: mock_sts if svc == "sts" else mock_s3
+    mock_boto3.client.side_effect = lambda svc, **kw: (
+        mock_sts if svc == "sts" else mock_s3
+    )
     return mock_boto3, mock_s3, mock_sts
 
 
@@ -303,7 +305,9 @@ class TestExtractTypedPayload:
         # then finds the fenced JSON.
         assert _extract_typed_payload(envelope) == {"fallback": "json"}
 
-    def test_history_walk_finds_create_artifact_when_last_message_is_markdown(self) -> None:
+    def test_history_walk_finds_create_artifact_when_last_message_is_markdown(
+        self,
+    ) -> None:
         """v2 — earlier create_artifact toolUse wins when last message is plain markdown."""
         from agent_core.runtime.marshal import _extract_typed_payload
 
@@ -311,7 +315,9 @@ class TestExtractTypedPayload:
             "type": "agent_result",
             "message": {
                 "role": "assistant",
-                "content": [{"text": "## Gap detection results\n\nNo gaps found today."}],
+                "content": [
+                    {"text": "## Gap detection results\n\nNo gaps found today."}
+                ],
             },
         }
         conversation_history = [
@@ -342,7 +348,14 @@ class TestExtractTypedPayload:
                         "toolResult": {
                             "toolUseId": "tu-1",
                             "status": "success",
-                            "content": [{"json": {"artifact_id": "u", "s3_key": "platform/u/x.json"}}],
+                            "content": [
+                                {
+                                    "json": {
+                                        "artifact_id": "u",
+                                        "s3_key": "platform/u/x.json",
+                                    }
+                                }
+                            ],
                         }
                     }
                 ],
@@ -461,7 +474,9 @@ class TestSerializeResultStrands:
         result = _make_strands_result(envelope)
         assert _serialize_result(result) == envelope
 
-    def test_strands_multiagent_envelope_with_no_typed_subagents_returns_envelope(self) -> None:
+    def test_strands_multiagent_envelope_with_no_typed_subagents_returns_envelope(
+        self,
+    ) -> None:
         """v3: multiagent envelope where no sub-agent has a typed payload — return envelope."""
         from agent_core.runtime.marshal import _serialize_result
 
@@ -495,7 +510,10 @@ class TestSerializeResultStrands:
                             "name": "create_artifact",
                             "input": {
                                 "artifact_type": "recommendation",
-                                "content": {"recommendations": [], "no_action_symbols": []},
+                                "content": {
+                                    "recommendations": [],
+                                    "no_action_symbols": [],
+                                },
                             },
                         }
                     }
@@ -508,7 +526,9 @@ class TestSerializeResultStrands:
             "no_action_symbols": [],
         }
 
-    def test_strands_multiagent_envelope_with_typed_subagent_returns_payload(self) -> None:
+    def test_strands_multiagent_envelope_with_typed_subagent_returns_payload(
+        self,
+    ) -> None:
         """v3: multiagent envelope where a sub-agent's last message has a create_artifact
         toolUse — extract and return that typed payload."""
         from agent_core.runtime.marshal import _serialize_result
@@ -529,7 +549,10 @@ class TestSerializeResultStrands:
                                             "artifact_type": "sentiment-report",
                                             "content": {
                                                 "per_symbol_sentiments": [
-                                                    {"symbol": "NVDA", "composite_score": 0.6}
+                                                    {
+                                                        "symbol": "NVDA",
+                                                        "composite_score": 0.6,
+                                                    }
                                                 ]
                                             },
                                         },
@@ -732,7 +755,9 @@ class TestMultiAgentExtraction:
                                             {
                                                 "toolUse": {
                                                     "name": "create_artifact",
-                                                    "input": {"content": {"deep": True}},
+                                                    "input": {
+                                                        "content": {"deep": True}
+                                                    },
                                                 }
                                             }
                                         ],
@@ -761,7 +786,7 @@ class TestMultiAgentExtraction:
                         "message": {
                             "role": "assistant",
                             "content": [
-                                {"text": "## Result\n\n```json\n{\"score\": 0.42}\n```\n"}
+                                {"text": '## Result\n\n```json\n{"score": 0.42}\n```\n'}
                             ],
                         },
                     }
@@ -1111,8 +1136,9 @@ class TestAliasPlatformArtifact:
         )
         del call  # silence unused-import warning
 
-    def test_continues_when_platform_body_load_fails(self) -> None:
-        """S3 GET error is best-effort — catalog row still written with empty output."""
+    def test_unreadable_platform_body_returns_none_no_alias(self) -> None:
+        """S3 GET error → None (caller falls back to its own validated write);
+        no catalog row may point at a body we could not read."""
         mock_boto3, mock_s3, _ = _make_boto3_mock("123")
         mock_s3.get_object.side_effect = Exception("NoSuchKey")
         mock_ddb_table = MagicMock()
@@ -1140,11 +1166,45 @@ class TestAliasPlatformArtifact:
                     date="2026-05-19",
                 )
 
-        assert result["success"] is True
-        assert result["output"] == {}
-        mock_ddb_table.put_item.assert_called_once()
+        assert result is None
+        mock_ddb_table.put_item.assert_not_called()
 
-    def test_no_bucket_returns_error(self) -> None:
+    def test_corrupt_platform_body_returns_none_no_alias(self) -> None:
+        """Truncated/brace-short JSON body → None — never canonicalize a
+        corrupt platform artifact (the recommender truncation soft failure)."""
+        mock_boto3, mock_s3, _ = _make_boto3_mock("123")
+        mock_s3.get_object.return_value = {
+            "Body": MagicMock(read=MagicMock(return_value=b'{"recommendations": ['))
+        }
+        mock_ddb_table = MagicMock()
+        mock_ddb_resource = MagicMock()
+        mock_ddb_resource.Table.return_value = mock_ddb_table
+        mock_boto3.resource.return_value = mock_ddb_resource
+
+        env = {
+            "ARTIFACTS_BUCKET": "test-bucket",
+            "ARTIFACTS_TABLE": "test-artifacts",
+        }
+        with patch.dict("os.environ", env, clear=False):
+            with patch.dict(sys.modules, {"boto3": mock_boto3}):
+                from agent_core.runtime.marshal import _alias_platform_artifact
+
+                result = _alias_platform_artifact(
+                    platform_ref={
+                        "artifact_id": "platform-uuid",
+                        "s3_key": "platform/platform-uuid/artifact.json",
+                    },
+                    agent_id="a",
+                    execution_id="e",
+                    tier="domain",
+                    kms_key_alias=None,
+                    date="2026-05-19",
+                )
+
+        assert result is None
+        mock_ddb_table.put_item.assert_not_called()
+
+    def test_no_bucket_returns_none(self) -> None:
         from agent_core.runtime.marshal import _alias_platform_artifact
 
         with patch.dict("os.environ", {}, clear=True):
@@ -1160,8 +1220,7 @@ class TestAliasPlatformArtifact:
                 date="2026-05-19",
             )
 
-        assert result["success"] is False
-        assert result["error"] == "no_bucket"
+        assert result is None
 
 
 class TestParseFencedJson:
