@@ -13,19 +13,59 @@ data "aws_ecr_image" "agent" {
   image_tag       = "latest"
 }
 
-# DORMANT (2026-06-09): kept for revert, no longer referenced. This sentinel
-# drove the recreate-on-image-change workaround for the AWS provider <6.46.0 bug
-# where aws_bedrockagentcore_agent_runtime dropped authorizer_configuration on
-# UpdateAgentRuntime (only set it on Create). Fixed in provider 6.46.0; we run
-# >=6.49.0, so in-place updates preserve the authorizer and the runtime no longer
-# references this (see the commented replace_triggered_by in the runtime lifecycle
-# below). Left defined so re-arming the workaround is a one-line uncomment.
+# Recreate-on-change sentinel for MCP runtimes — RE-ARMED 2026-06-11.
+#
+# An in-place UpdateAgentRuntime on an MCP runtime can leave the Gateway with a
+# STALE BINDING: the gateway still completes `initialize` and `tools/list`, but
+# never forwards `tools/call` — every tool invocation fails with an opaque
+# internal error while all Terraform-visible config looks correct (observed
+# twice on 2026-06-11, once after an image update and once after an env-only
+# update; intermittent — other runtimes survived the same applies). A REPLACE
+# gives the runtime a new endpoint, forcing the gateway target to re-bind in
+# the same apply, which clears the wedge deterministically.
+#
+# History: this sentinel originally guarded the provider <6.46.0 bug that
+# dropped authorizer_configuration on in-place updates (fixed upstream; we pin
+# >=6.49.0) and was dormant 2026-06-09..11 — which exposed the stale-binding
+# failure the recreate had been masking. The input now covers BOTH signals
+# that would otherwise apply in-place: the image digest AND the env-var
+# inputs (hashed — only the digest enters state).
+locals {
+  # Change-signal over every module input that feeds the runtime
+  # environment_variables merge (values only, order-stable, hashed).
+  # Per-key env parts (AGENT_ID, OTEL service.name) are constant for a given
+  # runtime and deliberately excluded. KEEP IN SYNC: adding a new env input
+  # to the merge in the runtime resource means adding its source here, or an
+  # env-only change of it will in-place-update MCP runtimes again.
+  runtime_env_signal = sha256(jsonencode([
+    var.gateway_url, var.gateway_id, var.memory_id, var.execution_mode,
+    var.environment, var.aws_region, var.ssm_root_path, var.bedrock_region,
+    var.litellm_base_url, var.litellm_api_key, var.anthropic_api_key,
+    var.cf_access_client_id, var.cf_access_client_secret,
+    var.model_pricing, var.model_default_pricing,
+    var.artifacts_bucket_name, var.artifacts_table_name,
+    var.domain_artifacts_kms_key_arn, var.platform_artifacts_kms_key_arn,
+    var.prompt_registry_url, var.prompt_registry_function_name,
+    var.idempotency_table_name,
+    var.gateway_direct_mcp, var.mcp_direct_urls,
+    var.cognito_token_url, var.cognito_mcp_client_id,
+    var.cognito_mcp_client_secret, var.cognito_mcp_scopes,
+    local.otel_env_vars,
+    var.observability_enabled, var.observability_log_group_prefix,
+    var.observability_metric_namespace,
+    var.langfuse_host, var.langfuse_public_key, var.langfuse_secret_key,
+    var.guardrail_id, var.guardrail_version,
+    var.evaluation_table_name,
+    var.extra_environment_variables,
+  ]))
+}
+
 resource "terraform_data" "mcp_authorizer_replace" {
   for_each = local.blueprints
   input = (
     upper(try(each.value.runtime.protocol, "HTTP")) == "MCP" &&
     var.mcp_oauth2_discovery_url != ""
-  ) ? data.aws_ecr_image.agent[each.key].image_digest : "non-mcp"
+  ) ? "${data.aws_ecr_image.agent[each.key].image_digest}:${local.runtime_env_signal}" : "non-mcp"
 }
 
 resource "aws_bedrockagentcore_agent_runtime" "agent" {
@@ -173,18 +213,14 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
   lifecycle {
     ignore_changes = [lifecycle_configuration]
 
-    # DEPRECATED (2026-06-09) — recreate-on-image-change workaround DISABLED.
-    # Root cause was AWS provider <6.46.0 silently dropping authorizer_configuration
-    # on UpdateAgentRuntime (a generic fwflex.Expander could not distinguish the
-    # Create vs Update SDK type, so it omitted the authorizer on update). Fixed
-    # upstream in 6.46.0 (commit 50fa8ef — TypedExpander with separate Create/Update
-    # expansion). We now pin aws >= 6.49.0, so plain IN-PLACE updates PRESERVE the
-    # authorizer and the forced REPLACE is no longer needed — it only caused runtime
-    # ARN churn and a CloudWatch log-delivery teardown wedge. terraform_data.
-    # mcp_authorizer_replace is left defined-but-dormant for a one-line revert.
-    # TO REVERT (if 6.49.0 misbehaves): pin the provider back to 6.39.0 and
-    # uncomment the line below.
-    # replace_triggered_by = [terraform_data.mcp_authorizer_replace[each.key]]
+    # RE-ARMED (2026-06-11) — MCP runtimes are REPLACED, never updated in place.
+    # An in-place UpdateAgentRuntime can leave the Gateway with a stale binding
+    # (initialize/tools-list succeed, tools/call is never forwarded — see the
+    # sentinel docs above). Replacement issues a new endpoint, so the gateway
+    # target re-binds in the same apply. The old log-delivery teardown wedge
+    # that replacement used to cause is fixed (delivery replace coupled to its
+    # source, below). HTTP runtimes still update in place (sentinel="non-mcp").
+    replace_triggered_by = [terraform_data.mcp_authorizer_replace[each.key]]
 
     # Fail loud if an MCP Runtime would ship without an inbound JWT authorizer
     # while the consumer expects direct Runtime-to-Runtime MCP calls. Without
