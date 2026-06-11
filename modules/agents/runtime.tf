@@ -220,7 +220,15 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
     # target re-binds in the same apply. The old log-delivery teardown wedge
     # that replacement used to cause is fixed (delivery replace coupled to its
     # source, below). HTTP runtimes still update in place (sentinel="non-mcp").
-    replace_triggered_by = [terraform_data.mcp_authorizer_replace[each.key]]
+    #
+    # Reference the sentinel's OUTPUT VALUE, not the whole resource: a whole-
+    # resource reference fires on ANY planned change to the sentinel — on
+    # 2026-06-11 the first re-armed apply converged stale pre-dormancy sentinel
+    # inputs for the 10 HTTP agents ("old digest" → "non-mcp", an update-in-
+    # place) and that alone replaced every agent runtime, and 19 simultaneous
+    # runtime deletions blew the 30-min delete timeout. The output reference
+    # fires only when the value itself changes (image digest / env signal).
+    replace_triggered_by = [terraform_data.mcp_authorizer_replace[each.key].output]
 
     # Fail loud if an MCP Runtime would ship without an inbound JWT authorizer
     # while the consumer expects direct Runtime-to-Runtime MCP calls. Without
