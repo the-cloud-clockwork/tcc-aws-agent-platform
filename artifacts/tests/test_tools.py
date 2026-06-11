@@ -34,6 +34,45 @@ class TestCreateArtifact:
         catalog.create_entry.assert_called_once()
         storage.put_object.assert_called_once()
 
+    def test_rejects_truncated_json_for_json_types(self) -> None:
+        """Brace-short JSON for a JSON artifact type must raise — never be
+        stored as 'ready' (the recommender truncation soft failure)."""
+        import pytest
+
+        storage = MagicMock()
+        catalog = MagicMock()
+        catalog.get_by_idempotency_key.return_value = None
+
+        with pytest.raises(ValueError, match="not valid JSON"):
+            create_artifact(
+                type="recommendation",
+                content='{"recommendations": [{"symbol": "AVGO"}',
+                agent_id="portfolio-recommender",
+                execution_id="exec-1",
+                storage=storage,
+                catalog=catalog,
+            )
+
+        catalog.create_entry.assert_not_called()
+        storage.put_object.assert_not_called()
+
+    def test_accepts_valid_json_for_json_types(self) -> None:
+        storage = MagicMock()
+        catalog = MagicMock()
+        catalog.get_by_idempotency_key.return_value = None
+
+        result = create_artifact(
+            type="recommendation",
+            content='{"recommendations": [{"symbol": "AVGO"}]}',
+            agent_id="portfolio-recommender",
+            execution_id="exec-1",
+            storage=storage,
+            catalog=catalog,
+        )
+
+        assert result["status"] == "ready"
+        storage.put_object.assert_called_once()
+
     def test_idempotency_returns_existing(self) -> None:
         catalog = MagicMock()
         catalog.get_by_idempotency_key.return_value = {
