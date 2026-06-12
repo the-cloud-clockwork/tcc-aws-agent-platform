@@ -66,6 +66,21 @@ resource "terraform_data" "mcp_authorizer_replace" {
     upper(try(each.value.runtime.protocol, "HTTP")) == "MCP" &&
     var.mcp_oauth2_discovery_url != ""
   ) ? "${data.aws_ecr_image.agent[each.key].image_digest}:${local.runtime_env_signal}" : "non-mcp"
+
+  lifecycle {
+    # Fail loud if an MCP Runtime would ship without an inbound JWT authorizer
+    # while the consumer expects direct Runtime-to-Runtime MCP calls. Lives
+    # HERE (not on the runtime resource): create_before_destroy + precondition
+    # panics Terraform 1.15 during replaces ("duplicate status report").
+    precondition {
+      condition = !(
+        upper(try(each.value.runtime.protocol, "HTTP")) == "MCP" &&
+        var.gateway_direct_mcp &&
+        var.mcp_oauth2_discovery_url == ""
+      )
+      error_message = "MCP Runtime '${each.key}' requires a JWT authorizer (gateway_direct_mcp=true) but mcp_oauth2_discovery_url is empty. Either enable Cognito on the platform module, or set gateway_direct_mcp=false."
+    }
+  }
 }
 
 # Replacement-safe runtime naming (2026-06-12). A runtime REPLACE must never
@@ -251,19 +266,12 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
     # destroyed: zero downtime, and a delete wedged in AWS's DELETING state
     # becomes a harmless deposed ghost instead of blocking the fleet.
     create_before_destroy = true
-
-    # Fail loud if an MCP Runtime would ship without an inbound JWT authorizer
-    # while the consumer expects direct Runtime-to-Runtime MCP calls. Without
-    # this check, the authorizer dynamic block silently skips, the Runtime
-    # comes up accepting only SigV4, and every agent call fails with 403.
-    precondition {
-      condition = !(
-        upper(try(each.value.runtime.protocol, "HTTP")) == "MCP" &&
-        var.gateway_direct_mcp &&
-        var.mcp_oauth2_discovery_url == ""
-      )
-      error_message = "MCP Runtime '${each.key}' requires a JWT authorizer (gateway_direct_mcp=true) but mcp_oauth2_discovery_url is empty. Either enable Cognito on the platform module, or set gateway_direct_mcp=false."
-    }
+    # NOTE: the MCP-authorizer guard precondition lives on the sentinel
+    # terraform_data above, NOT here — a precondition on a resource with
+    # create_before_destroy panics Terraform 1.15 during a replace
+    # ("panic: duplicate status report ... ResourcePrecondition", the
+    # checks engine reports once for the new instance and once for the
+    # deposed one). Same guard, same message, evaluated every plan.
   }
 }
 
