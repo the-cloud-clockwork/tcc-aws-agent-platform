@@ -401,3 +401,17 @@ variable "evaluation_table_name" {
   type        = string
   default     = ""
 }
+
+variable "runtime_name_generation" {
+  description = <<-EOT
+    Per-agent generation suffix appended to the runtime NAME (e.g.
+    {"my-agent" = "r2"} → ..._my_agent_r2). Bump a generation to force a
+    clean replacement that sidesteps a predecessor wedged in DELETING —
+    the successor is created under the fresh name (create_before_destroy)
+    while the ghost drains on AWS's schedule. Names are cosmetic downstream
+    (consumers use ARNs and blueprint keys). MCP runtimes self-generate
+    their suffix from the image/env hash and ignore this map.
+  EOT
+  type        = map(string)
+  default     = {}
+}

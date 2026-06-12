@@ -68,10 +68,39 @@ resource "terraform_data" "mcp_authorizer_replace" {
   ) ? "${data.aws_ecr_image.agent[each.key].image_digest}:${local.runtime_env_signal}" : "non-mcp"
 }
 
+# Replacement-safe runtime naming (2026-06-12). A runtime REPLACE must never
+# fight a wedged predecessor for its name: on 2026-06-11 three runtimes sat in
+# AWS-side DELETING for >9h (ConflictException on every delete retry, no
+# force-delete exists, StopRuntimeSession refused on DELETING) and held their
+# names hostage — same-name creates were impossible and the fleet stayed down.
+# The name now carries a generation component, and the runtime uses
+# create_before_destroy: a replacement CREATES under a fresh name first (the
+# fleet never goes down), then destroys the old runtime — and if that delete
+# wedges, the deposed ghost is retried on later applies while everything runs.
+#   - MCP runtimes: generation = short hash of (image digest + env signal) —
+#     the name changes exactly when the recreate sentinel fires, which now
+#     drives replacement directly (replace_triggered_by no longer needed).
+#   - HTTP runtimes: generation from var.runtime_name_generation (operator-
+#     bumped per agent, e.g. {"ml-predictor" = "r2"}); empty = original name.
+locals {
+  runtime_name = {
+    for key, bp in local.blueprints : key => format(
+      "%s_%s%s",
+      replace(local.name_prefix, "-", "_"),
+      replace(key, "-", "_"),
+      (
+        upper(try(bp.runtime.protocol, "HTTP")) == "MCP" &&
+        var.mcp_oauth2_discovery_url != ""
+      ) ? "_${substr(sha256("${data.aws_ecr_image.agent[key].image_digest}:${local.runtime_env_signal}"), 0, 6)}"
+      : (lookup(var.runtime_name_generation, key, "") != "" ? "_${lookup(var.runtime_name_generation, key, "")}" : "")
+    )
+  }
+}
+
 resource "aws_bedrockagentcore_agent_runtime" "agent" {
   for_each = local.blueprints
 
-  agent_runtime_name = "${replace(local.name_prefix, "-", "_")}_${replace(each.key, "-", "_")}"
+  agent_runtime_name = local.runtime_name[each.key]
   description        = try(each.value.description, "Agent runtime for ${each.key}")
   role_arn           = aws_iam_role.agent[each.key].arn
 
@@ -89,8 +118,8 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
   # apply — and an in-place update is exactly when the AWS provider silently drops
   # authorizer_configuration from MCP runtimes (the JWT authorizer the direct-MCP path
   # depends on). Removed: the digest-pinned container_uri is the change signal, and MCP
-  # runtimes are force-recreated on image change via replace_triggered_by below so the
-  # authorizer is always re-applied on Create.
+  # runtimes are force-recreated on image/env change via the generation-suffixed
+  # runtime NAME (local.runtime_name) so the authorizer is always re-applied on Create.
   environment_variables = merge(
     {
       AGENTCORE_GATEWAY_URL = var.gateway_url
@@ -213,22 +242,15 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
   lifecycle {
     ignore_changes = [lifecycle_configuration]
 
-    # RE-ARMED (2026-06-11) — MCP runtimes are REPLACED, never updated in place.
-    # An in-place UpdateAgentRuntime can leave the Gateway with a stale binding
-    # (initialize/tools-list succeed, tools/call is never forwarded — see the
-    # sentinel docs above). Replacement issues a new endpoint, so the gateway
-    # target re-binds in the same apply. The old log-delivery teardown wedge
-    # that replacement used to cause is fixed (delivery replace coupled to its
-    # source, below). HTTP runtimes still update in place (sentinel="non-mcp").
-    #
-    # Reference the sentinel's OUTPUT VALUE, not the whole resource: a whole-
-    # resource reference fires on ANY planned change to the sentinel — on
-    # 2026-06-11 the first re-armed apply converged stale pre-dormancy sentinel
-    # inputs for the 10 HTTP agents ("old digest" → "non-mcp", an update-in-
-    # place) and that alone replaced every agent runtime, and 19 simultaneous
-    # runtime deletions blew the 30-min delete timeout. The output reference
-    # fires only when the value itself changes (image digest / env signal).
-    replace_triggered_by = [terraform_data.mcp_authorizer_replace[each.key].output]
+    # Replacement is driven by the NAME (see local.runtime_name): for MCP
+    # runtimes the name embeds the (digest + env signal) hash, so any image or
+    # env change forces a clean REPLACE — which keeps the Gateway binding fresh
+    # (in-place UpdateAgentRuntime intermittently wedges it: initialize/
+    # tools-list succeed, tools/call is never forwarded). create_before_destroy
+    # means the successor exists under its new name before the old runtime is
+    # destroyed: zero downtime, and a delete wedged in AWS's DELETING state
+    # becomes a harmless deposed ghost instead of blocking the fleet.
+    create_before_destroy = true
 
     # Fail loud if an MCP Runtime would ship without an inbound JWT authorizer
     # while the consumer expects direct Runtime-to-Runtime MCP calls. Without
@@ -261,6 +283,14 @@ resource "aws_bedrockagentcore_agent_runtime_endpoint" "agent" {
     Component = "runtime-endpoint"
     AgentId   = each.key
   })
+
+  # Follows the runtime's create-before-destroy: the endpoint on the successor
+  # runtime is created first (endpoint names are scoped per runtime — no
+  # conflict); destroying the old endpoint on a DELETING ghost fails harmlessly
+  # and is retried as deposed on later applies.
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # ── CloudWatch Log Group per Agent ─────────────────────────────────────────
