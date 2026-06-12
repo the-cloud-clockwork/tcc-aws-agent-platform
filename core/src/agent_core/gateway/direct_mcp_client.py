@@ -138,6 +138,14 @@ class DirectMCPClient:
         _url = self._runtime_url
         _headers = dict(headers)
         _timeout = timedelta(seconds=120)
+        # A cold AgentCore microVM takes 40-60s+ to boot; a 30s handshake
+        # window dropped the provider on every first session after a runtime
+        # replace or idle-out, and the agent silently ran WITHOUT that MCP's
+        # tools (observed 2026-06-12: ml-predictor fabricated predictions in
+        # one run and emitted an empty artifact in the next — both sessions
+        # had hit a cold ml-predict-mcp). Default must exceed worst-case
+        # cold start; env knob for tuning without a wheel republish.
+        _startup_timeout = float(os.environ.get("MCP_STARTUP_TIMEOUT_S", "120"))
 
         # --- DIAGNOSTIC: Step 2 — MCPClient construction ---
         t1 = time.time()
@@ -148,7 +156,7 @@ class DirectMCPClient:
                     headers=_headers,
                     timeout=_timeout,
                 ),
-                startup_timeout=30,
+                startup_timeout=_startup_timeout,
             )
             logger.warning(
                 "DIAG[%s] MCPClient created in %.1fs",
