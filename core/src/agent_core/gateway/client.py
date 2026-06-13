@@ -168,15 +168,30 @@ class GatewayClient:
         _region = self._region
         logger.info("Building Gateway MCPClient with SigV4 auth -> %s", url)
 
+        # Gateway tool-call HTTP timeout. Both transports (mcp-proxy-for-aws and
+        # the bundled SigV4 fallback) default to the MCP SDK's 30s request timeout,
+        # which closes the client session mid-call for slow tools — a ~41s
+        # score_watchlist surfaced as "the client session is not running" and the
+        # agent recorded every symbol as an error. Raise to the agent tool-latency
+        # budget; env-overridable. Cascade: lambda(300) < gateway(360) <
+        # agent max_execution_time(600).
+        _tool_timeout = float(os.environ.get("GATEWAY_TOOL_TIMEOUT_S", "360"))
+        _sse_timeout = max(300.0, _tool_timeout)
+
         try:
             from mcp_proxy_for_aws.client import aws_iam_streamablehttp_client
 
-            logger.info("Using mcp-proxy-for-aws for SigV4 transport")
+            logger.info(
+                "Using mcp-proxy-for-aws for SigV4 transport (timeout=%ss)",
+                _tool_timeout,
+            )
             return MCPClient(
                 lambda: aws_iam_streamablehttp_client(
                     endpoint=url,
                     aws_region=_region,
                     aws_service=_service,
+                    timeout=_tool_timeout,
+                    sse_read_timeout=_sse_timeout,
                 ),
                 startup_timeout=60,
             )
@@ -197,6 +212,7 @@ class GatewayClient:
                 creds = creds.get_frozen_credentials()
             return streamablehttp_client_with_sigv4(
                 url=url, credentials=creds, service=_service, region=_region,
+                timeout=_tool_timeout, sse_read_timeout=_sse_timeout,
             )
 
         return MCPClient(_sigv4_factory, startup_timeout=60)

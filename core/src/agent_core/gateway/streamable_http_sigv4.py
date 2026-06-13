@@ -5,10 +5,17 @@ This module extends the MCP StreamableHTTPTransport to add AWS SigV4 request sig
 for authentication with MCP servers that authenticate using AWS IAM.
 """
 
+import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import timedelta
 from typing import Generator
+
+# Default gateway tool-call HTTP timeout (seconds). The MCP SDK default is 30s,
+# which drops the session mid-call for slow tools (e.g. score_watchlist ~41s →
+# "the client session is not running"). Env-overridable; callers in client.py
+# pass it explicitly. Cascade: lambda(300) < gateway(360) < agent(600).
+_DEFAULT_GW_TIMEOUT = float(os.environ.get("GATEWAY_TOOL_TIMEOUT_S", "360"))
 
 import httpx
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
@@ -80,7 +87,7 @@ class StreamableHTTPTransportWithSigV4(StreamableHTTPTransport):
         service: str,
         region: str,
         headers: dict[str, str] | None = None,
-        timeout: float | timedelta = 30,
+        timeout: float | timedelta = _DEFAULT_GW_TIMEOUT,
         sse_read_timeout: float | timedelta = 60 * 5,
     ) -> None:
         """Initialize the StreamableHTTP transport with SigV4 signing.
@@ -115,7 +122,7 @@ async def streamablehttp_client_with_sigv4(
     service: str,
     region: str,
     headers: dict[str, str] | None = None,
-    timeout: float | timedelta = 30,
+    timeout: float | timedelta = _DEFAULT_GW_TIMEOUT,
     sse_read_timeout: float | timedelta = 60 * 5,
     terminate_on_close: bool = True,
     httpx_client_factory: McpHttpClientFactory = create_mcp_http_client,
