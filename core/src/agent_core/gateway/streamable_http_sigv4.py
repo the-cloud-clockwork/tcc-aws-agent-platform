@@ -11,12 +11,6 @@ from contextlib import asynccontextmanager
 from datetime import timedelta
 from typing import Generator
 
-# Default gateway tool-call HTTP timeout (seconds). The MCP SDK default is 30s,
-# which drops the session mid-call for slow tools (e.g. score_watchlist ~41s →
-# "the client session is not running"). Env-overridable; callers in client.py
-# pass it explicitly. Cascade: lambda(300) < gateway(360) < agent(600).
-_DEFAULT_GW_TIMEOUT = float(os.environ.get("GATEWAY_TOOL_TIMEOUT_S", "360"))
-
 import httpx
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from botocore.auth import SigV4Auth
@@ -29,6 +23,12 @@ from mcp.client.streamable_http import (
 )
 from mcp.shared._httpx_utils import McpHttpClientFactory, create_mcp_http_client
 from mcp.shared.message import SessionMessage
+
+# Default gateway tool-call HTTP timeout (seconds). The MCP SDK default is 30s,
+# which drops the session mid-call for slow tools (e.g. score_watchlist ~41s →
+# "the client session is not running"). Env-overridable; callers in client.py
+# pass it explicitly. Cascade: lambda(300) < gateway(360) < agent(600).
+_DEFAULT_GW_TIMEOUT = float(os.environ.get("GATEWAY_TOOL_TIMEOUT_S", "360"))
 
 
 class SigV4HTTPXAuth(httpx.Auth):
