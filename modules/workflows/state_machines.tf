@@ -58,14 +58,14 @@ resource "aws_sfn_state_machine" "workflows" {
                   var.agent_runtime_arns[coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))],
                   "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))}"
                 )
-                "Qualifier"          = "DEFAULT"
-                "Prompt.$"           = try(state.prompt, "$.prompt")
-                "MemoryBranch"       = try(each.value.memory_branching.enabled, false) ? replace(try(each.value.memory_branching.branch_namespace, "{sessionId}/branches/{stateId}"), "{stateId}", state.id) : ""
+                "Qualifier"           = "DEFAULT"
+                "Prompt.$"            = try(state.prompt, "$.prompt")
+                "MemoryBranch"        = try(each.value.memory_branching.enabled, false) ? replace(try(each.value.memory_branching.branch_namespace, "{sessionId}/branches/{stateId}"), "{stateId}", state.id) : ""
                 "MemoryMergeStrategy" = try(each.value.memory_branching.merge_strategy, "")
               }
             }
             ResultSelector = {
-              "body.$"       = "States.StringToJson($.Payload.Response)"
+              "body.$"        = "States.StringToJson($.Payload.Response)"
               "status_code.$" = "$.Payload.StatusCode"
               "session_id.$"  = "$.Payload.RuntimeSessionId"
             }
@@ -79,11 +79,11 @@ resource "aws_sfn_state_machine" "workflows" {
                 MaxAttempts     = try(r.max_attempts, 3)
                 BackoffRate     = try(r.backoff_rate, 2.0)
               }
-            ] : [{
-              ErrorEquals     = ["States.ALL"]
-              IntervalSeconds = try(state.retry_interval, 2)
-              MaxAttempts     = try(state.retry_max, 3)
-              BackoffRate     = try(state.retry_backoff, 2.0)
+              ] : [{
+                ErrorEquals     = ["States.ALL"]
+                IntervalSeconds = try(state.retry_interval, 2)
+                MaxAttempts     = try(state.retry_max, 3)
+                BackoffRate     = try(state.retry_backoff, 2.0)
             }]
             Catch = try(state.catch, null) != null ? [
               for c in state.catch : {
@@ -91,10 +91,10 @@ resource "aws_sfn_state_machine" "workflows" {
                 ResultPath  = try(c.result_path, "$.error.${state.id}")
                 Next        = c.next
               }
-            ] : [{
-              ErrorEquals = ["States.ALL"]
-              ResultPath  = "$.error.${coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))}"
-              Next        = "${state.id}_Failed"
+              ] : [{
+                ErrorEquals = ["States.ALL"]
+                ResultPath  = "$.error.${coalesce(try(state.agent_ref, null), try(state.agent, "unknown"))}"
+                Next        = "${state.id}_Failed"
             }]
           },
           try(state.next, null) != null ? { Next = state.next } : { End = true }
@@ -142,11 +142,11 @@ resource "aws_sfn_state_machine" "workflows" {
                 MaxAttempts     = try(r.max_attempts, 3)
                 BackoffRate     = try(r.backoff_rate, 2.0)
               }
-            ] : [{
-              ErrorEquals     = ["States.ALL"]
-              IntervalSeconds = try(state.retry_interval, 2)
-              MaxAttempts     = try(state.retry_max, 3)
-              BackoffRate     = try(state.retry_backoff, 2.0)
+              ] : [{
+                ErrorEquals     = ["States.ALL"]
+                IntervalSeconds = try(state.retry_interval, 2)
+                MaxAttempts     = try(state.retry_max, 3)
+                BackoffRate     = try(state.retry_backoff, 2.0)
             }]
             Catch = try(state.catch, null) != null ? [
               for c in state.catch : {
@@ -154,10 +154,10 @@ resource "aws_sfn_state_machine" "workflows" {
                 ResultPath  = try(c.result_path, "$.error.${state.id}")
                 Next        = c.next
               }
-            ] : [{
-              ErrorEquals = ["States.ALL"]
-              ResultPath  = "$.error.${state.lambda_ref}"
-              Next        = "${state.id}_Failed"
+              ] : [{
+                ErrorEquals = ["States.ALL"]
+                ResultPath  = "$.error.${state.lambda_ref}"
+                Next        = "${state.id}_Failed"
             }]
           },
           try(state.next, null) != null ? { Next = state.next } : { End = true }
@@ -207,10 +207,10 @@ resource "aws_sfn_state_machine" "workflows" {
                 ResultPath  = try(c.result_path, "$.error.${state.id}")
                 Next        = c.next
               }
-            ] : [{
-              ErrorEquals = ["States.ALL"]
-              ResultPath  = "$.error.${state.id}"
-              Next        = "${state.id}_Failed"
+              ] : [{
+                ErrorEquals = ["States.ALL"]
+                ResultPath  = "$.error.${state.id}"
+                Next        = "${state.id}_Failed"
             }]
           },
           try(state.next, null) != null ? { Next = state.next } : { End = true }
@@ -282,7 +282,7 @@ resource "aws_sfn_state_machine" "workflows" {
           # Default: from entry without condition, or from state.default
           length([for r in try(state.choices, []) : r if try(r.condition, null) == null]) > 0 ? {
             Default = [for r in try(state.choices, []) : r.next if try(r.condition, null) == null][0]
-          } : try(state.default, null) != null ? {
+            } : try(state.default, null) != null ? {
             Default = state.default
           } : {}
         )
@@ -306,8 +306,41 @@ resource "aws_sfn_state_machine" "workflows" {
               jsondecode(jsonencode(try(branch.states, null) != null ? {
                 StartAt = branch.states[0].id
                 States = {
+                  # Each branch state is independently wrapped in
+                  # jsondecode(jsonencode()) so a lambda_ref branch and an
+                  # agent_ref branch (different State shapes) can coexist in the
+                  # same branch map without TF type-unification errors.
                   for bs in branch.states :
-                  bs.id => merge(
+                  bs.id => try(bs.lambda_ref, null) != null ? jsondecode(jsonencode(merge(
+                    {
+                      Type     = "Task"
+                      Resource = "arn:aws:states:::lambda:invoke"
+                      Parameters = {
+                        "FunctionName" = try(
+                          var.lambda_arns[bs.lambda_ref],
+                          "arn:aws:lambda:${local.region}:${local.account_id}:function:${local.name_prefix}-${bs.lambda_ref}"
+                        )
+                        "Payload.$" = "$"
+                      }
+                      ResultPath     = try(bs.result_path, "$.results.${bs.lambda_ref}")
+                      ResultSelector = { "body.$" = "$.Payload" }
+                      TimeoutSeconds = try(bs.timeout_seconds, 900)
+                      Retry = try(bs.retry, null) != null ? [
+                        for r in bs.retry : {
+                          ErrorEquals     = try(r.error_equals, ["States.ALL"])
+                          IntervalSeconds = try(r.interval_seconds, 2)
+                          MaxAttempts     = try(r.max_attempts, 3)
+                          BackoffRate     = try(r.backoff_rate, 2.0)
+                        }
+                        ] : [{
+                          ErrorEquals     = ["Lambda.ServiceException", "Lambda.TooManyRequestsException", "States.TaskFailed"]
+                          IntervalSeconds = 2
+                          MaxAttempts     = try(bs.retry_max, 3)
+                          BackoffRate     = 2.0
+                      }]
+                    },
+                    try(bs.next, null) != null ? { Next = bs.next } : { End = true }
+                    ))) : jsondecode(jsonencode(merge(
                     {
                       Type     = "Task"
                       Resource = "arn:aws:states:::lambda:invoke"
@@ -318,23 +351,19 @@ resource "aws_sfn_state_machine" "workflows" {
                             var.agent_runtime_arns[coalesce(try(bs.agent_ref, null), try(bs.agent, "unknown"))],
                             "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(bs.agent_ref, null), try(bs.agent, "unknown"))}"
                           )
-                          "Qualifier"          = "DEFAULT"
-                          "Prompt.$"           = try(bs.prompt, "$.prompt")
-                          "MemoryBranch"       = ""
+                          "Qualifier"           = "DEFAULT"
+                          "Prompt.$"            = try(bs.prompt, "$.prompt")
+                          "MemoryBranch"        = ""
                           "MemoryMergeStrategy" = ""
                         }
                       }
-                      ResultPath = try(bs.result_path, "$.results.${coalesce(try(bs.agent_ref, null), try(bs.agent, "unknown"))}")
+                      ResultPath     = try(bs.result_path, "$.results.${coalesce(try(bs.agent_ref, null), try(bs.agent, "unknown"))}")
                       TimeoutSeconds = try(bs.timeout_seconds, 900)
-                    },
-                    {
                       ResultSelector = {
-                        "body.$"       = "States.StringToJson($.Payload.Response)"
+                        "body.$"        = "States.StringToJson($.Payload.Response)"
                         "status_code.$" = "$.Payload.StatusCode"
                         "session_id.$"  = "$.Payload.RuntimeSessionId"
                       }
-                    },
-                    {
                       Retry = try(bs.retry, null) != null ? [
                         for r in bs.retry : {
                           ErrorEquals     = try(r.error_equals, ["States.ALL"])
@@ -342,17 +371,17 @@ resource "aws_sfn_state_machine" "workflows" {
                           MaxAttempts     = try(r.max_attempts, 3)
                           BackoffRate     = try(r.backoff_rate, 2.0)
                         }
-                      ] : [{
-                        ErrorEquals     = ["States.ALL"]
-                        IntervalSeconds = 2
-                        MaxAttempts     = try(bs.retry_max, 3)
-                        BackoffRate     = 2.0
+                        ] : [{
+                          ErrorEquals     = ["States.ALL"]
+                          IntervalSeconds = 2
+                          MaxAttempts     = try(bs.retry_max, 3)
+                          BackoffRate     = 2.0
                       }]
                     },
                     try(bs.next, null) != null ? { Next = bs.next } : { End = true }
-                  )
+                  )))
                 }
-              } : {
+                } : {
                 # Legacy simple branch: single agent reference — also via Lambda wrapper
                 StartAt = coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))
                 States = {
@@ -366,18 +395,18 @@ resource "aws_sfn_state_machine" "workflows" {
                           var.agent_runtime_arns[coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))],
                           "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))}"
                         )
-                        "Qualifier"          = "DEFAULT"
-                        "Prompt.$"           = "$.prompt"
-                        "MemoryBranch"       = ""
+                        "Qualifier"           = "DEFAULT"
+                        "Prompt.$"            = "$.prompt"
+                        "MemoryBranch"        = ""
                         "MemoryMergeStrategy" = ""
                       }
                     }
                     ResultSelector = {
-                      "body.$"       = "States.StringToJson($.Payload.Response)"
+                      "body.$"        = "States.StringToJson($.Payload.Response)"
                       "status_code.$" = "$.Payload.StatusCode"
                       "session_id.$"  = "$.Payload.RuntimeSessionId"
                     }
-                    ResultPath = "$.results.${coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))}"
+                    ResultPath     = "$.results.${coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))}"
                     TimeoutSeconds = 900
                     Retry = [{
                       ErrorEquals     = ["States.ALL"]
