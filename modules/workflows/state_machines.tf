@@ -305,82 +305,94 @@ resource "aws_sfn_state_machine" "workflows" {
               # so TF doesn't complain about different State keys per branch.
               jsondecode(jsonencode(try(branch.states, null) != null ? {
                 StartAt = branch.states[0].id
-                States = {
-                  # Each branch state is independently wrapped in
-                  # jsondecode(jsonencode()) so a lambda_ref branch and an
-                  # agent_ref branch (different State shapes) can coexist in the
-                  # same branch map without TF type-unification errors.
-                  for bs in branch.states :
-                  bs.id => try(bs.lambda_ref, null) != null ? jsondecode(jsonencode(merge(
-                    {
-                      Type     = "Task"
-                      Resource = "arn:aws:states:::lambda:invoke"
-                      Parameters = {
-                        "FunctionName" = try(
-                          var.lambda_arns[bs.lambda_ref],
-                          "arn:aws:lambda:${local.region}:${local.account_id}:function:${local.name_prefix}-${bs.lambda_ref}"
-                        )
-                        "Payload.$" = "$"
-                      }
-                      ResultPath     = try(bs.result_path, "$.results.${bs.lambda_ref}")
-                      ResultSelector = { "body.$" = "$.Payload" }
-                      TimeoutSeconds = try(bs.timeout_seconds, 900)
-                      Retry = try(bs.retry, null) != null ? [
-                        for r in bs.retry : {
-                          ErrorEquals     = try(r.error_equals, ["States.ALL"])
-                          IntervalSeconds = try(r.interval_seconds, 2)
-                          MaxAttempts     = try(r.max_attempts, 3)
-                          BackoffRate     = try(r.backoff_rate, 2.0)
-                        }
-                        ] : [{
-                          ErrorEquals     = ["Lambda.ServiceException", "Lambda.TooManyRequestsException", "States.TaskFailed"]
-                          IntervalSeconds = 2
-                          MaxAttempts     = try(bs.retry_max, 3)
-                          BackoffRate     = 2.0
-                      }]
-                    },
-                    try(bs.next, null) != null ? { Next = bs.next } : { End = true }
-                    ))) : jsondecode(jsonencode(merge(
-                    {
-                      Type     = "Task"
-                      Resource = "arn:aws:states:::lambda:invoke"
-                      Parameters = {
-                        "FunctionName" = aws_lambda_function.invoke_agent.arn
-                        "Payload" = {
-                          "AgentRuntimeArn" = try(
-                            var.agent_runtime_arns[coalesce(try(bs.agent_ref, null), try(bs.agent, "unknown"))],
-                            "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(bs.agent_ref, null), try(bs.agent, "unknown"))}"
+                # Branch states are split by type and merged (state ids are
+                # unique, so no key collision) — mirroring the top-level States
+                # merge. A single ternary per value fails with "inconsistent
+                # conditional result types" because the lambda vs agent shapes
+                # conflict on Parameters; two homogeneous comprehensions + merge
+                # avoids the unification entirely.
+                States = merge(
+                  # Lambda-ref branch states → standard lambda:invoke.
+                  {
+                    for bs in branch.states :
+                    bs.id => merge(
+                      {
+                        Type     = "Task"
+                        Resource = "arn:aws:states:::lambda:invoke"
+                        Parameters = {
+                          "FunctionName" = try(
+                            var.lambda_arns[bs.lambda_ref],
+                            "arn:aws:lambda:${local.region}:${local.account_id}:function:${local.name_prefix}-${bs.lambda_ref}"
                           )
-                          "Qualifier"           = "DEFAULT"
-                          "Prompt.$"            = try(bs.prompt, "$.prompt")
-                          "MemoryBranch"        = ""
-                          "MemoryMergeStrategy" = ""
+                          "Payload.$" = "$"
                         }
-                      }
-                      ResultPath     = try(bs.result_path, "$.results.${coalesce(try(bs.agent_ref, null), try(bs.agent, "unknown"))}")
-                      TimeoutSeconds = try(bs.timeout_seconds, 900)
-                      ResultSelector = {
-                        "body.$"        = "States.StringToJson($.Payload.Response)"
-                        "status_code.$" = "$.Payload.StatusCode"
-                        "session_id.$"  = "$.Payload.RuntimeSessionId"
-                      }
-                      Retry = try(bs.retry, null) != null ? [
-                        for r in bs.retry : {
-                          ErrorEquals     = try(r.error_equals, ["States.ALL"])
-                          IntervalSeconds = try(r.interval_seconds, 2)
-                          MaxAttempts     = try(r.max_attempts, 3)
-                          BackoffRate     = try(r.backoff_rate, 2.0)
+                        ResultPath     = try(bs.result_path, "$.results.${bs.lambda_ref}")
+                        ResultSelector = { "body.$" = "$.Payload" }
+                        TimeoutSeconds = try(bs.timeout_seconds, 900)
+                        Retry = try(bs.retry, null) != null ? [
+                          for r in bs.retry : {
+                            ErrorEquals     = try(r.error_equals, ["States.ALL"])
+                            IntervalSeconds = try(r.interval_seconds, 2)
+                            MaxAttempts     = try(r.max_attempts, 3)
+                            BackoffRate     = try(r.backoff_rate, 2.0)
+                          }
+                          ] : [{
+                            ErrorEquals     = ["Lambda.ServiceException", "Lambda.TooManyRequestsException", "States.TaskFailed"]
+                            IntervalSeconds = 2
+                            MaxAttempts     = try(bs.retry_max, 3)
+                            BackoffRate     = 2.0
+                        }]
+                      },
+                      try(bs.next, null) != null ? { Next = bs.next } : { End = true }
+                    )
+                    if try(bs.lambda_ref, null) != null
+                  },
+                  # Agent-ref branch states → invoke_agent wrapper (unchanged).
+                  {
+                    for bs in branch.states :
+                    bs.id => merge(
+                      {
+                        Type     = "Task"
+                        Resource = "arn:aws:states:::lambda:invoke"
+                        Parameters = {
+                          "FunctionName" = aws_lambda_function.invoke_agent.arn
+                          "Payload" = {
+                            "AgentRuntimeArn" = try(
+                              var.agent_runtime_arns[coalesce(try(bs.agent_ref, null), try(bs.agent, "unknown"))],
+                              "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(bs.agent_ref, null), try(bs.agent, "unknown"))}"
+                            )
+                            "Qualifier"           = "DEFAULT"
+                            "Prompt.$"            = try(bs.prompt, "$.prompt")
+                            "MemoryBranch"        = ""
+                            "MemoryMergeStrategy" = ""
+                          }
                         }
-                        ] : [{
-                          ErrorEquals     = ["States.ALL"]
-                          IntervalSeconds = 2
-                          MaxAttempts     = try(bs.retry_max, 3)
-                          BackoffRate     = 2.0
-                      }]
-                    },
-                    try(bs.next, null) != null ? { Next = bs.next } : { End = true }
-                  )))
-                }
+                        ResultPath     = try(bs.result_path, "$.results.${coalesce(try(bs.agent_ref, null), try(bs.agent, "unknown"))}")
+                        TimeoutSeconds = try(bs.timeout_seconds, 900)
+                        ResultSelector = {
+                          "body.$"        = "States.StringToJson($.Payload.Response)"
+                          "status_code.$" = "$.Payload.StatusCode"
+                          "session_id.$"  = "$.Payload.RuntimeSessionId"
+                        }
+                        Retry = try(bs.retry, null) != null ? [
+                          for r in bs.retry : {
+                            ErrorEquals     = try(r.error_equals, ["States.ALL"])
+                            IntervalSeconds = try(r.interval_seconds, 2)
+                            MaxAttempts     = try(r.max_attempts, 3)
+                            BackoffRate     = try(r.backoff_rate, 2.0)
+                          }
+                          ] : [{
+                            ErrorEquals     = ["States.ALL"]
+                            IntervalSeconds = 2
+                            MaxAttempts     = try(bs.retry_max, 3)
+                            BackoffRate     = 2.0
+                        }]
+                      },
+                      try(bs.next, null) != null ? { Next = bs.next } : { End = true }
+                    )
+                    if try(bs.lambda_ref, null) == null
+                  }
+                )
                 } : {
                 # Legacy simple branch: single agent reference — also via Lambda wrapper
                 StartAt = coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))
