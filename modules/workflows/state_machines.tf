@@ -301,20 +301,20 @@ resource "aws_sfn_state_machine" "workflows" {
             Type = "Parallel"
             Branches = [
               for branch in try(state.branches, try(state.parallel, [])) :
-              # jsondecode(jsonencode()) normalizes dynamic object types
-              # so TF doesn't complain about different State keys per branch.
-              jsondecode(jsonencode(try(branch.states, null) != null ? {
-                StartAt = branch.states[0].id
-                # Branch states are split by type and merged (state ids are
-                # unique, so no key collision) — mirroring the top-level States
-                # merge. A single ternary per value fails with "inconsistent
-                # conditional result types" because the lambda vs agent shapes
-                # conflict on Parameters; two homogeneous comprehensions + merge
-                # avoids the unification entirely.
+              # Build each branch as ONE object — no rich-vs-legacy ternary.
+              # A ternary whose arms have different States types fails to unify
+              # ("inconsistent conditional result types"); a heterogeneous LIST
+              # of branch objects is fine (it becomes a tuple). Rich `states:`
+              # and the legacy `{agent: X}` shorthand are folded into a single
+              # States built by merge() of type-filtered comprehensions (state
+              # ids are unique, so no key collision) — mirroring the top-level
+              # States merge.
+              jsondecode(jsonencode({
+                StartAt = try(branch.states[0].id, coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown")))
                 States = merge(
-                  # Lambda-ref branch states → standard lambda:invoke.
+                  # Rich format — lambda_ref branch states -> standard lambda:invoke.
                   {
-                    for bs in branch.states :
+                    for bs in try(branch.states, []) :
                     bs.id => merge(
                       {
                         Type     = "Task"
@@ -347,9 +347,9 @@ resource "aws_sfn_state_machine" "workflows" {
                     )
                     if try(bs.lambda_ref, null) != null
                   },
-                  # Agent-ref branch states → invoke_agent wrapper (unchanged).
+                  # Rich format — agent_ref branch states -> invoke_agent wrapper.
                   {
-                    for bs in branch.states :
+                    for bs in try(branch.states, []) :
                     bs.id => merge(
                       {
                         Type     = "Task"
@@ -391,44 +391,42 @@ resource "aws_sfn_state_machine" "workflows" {
                       try(bs.next, null) != null ? { Next = bs.next } : { End = true }
                     )
                     if try(bs.lambda_ref, null) == null
-                  }
-                )
-                } : {
-                # Legacy simple branch: single agent reference — also via Lambda wrapper
-                StartAt = coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))
-                States = {
-                  (coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))) = {
-                    Type     = "Task"
-                    Resource = "arn:aws:states:::lambda:invoke"
-                    Parameters = {
-                      "FunctionName" = aws_lambda_function.invoke_agent.arn
-                      "Payload" = {
-                        "AgentRuntimeArn" = try(
-                          var.agent_runtime_arns[coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))],
-                          "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))}"
-                        )
-                        "Qualifier"           = "DEFAULT"
-                        "Prompt.$"            = "$.prompt"
-                        "MemoryBranch"        = ""
-                        "MemoryMergeStrategy" = ""
+                  },
+                  # Legacy simple branch: { agent_ref: X } shorthand (no states:).
+                  try(branch.states, null) == null ? {
+                    (coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))) = {
+                      Type     = "Task"
+                      Resource = "arn:aws:states:::lambda:invoke"
+                      Parameters = {
+                        "FunctionName" = aws_lambda_function.invoke_agent.arn
+                        "Payload" = {
+                          "AgentRuntimeArn" = try(
+                            var.agent_runtime_arns[coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))],
+                            "arn:aws:bedrock-agentcore:${local.region}:${local.account_id}:runtime/${coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))}"
+                          )
+                          "Qualifier"           = "DEFAULT"
+                          "Prompt.$"            = "$.prompt"
+                          "MemoryBranch"        = ""
+                          "MemoryMergeStrategy" = ""
+                        }
                       }
+                      ResultSelector = {
+                        "body.$"        = "States.StringToJson($.Payload.Response)"
+                        "status_code.$" = "$.Payload.StatusCode"
+                        "session_id.$"  = "$.Payload.RuntimeSessionId"
+                      }
+                      ResultPath     = "$.results.${coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))}"
+                      TimeoutSeconds = 900
+                      Retry = [{
+                        ErrorEquals     = ["States.ALL"]
+                        IntervalSeconds = 2
+                        MaxAttempts     = 3
+                        BackoffRate     = 2.0
+                      }]
+                      End = true
                     }
-                    ResultSelector = {
-                      "body.$"        = "States.StringToJson($.Payload.Response)"
-                      "status_code.$" = "$.Payload.StatusCode"
-                      "session_id.$"  = "$.Payload.RuntimeSessionId"
-                    }
-                    ResultPath     = "$.results.${coalesce(try(branch.agent_ref, null), try(branch.agent, "unknown"))}"
-                    TimeoutSeconds = 900
-                    Retry = [{
-                      ErrorEquals     = ["States.ALL"]
-                      IntervalSeconds = 2
-                      MaxAttempts     = 3
-                      BackoffRate     = 2.0
-                    }]
-                    End = true
-                  }
-                }
+                  } : {}
+                )
               }))
             ]
             ResultPath = try(state.result_path, "$.parallel_results")
