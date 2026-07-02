@@ -664,6 +664,15 @@ class BlueprintLoader:
     def _wire_memory(self, blueprint: AgentBlueprint, agent_id: str) -> Any:
         if not blueprint.memory.strategies:
             return None
+        # Non-AWS runtimes (e.g. Anton/K8s) have no AgentCore Memory service.
+        # AGENT_MEMORY_DISABLED skips memory wiring instead of failing the
+        # session build; unset (the AWS default) the behavior is unchanged.
+        if os.environ.get("AGENT_MEMORY_DISABLED", "").lower() in ("1", "true", "yes"):
+            logger.warning(
+                "Agent '%s' declares memory strategies but AGENT_MEMORY_DISABLED is set — memory wiring skipped.",
+                agent_id,
+            )
+            return None
         from agent_core.memory.wiring import MemoryWiring
 
         memory_id = os.environ.get("AGENTCORE_MEMORY_ID", "")
