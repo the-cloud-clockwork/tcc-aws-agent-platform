@@ -14,7 +14,7 @@ jobs:
   test:
     # Fork PRs run on GitHub-hosted runners (no access to self-hosted infra);
     # internal pushes use the self-hosted runner.
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || 'anton' }}
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: cli
