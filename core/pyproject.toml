@@ -49,7 +49,7 @@ litellm = [
 ]
 structured_output = [
     "instructor>=1.10,<2",
-    "openai>=1.50,<3",
+    "openai>=1.50,<4",
 ]
 presidio = [
     "presidio-analyzer>=2.2,<3",
