@@ -483,8 +483,15 @@ class BlueprintLoader:
 
         has_mcp_tools = any(isinstance(t, McpToolConfig) for t in blueprint.tools)
         direct_mcp = os.environ.get("GATEWAY_DIRECT_MCP", "").lower() == "true"
+        # A blueprint with NO tools gets the implicit full-gateway toolset only
+        # when a gateway is actually configured. A zero-tools-BY-DESIGN agent
+        # (authoring-only, e.g. run explainers) on a gateway-less runtime must
+        # boot with zero providers, not die on GatewayConfigError.
+        has_gateway = bool(
+            getattr(blueprint.gateway, "url", None) or os.environ.get("AGENTCORE_GATEWAY_URL")
+        )
 
-        if has_mcp_tools or not blueprint.tools:
+        if has_mcp_tools or (not blueprint.tools and has_gateway):
             if direct_mcp and has_mcp_tools:
                 # WORKAROUND: AWS Issue #809 — Gateway can't forward tools/call
                 # to MCP runtimes. Connect directly with JWT auth.
