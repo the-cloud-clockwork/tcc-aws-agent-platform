@@ -56,6 +56,67 @@ def _log_history_shape(agent_id: str, history: list[Any]) -> None:
         logger.warning("Failed to log history shape for %s: %s", agent_id, exc)
 
 
+_MAX_CAUSE_DEPTH = 12
+
+
+def _cause_chain(exc: BaseException, limit: int = _MAX_CAUSE_DEPTH) -> list[BaseException]:
+    """`exc` and its explicit `__cause__` ancestry, outermost first.
+
+    `__context__` is deliberately NOT followed. It holds whatever happened to be
+    in flight when an exception was raised — related or not — so a deterministic
+    bug raised inside an `except` block would inherit an LLM error's
+    classification and be retried. `_leaf_causes` may follow it because it only
+    builds a human-readable string; this chain feeds a retry decision.
+    """
+    chain: list[BaseException] = []
+    seen: set[int] = set()
+    queue: list[BaseException] = [exc]
+    while queue and len(chain) < limit:
+        cur = queue.pop(0)
+        if id(cur) in seen:
+            continue
+        seen.add(id(cur))
+        chain.append(cur)
+        if cur.__cause__ is not None:
+            queue.append(cur.__cause__)
+        subs = getattr(cur, "exceptions", None)  # BaseExceptionGroup
+        if subs:
+            queue.extend(subs)
+    return chain
+
+
+def _classify_llm_failure(
+    chain: list[BaseException], litellm: Any
+) -> tuple[str, int | None, str | None, bool] | None:
+    """First node in `chain` that is an LLM transport failure.
+
+    Returns (error_class, http_status, provider, retriable), or None when no node
+    matches. Attributes come off the MATCHED node — a wrapper carries neither
+    `llm_provider` nor `status_code`. `litellm` is passed in rather than imported
+    so this stays testable where the optional extra is not installed.
+    """
+    for e in chain:
+        if isinstance(e, litellm.BadGatewayError):
+            return "upstream_llm_unavailable", 502, getattr(e, "llm_provider", None), True
+        if isinstance(e, litellm.ServiceUnavailableError):
+            return "upstream_llm_unavailable", 503, getattr(e, "llm_provider", None), True
+        if isinstance(e, litellm.Timeout):
+            return "upstream_llm_timeout", None, None, True
+        if isinstance(e, litellm.RateLimitError):
+            return "upstream_llm_rate_limit", 429, None, True
+        if isinstance(e, litellm.APIConnectionError):
+            return "upstream_llm_connection_error", None, None, True
+        if isinstance(e, litellm.APIError):
+            status = getattr(e, "status_code", None)
+            return (
+                "upstream_llm_api_error",
+                status,
+                getattr(e, "llm_provider", None),
+                status in (429, 500, 502, 503, 504),
+            )
+    return None
+
+
 class GenericHandler:
     """Configurable agent handler that renders any blueprint.
 
@@ -297,31 +358,15 @@ class GenericHandler:
             retriable = False
             try:
                 import litellm
-                if isinstance(exc, litellm.BadGatewayError):
-                    error_class = "upstream_llm_unavailable"
-                    http_status = 502
-                    provider = getattr(exc, "llm_provider", None)
-                    retriable = True
-                elif isinstance(exc, litellm.ServiceUnavailableError):
-                    error_class = "upstream_llm_unavailable"
-                    http_status = 503
-                    provider = getattr(exc, "llm_provider", None)
-                    retriable = True
-                elif isinstance(exc, litellm.Timeout):
-                    error_class = "upstream_llm_timeout"
-                    retriable = True
-                elif isinstance(exc, litellm.RateLimitError):
-                    error_class = "upstream_llm_rate_limit"
-                    http_status = 429
-                    retriable = True
-                elif isinstance(exc, litellm.APIConnectionError):
-                    error_class = "upstream_llm_connection_error"
-                    retriable = True
-                elif isinstance(exc, litellm.APIError):
-                    error_class = "upstream_llm_api_error"
-                    http_status = getattr(exc, "status_code", None)
-                    provider = getattr(exc, "llm_provider", None)
-                    retriable = http_status in (429, 500, 502, 503, 504)
+
+                # Classify over the whole __cause__ chain, not just `exc`.
+                # Strands wraps the real litellm error in an EventLoopException,
+                # so the outer type is never a litellm class and every upstream
+                # outage used to be reported as a permanent agent_error — which
+                # told callers not to retry a failure that only a retry fixes.
+                hit = _classify_llm_failure(_cause_chain(exc), litellm)
+                if hit:
+                    error_class, http_status, provider, retriable = hit
             except ImportError:
                 pass
 
