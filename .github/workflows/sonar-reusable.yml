@@ -1,0 +1,179 @@
+name: SonarQube Scan (Reusable)
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      python_version:
+        description: "Python version for running tests (empty = skip tests)"
+        required: false
+        default: ""
+        type: string
+      install_command:
+        description: "Command to install project + dev deps"
+        required: false
+        default: 'pip install -e ".[dev]"'
+        type: string
+      test_command:
+        description: "Pytest command to generate coverage XML"
+        required: false
+        default: ""
+        type: string
+    secrets:
+      SONAR_TOKEN:
+        description: "SonarQube analysis token"
+        required: true
+      SONAR_HOST_URL:
+        description: "SonarQube server URL"
+        required: true
+      CF_ACCESS_CLIENT_ID:
+        description: "Cloudflare Access service token ID"
+        required: true
+      CF_ACCESS_CLIENT_SECRET:
+        description: "Cloudflare Access service token secret"
+        required: true
+      AWS_ACCESS_KEY_ID:
+        description: "AWS access key for CodeArtifact (optional)"
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        description: "AWS secret key for CodeArtifact (optional)"
+        required: false
+
+jobs:
+  scan:
+    name: SonarQube Analysis
+    runs-on: anton
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        if: inputs.python_version != ''
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+
+      - name: Install dependencies
+        if: inputs.python_version != ''
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: eu-west-1
+        run: ${{ inputs.install_command }}
+
+      - name: Run tests with coverage
+        if: inputs.test_command != ''
+        run: ${{ inputs.test_command }}
+
+      - name: Setup Cloudflare Access proxy
+        env:
+          SONAR_URL: ${{ secrets.SONAR_HOST_URL }}
+          CF_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          SONAR_HOST=$(echo "$SONAR_URL" | sed 's|https\?://||')
+          sudo apt-get update -qq && sudo apt-get install -y -qq nginx >/dev/null
+          sudo rm -f /etc/nginx/sites-enabled/default
+          cat <<CONF | sudo tee /etc/nginx/sites-enabled/sonar-proxy
+          server {
+              listen 9000;
+              client_max_body_size 64m;
+              location / {
+                  proxy_pass ${SONAR_URL};
+                  proxy_set_header Host ${SONAR_HOST};
+                  proxy_set_header CF-Access-Client-Id "${CF_ID}";
+                  proxy_set_header CF-Access-Client-Secret "${CF_SECRET}";
+                  proxy_ssl_server_name on;
+              }
+          }
+          CONF
+          # Start nginx via the binary, not systemctl: the self-hosted
+          # `anton` runner has no systemd bus, so `systemctl restart nginx`
+          # dies with "Failed to connect to bus: Host is down". Reload if
+          # already running, otherwise start the master process directly.
+          sudo nginx -t
+          sudo nginx -s reload 2>/dev/null || sudo nginx
+          sleep 1
+          curl -sf http://localhost:9000/api/system/status && echo " Proxy OK" || echo "::warning::Proxy health check failed"
+
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: http://localhost:9000
+
+      - name: Upload coverage report
+        if: inputs.test_command != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload SonarQube scanner report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sonar-report
+          path: .scannerwork/report-task.txt
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: SonarQube Quality Gate
+        id: quality_gate
+        uses: sonarsource/sonarqube-quality-gate-action@v1
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: http://localhost:9000
+
+      - name: Write job summary
+        if: always()
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        run: |
+          TASK_FILE=".scannerwork/report-task.txt"
+          PROJECT_KEY=$(grep 'projectKey=' "$TASK_FILE" 2>/dev/null | cut -d= -f2 || echo "unknown")
+          CE_TASK_ID=$(grep 'ceTaskId=' "$TASK_FILE" 2>/dev/null | cut -d= -f2 || echo "")
+          QG_STATUS="${{ steps.quality_gate.outcome }}"
+
+          if [ "$QG_STATUS" = "success" ]; then
+            QG_BADGE="✅ **PASSED**"
+          else
+            QG_BADGE="❌ **FAILED**"
+          fi
+
+          {
+            echo "## SonarQube Analysis"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| **Project** | \`$PROJECT_KEY\` |"
+            echo "| **Quality Gate** | $QG_BADGE |"
+            echo "| **Task ID** | \`$CE_TASK_ID\` |"
+            echo "| **Dashboard** | [$SONAR_HOST_URL/dashboard?id=$PROJECT_KEY]($SONAR_HOST_URL/dashboard?id=$PROJECT_KEY) |"
+            echo ""
+            if [ -f coverage.xml ]; then
+              LINES_VALID=$(grep -o 'lines-valid="[0-9]*"' coverage.xml | head -1 | grep -o '[0-9]*' || echo "?")
+              LINES_COVERED=$(grep -o 'lines-covered="[0-9]*"' coverage.xml | head -1 | grep -o '[0-9]*' || echo "?")
+              LINE_RATE=$(grep -o 'line-rate="[0-9.]*"' coverage.xml | head -1 | grep -o '[0-9.]*' || echo "0")
+              PCT=$(awk "BEGIN {printf \"%.1f\", $LINE_RATE * 100}" 2>/dev/null || echo "?")
+              echo "### Coverage"
+              echo ""
+              echo "| | |"
+              echo "|---|---|"
+              echo "| **Line rate** | ${PCT}% |"
+              echo "| **Lines covered** | $LINES_COVERED / $LINES_VALID |"
+            fi
+            echo ""
+            echo "### Artifacts"
+            echo ""
+            echo "- \`coverage-report\` — Coverage XML (download from run page)"
+            echo "- \`sonar-report\` — Scanner task file with analysis ID and URLs"
+          } >> "$GITHUB_STEP_SUMMARY"
