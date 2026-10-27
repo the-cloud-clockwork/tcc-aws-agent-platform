@@ -19,4 +19,6 @@ jobs:
         run: |
           if grep -RniE 'uses:.*the-cloud-clockwork/\.github/' .github/workflows; then
             exit 1
+          else
+            test "$?" -eq 1
           fi
