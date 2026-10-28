@@ -114,6 +114,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **LLM failure classification reads the whole `__cause__` chain.**
+  `GenericHandler` classified only the outermost exception, so a retriable
+  litellm error wrapped by Strands in an `EventLoopException` was reported as
+  `error_class: agent_error` / `retriable: false` and callers did not retry a
+  transient upstream outage. `_cause_chain()` and `_classify_llm_failure()` are
+  now module-level and unit-tested; `http_status` and `provider` are read from
+  the matched node rather than the wrapper.
 - Marshal walker tightened to skip `toolUse` blocks not matching the schema
   artifact name, preventing false-positive artifact extraction.
 - `create_artifact` tool name matched with MCP namespace prefix.
