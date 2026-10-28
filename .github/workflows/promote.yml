@@ -40,19 +40,24 @@ jobs:
             const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
             async function waitForGrade(github, api, sha, core) {
-              await sleep(30000);
+              let seen = '';
               for (let attempt = 0; attempt < 180; attempt++) {
+                await sleep(20000);
                 const runs = (await github.paginate(github.rest.actions.listWorkflowRunsForRepo, {
                   ...api, head_sha: sha, event: 'push', branch: 'dev', per_page: 100,
                 })).filter(run => run.id !== context.runId && run.path !== '.github/workflows/promote.yml');
-                if (runs.length && runs.every(run => run.status === 'completed')) {
-                  if (runs.some(run => run.conclusion === 'cancelled')) return null;
-                  const red = runs.filter(run => !PASSING.includes(run.conclusion));
-                  if (red.length) throw new Error(`Dev head is red: ${red.map(run => `${run.name} ${run.conclusion} ${run.html_url}`).join(', ')}`);
-                  for (const run of runs) core.info(`Graded by ${run.name} ${run.html_url}`);
-                  return runs;
+                const ids = runs.map(run => run.id).sort().join(',');
+                const settled = ids === seen && runs.some(run => run.path === '.github/workflows/workflow-locality.yml');
+                seen = ids;
+                if (!settled || !runs.every(run => run.status === 'completed')) continue;
+                const red = runs.filter(run => !PASSING.includes(run.conclusion) && run.conclusion !== 'cancelled');
+                if (red.length) throw new Error(`Dev head is red: ${red.map(run => `${run.name} ${run.conclusion} ${run.html_url}`).join(', ')}`);
+                if (runs.some(run => run.conclusion === 'cancelled')) {
+                  if ((await github.rest.repos.getBranch({ ...api, branch: 'dev' })).data.commit.sha !== sha) return null;
+                  throw new Error('A dev push workflow was cancelled on the current dev head');
                 }
-                await sleep(20000);
+                for (const run of runs) core.info(`Graded by ${run.name} ${run.html_url}`);
+                return runs;
               }
               throw new Error('Dev push workflows did not complete on the dev head within an hour');
             }
@@ -69,7 +74,7 @@ jobs:
               const promoted = /^Graded dev revision: ([0-9a-f]{40})$/m.exec(main.commit.message)?.[1];
               if (!promoted) return null;
               const status = (await github.rest.repos.compareCommits({ ...api, base: promoted, head: graded })).data.status;
-              if (status === 'ahead') return null;
+              if (status === 'ahead' || status === 'identical') return null;
               if (status === 'diverged') throw new Error(`Graded dev ${graded} diverged from the dev revision main carries, ${promoted}`);
               return promoted;
             }
@@ -98,7 +103,8 @@ jobs:
                 }
                 const body = `Graded dev revision: ${context.sha}\n\n${grade.map(run => `${run.name}: ${run.html_url}`).join('\n')}`;
                 let pull = pulls[0];
-                if (pull && (await github.rest.git.getCommit({ ...api, commit_sha: pull.head.sha })).data.parents[0]?.sha !== main.sha) {
+                const reused = pull && (await github.rest.git.getCommit({ ...api, commit_sha: pull.head.sha })).data;
+                if (pull && (reused.parents[0]?.sha !== main.sha || reused.tree.sha !== graded.commit.tree.sha)) {
                   await github.rest.pulls.update({ ...api, pull_number: pull.number, state: 'closed' });
                   pull = undefined;
                 }
