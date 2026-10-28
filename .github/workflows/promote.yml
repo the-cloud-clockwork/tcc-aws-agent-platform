@@ -36,6 +36,7 @@ jobs:
           github-token: ${{ steps.app.outputs.token }}
           script: |
             const PASSING = ['success', 'skipped', 'neutral'];
+            const REQUIRED = ['.github/workflows/workflow-locality.yml'];
 
             const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -47,7 +48,7 @@ jobs:
                   ...api, head_sha: sha, event: 'push', branch: 'dev', per_page: 100,
                 })).filter(run => run.id !== context.runId && run.path !== '.github/workflows/promote.yml');
                 const ids = runs.map(run => run.id).sort().join(',');
-                const settled = ids === seen && runs.some(run => run.path === '.github/workflows/workflow-locality.yml');
+                const settled = ids === seen && REQUIRED.every(path => runs.some(run => run.path === path));
                 seen = ids;
                 if (!settled || !runs.every(run => run.status === 'completed')) continue;
                 const red = runs.filter(run => !PASSING.includes(run.conclusion) && run.conclusion !== 'cancelled');
