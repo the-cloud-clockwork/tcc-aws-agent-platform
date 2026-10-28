@@ -1,0 +1,164 @@
+name: Promote
+
+# Only a push to dev, never a pull request head.
+on:
+  push:
+    branches: [dev]
+
+concurrency:
+  group: promote-dev
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Mint the tcc-main-ci app token
+        id: app
+        uses: actions/create-github-app-token@v3.2.0
+        with:
+          client-id: ${{ secrets.TCC_CI_CLIENT_ID }}
+          private-key: ${{ secrets.TCC_CI_APP_PRIVATE_KEY }}
+          repositories: ${{ github.event.repository.name }}
+          permission-metadata: read
+          permission-actions: read
+          permission-contents: write
+          permission-pull-requests: write
+          permission-workflows: write
+
+      - name: Squash the graded dev tree into main
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ steps.app.outputs.token }}
+          script: |
+            const PASSING = ['success', 'skipped', 'neutral'];
+
+            const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+            async function waitForGrade(github, api, sha, core) {
+              await sleep(30000);
+              for (let attempt = 0; attempt < 180; attempt++) {
+                const runs = (await github.paginate(github.rest.actions.listWorkflowRunsForRepo, {
+                  ...api, head_sha: sha, event: 'push', branch: 'dev', per_page: 100,
+                })).filter(run => run.id !== context.runId && run.path !== '.github/workflows/promote.yml');
+                if (runs.length && runs.every(run => run.status === 'completed')) {
+                  if (runs.some(run => run.conclusion === 'cancelled')) return null;
+                  const red = runs.filter(run => !PASSING.includes(run.conclusion));
+                  if (red.length) throw new Error(`Dev head is red: ${red.map(run => `${run.name} ${run.conclusion} ${run.html_url}`).join(', ')}`);
+                  for (const run of runs) core.info(`Graded by ${run.name} ${run.html_url}`);
+                  return runs;
+                }
+                await sleep(20000);
+              }
+              throw new Error('Dev push workflows did not complete on the dev head within an hour');
+            }
+
+            async function deleteSnapshot(github, api, ref) {
+              try {
+                await github.rest.git.deleteRef({ ...api, ref });
+              } catch (error) {
+                if (error.status !== 404 && !(error.status === 422 && error.message.includes('Reference does not exist'))) throw error;
+              }
+            }
+
+            async function supersededBy(github, api, graded, main) {
+              const promoted = /^Graded dev revision: ([0-9a-f]{40})$/m.exec(main.commit.message)?.[1];
+              if (!promoted) return null;
+              const status = (await github.rest.repos.compareCommits({ ...api, base: promoted, head: graded })).data.status;
+              if (status === 'ahead') return null;
+              if (status === 'diverged') throw new Error(`Graded dev ${graded} diverged from the dev revision main carries, ${promoted}`);
+              return promoted;
+            }
+
+            async function endSkipped(core, heading, rows) {
+              await core.summary.addHeading(heading).addTable(rows).write();
+            }
+
+            async function promote() {
+              const { owner, repo } = context.repo;
+              const repository = `${owner}/${repo}`;
+              const api = { owner, repo };
+              const grade = await waitForGrade(github, api, context.sha, core);
+              if (!grade) return endSkipped(core, 'Promotion skipped', [['Graded dev', context.sha], ['Dev push workflows', 'cancelled by a newer dev push']]);
+              const graded = (await github.rest.repos.getCommit({ ...api, ref: context.sha })).data;
+              let main = (await github.rest.repos.getCommit({ ...api, ref: 'main' })).data;
+              if (main.commit.tree.sha !== graded.commit.tree.sha) {
+                const head = `promotion/${context.sha}`;
+                const ref = `heads/${head}`;
+                const pulls = (await github.rest.pulls.list({ ...api, state: 'open', base: 'main', head: `${owner}:${head}` })).data;
+                let promoted = await supersededBy(github, api, context.sha, main);
+                if (promoted) {
+                  for (const stale of pulls) await github.rest.pulls.update({ ...api, pull_number: stale.number, state: 'closed' });
+                  await deleteSnapshot(github, api, ref);
+                  return endSkipped(core, 'Promotion superseded', [['Graded dev', context.sha], ['Main', main.sha], ['Main already promoted dev', promoted]]);
+                }
+                const body = `Graded dev revision: ${context.sha}\n\n${grade.map(run => `${run.name}: ${run.html_url}`).join('\n')}`;
+                let pull = pulls[0];
+                if (pull && (await github.rest.git.getCommit({ ...api, commit_sha: pull.head.sha })).data.parents[0]?.sha !== main.sha) {
+                  await github.rest.pulls.update({ ...api, pull_number: pull.number, state: 'closed' });
+                  pull = undefined;
+                }
+                let snapshot = pull?.head.sha;
+                if (!snapshot) {
+                  snapshot = (await github.rest.git.createCommit({
+                    ...api, message: `Promote green dev to main\n\n${body}`, tree: graded.commit.tree.sha, parents: [main.sha],
+                  })).data.sha;
+                  try {
+                    await github.rest.git.createRef({ ...api, ref: `refs/${ref}`, sha: snapshot });
+                  } catch (error) {
+                    if (error.status !== 422) throw error;
+                    await github.rest.git.updateRef({ ...api, ref, sha: snapshot, force: true });
+                  }
+                }
+                const staged = (await github.rest.git.getCommit({ ...api, commit_sha: snapshot })).data;
+                if (staged.tree.sha !== graded.commit.tree.sha || staged.parents.length !== 1 || staged.parents[0].sha !== main.sha) {
+                  throw new Error('Promotion snapshot is not the graded tree on main');
+                }
+                pull ||= (await github.rest.pulls.create({
+                  ...api, base: 'main', head, title: 'Promote green dev to main', body,
+                })).data;
+                if (pull.head.sha !== snapshot || pull.head.repo.full_name !== repository || pull.base.ref !== 'main') {
+                  throw new Error('Promotion pull request does not match the snapshot commit');
+                }
+                let ready = false;
+                for (let attempt = 0; attempt < 48; attempt++) {
+                  const latest = (await github.rest.pulls.get({ ...api, pull_number: pull.number })).data;
+                  if (latest.head.sha !== snapshot) throw new Error('Promotion pull request moved away from the graded head');
+                  if (latest.mergeable === false) throw new Error('Promotion pull request has merge conflicts');
+                  if (latest.mergeable === true && ['clean', 'unstable'].includes(latest.mergeable_state)) {
+                    ready = true;
+                    break;
+                  }
+                  await sleep(5000);
+                }
+                if (!ready) throw new Error('Promotion pull request did not become mergeable within four minutes');
+                const current = (await github.rest.repos.getCommit({ ...api, ref: 'main' })).data;
+                if (current.sha !== main.sha) {
+                  promoted = await supersededBy(github, api, context.sha, current);
+                  if (promoted) {
+                    await github.rest.pulls.update({ ...api, pull_number: pull.number, state: 'closed' });
+                    await deleteSnapshot(github, api, ref);
+                    return endSkipped(core, 'Promotion superseded', [['Graded dev', context.sha], ['Main', current.sha], ['Main already promoted dev', promoted]]);
+                  }
+                  await github.rest.pulls.update({ ...api, pull_number: pull.number, state: 'closed' });
+                  throw new Error('Promotion snapshot is stale, main moved during the wait');
+                }
+                const merged = (await github.rest.pulls.merge({ ...api, pull_number: pull.number, sha: snapshot, merge_method: 'squash', commit_message: body })).data;
+                if (!merged.merged) throw new Error('GitHub refused the promotion merge');
+                main = (await github.rest.repos.getCommit({ ...api, ref: merged.sha })).data;
+                if (main.commit.tree.sha !== graded.commit.tree.sha) throw new Error('Promoted tree differs from the graded dev tree');
+                await deleteSnapshot(github, api, ref);
+                core.setOutput('pull-request', pull.html_url);
+              }
+              core.setOutput('graded', context.sha);
+              core.setOutput('main', main.sha);
+              await core.summary.addHeading('Promotion').addTable([
+                ['Graded dev', context.sha], ['Promoted main', main.sha], ['Tree', graded.commit.tree.sha],
+              ]).write();
+            }
+
+            await promote();
